@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Alert,
     FlatList,
@@ -28,6 +28,13 @@ export const CustomerTransactionsScreen: React.FC = () => {
     const { customer, refresh: refreshCustomer } = useCustomerById(
         db,
         parseInt(customerId || "0"),
+    );
+
+    // Refresh customer data when screen comes into focus (e.g., after editing)
+    useFocusEffect(
+        useCallback(() => {
+            refreshCustomer();
+        }, [refreshCustomer]),
     );
     const { deleteCustomer } = useCustomersWithAccounts(db);
     const {

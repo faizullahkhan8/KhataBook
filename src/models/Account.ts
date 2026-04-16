@@ -1,5 +1,3 @@
-import { Customer } from "./Customer";
-
 export type AccountStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "CLOSED";
 export type AccountType = "CREDIT" | "DEBIT";
 
@@ -13,8 +11,4 @@ export interface Account {
     status: AccountStatus;
     created_at?: number;
     updated_at?: number;
-}
-
-export interface AccountWithCustomer extends Account {
-    customer?: Customer;
 }

@@ -1,21 +1,23 @@
-import * as SQLite from 'expo-sqlite';
+import * as SQLite from "expo-sqlite";
 
-const DB_NAME = 'credit_management.db';
+const DB_NAME = "credit_management.db";
 
 export const getDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
-  try {
-    const db = await SQLite.openDatabaseAsync(DB_NAME);
-    return db;
-  } catch (error) {
-    console.error('Error opening database:', error);
-    throw error;
-  }
+    try {
+        const db = await SQLite.openDatabaseAsync(DB_NAME);
+        return db;
+    } catch (error) {
+        console.error("Error opening database:", error);
+        throw error;
+    }
 };
 
-export const initializeDatabase = async (db: SQLite.SQLiteDatabase): Promise<void> => {
-  try {
-    // Create customers table
-    await db.execAsync(`
+export const initializeDatabase = async (
+    db: SQLite.SQLiteDatabase,
+): Promise<void> => {
+    try {
+        // Create customers table
+        await db.execAsync(`
       CREATE TABLE IF NOT EXISTS customers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
@@ -32,8 +34,8 @@ export const initializeDatabase = async (db: SQLite.SQLiteDatabase): Promise<voi
       CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
     `);
 
-    // Create accounts table
-    await db.execAsync(`
+        // Create accounts table
+        await db.execAsync(`
       CREATE TABLE IF NOT EXISTS accounts (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         customer_id INTEGER NOT NULL,
@@ -52,8 +54,8 @@ export const initializeDatabase = async (db: SQLite.SQLiteDatabase): Promise<voi
       CREATE INDEX IF NOT EXISTS idx_accounts_status ON accounts(status);
     `);
 
-    // Create transactions table
-    await db.execAsync(`
+        // Create transactions table
+        await db.execAsync(`
       CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         account_id INTEGER NOT NULL,
@@ -70,8 +72,8 @@ export const initializeDatabase = async (db: SQLite.SQLiteDatabase): Promise<voi
       CREATE INDEX IF NOT EXISTS idx_transactions_date ON transactions(created_at);
     `);
 
-    // Create payments table
-    await db.execAsync(`
+        // Create payments table
+        await db.execAsync(`
       CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         account_id INTEGER NOT NULL,
@@ -87,19 +89,18 @@ export const initializeDatabase = async (db: SQLite.SQLiteDatabase): Promise<voi
       CREATE INDEX IF NOT EXISTS idx_payments_date ON payments(created_at);
     `);
 
-    console.log('Database initialized successfully');
-  } catch (error) {
-    console.error('Error initializing database:', error);
-    throw error;
-  }
-};
+        // Create customer_order table for drag-and-drop ordering
+        await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS customer_order (
+        customer_id INTEGER PRIMARY KEY,
+        sort_order INTEGER NOT NULL,
+        FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
+      );
+    `);
 
-export const dropDatabase = async (): Promise<void> => {
-  try {
-    await SQLite.deleteDatabaseAsync(DB_NAME);
-    console.log('Database deleted successfully');
-  } catch (error) {
-    console.error('Error deleting database:', error);
-    throw error;
-  }
+        console.log("Database initialized successfully");
+    } catch (error) {
+        console.error("Error initializing database:", error);
+        throw error;
+    }
 };

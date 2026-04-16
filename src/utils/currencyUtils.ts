@@ -7,7 +7,3 @@ export const formatCurrency = (
         currency: currency,
     }).format(amount);
 };
-
-export const formatAmount = (amount: number): string => {
-    return amount.toFixed(2);
-};
