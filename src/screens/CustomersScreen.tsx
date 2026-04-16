@@ -7,13 +7,12 @@ import DraggableFlatList, {
 } from "react-native-draggable-flatlist";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Card, Typography } from "../components";
+import { Card, TouchableAmount, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useDebounce } from "../hooks/useDebounce";
 import { CustomerWithAccounts } from "../models";
 import { useDatabaseContext } from "../store";
-import { formatCurrency } from "../utils";
 
 export const CustomersScreen: React.FC = () => {
     const { db } = useDatabaseContext();
@@ -167,17 +166,19 @@ export const CustomersScreen: React.FC = () => {
                                     <Typography
                                         variant="heading-small"
                                         color="primary"
+                                        numberOfLines={1}
+                                        style={styles.customerName}
                                     >
                                         {item.name}
                                     </Typography>
-                                    <Typography
+                                    <TouchableAmount
+                                        amount={balance}
                                         variant="heading-medium"
                                         color={
                                             balance < 0 ? "danger" : "success"
                                         }
-                                    >
-                                        {formatCurrency(balance)}
-                                    </Typography>
+                                        style={styles.balanceText}
+                                    />
                                 </View>
                                 <Typography
                                     variant="subheading-small"
@@ -483,6 +484,16 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         alignItems: "center",
         marginBottom: Spacing.xs,
+        gap: Spacing.sm,
+    },
+    customerName: {
+        flex: 1,
+        flexShrink: 1,
+        marginRight: Spacing.sm,
+    },
+    balanceText: {
+        flexShrink: 0,
+        maxWidth: 120,
     },
     customerRow: {
         flexDirection: "row",

@@ -8,11 +8,10 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Card, Typography } from "../components";
+import { Card, TouchableAmount, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useAccounts, useCustomers, useTransactions } from "../hooks";
 import { useDatabaseContext } from "../store";
-import { formatCurrency } from "../utils";
 
 export const ReportsScreen: React.FC = () => {
     const { db } = useDatabaseContext();
@@ -176,50 +175,63 @@ export const ReportsScreen: React.FC = () => {
                         <Typography
                             variant="subheading-small"
                             color="secondary"
+                            style={styles.statLabel}
                         >
                             Total Credit Limit:
                         </Typography>
-                        <Typography variant="heading-medium" color="primary">
-                            {formatCurrency(totalCreditLimit)}
-                        </Typography>
+                        <TouchableAmount
+                            amount={totalCreditLimit}
+                            variant="heading-medium"
+                            color="primary"
+                            style={styles.statValue}
+                        />
                     </View>
                     <View style={styles.statRow}>
                         <Typography
                             variant="subheading-small"
                             color="secondary"
+                            style={styles.statLabel}
                         >
                             Total Current Balance:
                         </Typography>
-                        <Typography
+                        <TouchableAmount
+                            amount={totalCurrentBalance}
                             variant="heading-medium"
                             color={
                                 totalCurrentBalance > 0 ? "danger" : "primary"
                             }
-                        >
-                            {formatCurrency(totalCurrentBalance)}
-                        </Typography>
+                            style={styles.statValue}
+                        />
                     </View>
                     <View style={styles.statRow}>
                         <Typography
                             variant="subheading-small"
                             color="secondary"
+                            style={styles.statLabel}
                         >
                             Total Credits:
                         </Typography>
-                        <Typography variant="heading-medium" color="success">
-                            {formatCurrency(totalCredits)}
-                        </Typography>
+                        <TouchableAmount
+                            amount={totalCredits}
+                            variant="heading-medium"
+                            color="success"
+                            style={styles.statValue}
+                        />
                     </View>
                     <View style={styles.statRow}>
                         <Typography
                             variant="subheading-small"
                             color="secondary"
+                            style={styles.statLabel}
                         >
                             Total Debits:
                         </Typography>
-                        <Typography variant="heading-medium" color="danger">
-                            {formatCurrency(totalDebits)}
-                        </Typography>
+                        <TouchableAmount
+                            amount={totalDebits}
+                            variant="heading-medium"
+                            color="danger"
+                            style={styles.statValue}
+                        />
                     </View>
                 </Card>
 
@@ -364,6 +376,13 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.sm,
         borderBottomWidth: 1,
         borderBottomColor: Colors.border,
+    },
+    statLabel: {
+        flexShrink: 1,
+    },
+    statValue: {
+        flexShrink: 0,
+        marginLeft: Spacing.sm,
     },
     center: {
         flex: 1,

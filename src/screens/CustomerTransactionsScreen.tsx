@@ -12,7 +12,13 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, Card, Input, Typography } from "../components";
+import {
+    Button,
+    Card,
+    Input,
+    TouchableAmount,
+    Typography,
+} from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomerById } from "../hooks";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
@@ -183,14 +189,14 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     </Pressable>
                 </View>
             </View>
-            <Typography
-                variant="heading-medium"
-                color={item.type === "CREDIT" ? "success" : "danger"}
-                style={styles.amount}
-            >
-                {item.type === "CREDIT" ? "+" : "-"}
-                {formatCurrency(item.amount)}
-            </Typography>
+            <View style={styles.amountContainer}>
+                <TouchableAmount
+                    amount={item.amount}
+                    variant="heading-medium"
+                    color={item.type === "CREDIT" ? "success" : "danger"}
+                    style={styles.amount}
+                />
+            </View>
             {item.description && (
                 <Typography
                     variant="body-small"
@@ -244,11 +250,20 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                 />
                             </View>
                         )}
-                        <View>
-                            <Typography variant="heading-large" color="primary">
+                        <View style={styles.headerTextContainer}>
+                            <Typography
+                                variant="heading-large"
+                                color="primary"
+                                numberOfLines={1}
+                                style={styles.customerName}
+                            >
                                 {customer?.name || "Customer"}
                             </Typography>
-                            <Typography variant="body-small" color="muted">
+                            <Typography
+                                variant="body-small"
+                                color="muted"
+                                numberOfLines={1}
+                            >
                                 {customer?.phone || ""}
                             </Typography>
                         </View>
@@ -312,17 +327,21 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <Typography variant="body-small" color="muted">
                         Total Received
                     </Typography>
-                    <Typography variant="heading-medium" color="success">
-                        {formatCurrency(stats.totalReceived)}
-                    </Typography>
+                    <TouchableAmount
+                        amount={stats.totalReceived}
+                        variant="heading-medium"
+                        color="success"
+                    />
                 </Card>
                 <Card style={{ ...styles.statCard, ...styles.statCardPaid }}>
                     <Typography variant="body-small" color="muted">
                         Total Paid
                     </Typography>
-                    <Typography variant="heading-medium" color="danger">
-                        {formatCurrency(stats.totalPaid)}
-                    </Typography>
+                    <TouchableAmount
+                        amount={stats.totalPaid}
+                        variant="heading-medium"
+                        color="danger"
+                    />
                 </Card>
             </View>
 
@@ -332,12 +351,11 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <Typography variant="subheading-small" color="secondary">
                         Current Balance
                     </Typography>
-                    <Typography
+                    <TouchableAmount
+                        amount={stats.balance}
                         variant="heading-large"
                         color={stats.balance > 0 ? "danger" : "success"}
-                    >
-                        {formatCurrency(stats.balance)}
-                    </Typography>
+                    />
                 </Card>
             </View>
 
@@ -481,6 +499,15 @@ const styles = StyleSheet.create({
     headerRow: {
         flexDirection: "row",
         alignItems: "center",
+        flex: 1,
+    },
+    headerTextContainer: {
+        flex: 1,
+        flexShrink: 1,
+        marginRight: Spacing.sm,
+    },
+    customerName: {
+        flex: 1,
     },
     headerImage: {
         width: 40,
@@ -541,6 +568,11 @@ const styles = StyleSheet.create({
     },
     amount: {
         marginTop: Spacing.sm,
+    },
+    amountContainer: {
+        alignSelf: "flex-end",
+        flexShrink: 0,
+        maxWidth: 140,
     },
     description: {
         marginTop: Spacing.xs,

@@ -2,11 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useMemo, useRef, useState } from "react";
 import { FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Card, Typography } from "../components";
+import { Card, TouchableAmount, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomersWithAccounts, useTransactions } from "../hooks";
 import { useDatabaseContext } from "../store";
-import { formatCurrency, formatDateTime } from "../utils";
+import { formatDateTime } from "../utils";
 
 interface LedgerEntry {
     id: string;
@@ -94,43 +94,40 @@ export const LedgerScreen: React.FC = () => {
                     justifyContent: "space-between",
                 }}
             >
-                <View>
+                <View style={styles.entryContent}>
                     <Typography
                         variant="heading-small"
                         color="primary"
                         style={styles.description}
+                        numberOfLines={1}
                     >
-                        {item.description === "CREDIT" ? (
-                            <Typography variant="heading-small" color="success">
-                                Received from
-                            </Typography>
-                        ) : (
-                            <Typography variant="heading-small" color="danger">
-                                Paid to
-                            </Typography>
-                        )}
+                        {item.description === "CREDIT"
+                            ? "Received from"
+                            : "Paid to"}
                     </Typography>
-                    <Typography variant="heading-small">
+                    <Typography
+                        variant="heading-small"
+                        numberOfLines={1}
+                        style={styles.customerName}
+                    >
                         {item.customerName}
                     </Typography>
                     <Typography
                         variant="small-small"
                         color="muted"
                         style={styles.accountNumber}
+                        numberOfLines={1}
                     >
                         {item.accountNumber}
                     </Typography>
                 </View>
-                {/* place in the bottom right */}
-                <View style={{ alignSelf: "flex-end" }}>
-                    <Typography
+                <View style={styles.amountContainer}>
+                    <TouchableAmount
+                        amount={item.amount}
                         variant="heading-large"
                         color={item.isCredit ? "success" : "danger"}
                         style={styles.amount}
-                    >
-                        {item.isCredit ? "+" : "-"}
-                        {formatCurrency(item.amount)}
-                    </Typography>
+                    />
                 </View>
             </View>
         </Card>
@@ -294,6 +291,19 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         alignItems: "center",
         marginBottom: Spacing.xs,
+    },
+    entryContent: {
+        flex: 1,
+        flexShrink: 1,
+        marginRight: Spacing.sm,
+    },
+    customerName: {
+        flex: 1,
+    },
+    amountContainer: {
+        alignSelf: "flex-end",
+        flexShrink: 0,
+        maxWidth: 140,
     },
     description: {
         marginTop: Spacing.sm,
