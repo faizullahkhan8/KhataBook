@@ -1,11 +1,16 @@
-export type TransactionType = "DEBIT" | "CREDIT";
+import { AccountId, CurrencyAmount, Timestamp, TransactionId } from "./types";
+
+export enum TransactionType {
+    DEBIT = 0,
+    CREDIT = 1,
+}
 
 export interface Transaction {
-    id?: number;
-    account_id: number;
+    id?: TransactionId;
+    account_id: AccountId;
     type: TransactionType;
-    amount: number;
+    amount: CurrencyAmount; // Stored as integer (e.g. 1000 for 10.00)
     description?: string;
     reference?: string;
-    created_at?: number;
+    created_at?: Timestamp;
 }

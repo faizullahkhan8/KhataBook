@@ -1,3 +1,3 @@
-import { AddCustomerScreen } from "../src/screens/AddCustomerScreen";
+import { AddCustomerScreen } from "@/screens/AddCustomerScreen";
 
 export default AddCustomerScreen;

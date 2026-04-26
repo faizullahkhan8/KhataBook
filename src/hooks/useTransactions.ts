@@ -1,10 +1,12 @@
 import * as SQLite from "expo-sqlite";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Transaction } from "../models";
+import { Transaction, AccountId, TransactionId } from "../models";
 import { TransactionService } from "../services/TransactionService";
+import { useDatabaseContext } from "../store";
 import { usePagination } from "./usePagination";
 
 export const useTransactions = (db: SQLite.SQLiteDatabase | null) => {
+    const { refreshVersions, invalidate } = useDatabaseContext();
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -17,10 +19,12 @@ export const useTransactions = (db: SQLite.SQLiteDatabase | null) => {
         [db],
     );
 
-    const fetchTransactions = useCallback(async () => {
+    const fetchTransactions = useCallback(async (isManualRefresh = false) => {
         if (!transactionService) return;
 
-        setLoading(true);
+        if (isManualRefresh || transactions.length === 0) {
+            setLoading(true);
+        }
         setError(null);
         try {
             const data = await transactionService.getAllTransactions(
@@ -33,10 +37,10 @@ export const useTransactions = (db: SQLite.SQLiteDatabase | null) => {
         } finally {
             setLoading(false);
         }
-    }, [transactionService, pageSize, offset]);
+    }, [transactionService, pageSize, offset, transactions.length]);
 
     const fetchTransactionsByAccount = useCallback(
-        async (accountId: number) => {
+        async (accountId: AccountId) => {
             if (!transactionService) return;
 
             setLoading(true);
@@ -66,37 +70,39 @@ export const useTransactions = (db: SQLite.SQLiteDatabase | null) => {
             setError(null);
             try {
                 await transactionService.createTransaction(transaction);
-                await fetchTransactions();
+                invalidate("transactions");
+                invalidate("customers");
             } catch (err) {
                 setError(err as Error);
             } finally {
                 setLoading(false);
             }
         },
-        [transactionService, fetchTransactions],
+        [transactionService, invalidate],
     );
 
     const deleteTransaction = useCallback(
-        async (id: number) => {
+        async (id: TransactionId) => {
             if (!transactionService) return;
 
             setLoading(true);
             setError(null);
             try {
                 await transactionService.deleteTransaction(id);
-                await fetchTransactions();
+                invalidate("transactions");
+                invalidate("customers");
             } catch (err) {
                 setError(err as Error);
             } finally {
                 setLoading(false);
             }
         },
-        [transactionService, fetchTransactions],
+        [transactionService, invalidate],
     );
 
     useEffect(() => {
         fetchTransactions();
-    }, [fetchTransactions]);
+    }, [fetchTransactions, refreshVersions.transactions]);
 
     return {
         transactions,
@@ -107,6 +113,6 @@ export const useTransactions = (db: SQLite.SQLiteDatabase | null) => {
         createTransaction,
         deleteTransaction,
         fetchTransactionsByAccount,
-        refresh: fetchTransactions,
+        refresh: () => fetchTransactions(true),
     };
 };

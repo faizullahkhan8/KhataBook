@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Pressable, TextStyle } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { LayoutAnimation, Pressable, TextStyle } from "react-native";
 import { Colors } from "../constants";
-import { formatCompactCurrency, formatCurrency } from "../utils";
+import { formatCompactCurrency, formatCurrency, fromInteger } from "../utils";
 import { Typography } from "./Typography";
 
 type TypographyVariant =
@@ -26,7 +26,7 @@ interface TouchableAmountProps {
     numberOfLines?: number;
 }
 
-export const TouchableAmount: React.FC<TouchableAmountProps> = ({
+export const TouchableAmount: React.FC<TouchableAmountProps> = React.memo(({
     amount,
     variant = "body-medium",
     color = "primary",
@@ -37,8 +37,9 @@ export const TouchableAmount: React.FC<TouchableAmountProps> = ({
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     // Only allow expansion if amount is large enough to be compacted
-    const absAmount = Math.abs(amount);
-    const shouldAllowToggle = absAmount >= 1_000_000;
+    const decimal = useMemo(() => fromInteger(amount), [amount]);
+    const absAmount = useMemo(() => Math.abs(decimal), [decimal]);
+    const shouldAllowToggle = useMemo(() => absAmount >= 1_000_000, [absAmount]);
 
     // Clear timer on unmount
     useEffect(() => {
@@ -56,19 +57,21 @@ export const TouchableAmount: React.FC<TouchableAmountProps> = ({
                 clearTimeout(timerRef.current);
             }
 
-            // Expand
+            // Expand with animation
+            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
             setIsExpanded(true);
 
             // Auto-collapse after 5 seconds
             timerRef.current = setTimeout(() => {
+                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
                 setIsExpanded(false);
             }, 5000);
         }
     }, [shouldAllowToggle]);
 
-    const displayValue = isExpanded
-        ? formatCurrency(amount)
-        : formatCompactCurrency(amount);
+    const displayValue = useMemo(() => 
+        isExpanded ? formatCurrency(amount) : formatCompactCurrency(amount),
+    [isExpanded, amount]);
 
     return (
         <Pressable onPressOut={handlePress} disabled={!shouldAllowToggle}>
@@ -82,4 +85,4 @@ export const TouchableAmount: React.FC<TouchableAmountProps> = ({
             </Typography>
         </Pressable>
     );
-};
+});

@@ -15,11 +15,17 @@ interface InputProps extends Omit<TextInputProps, "style"> {
     error?: boolean;
 }
 
-export const Input: React.FC<InputProps> = ({
+export const Input: React.FC<InputProps> = React.memo(({
     containerStyle,
     inputStyle,
     error = false,
-    ...props
+    value,
+    onChangeText,
+    placeholder,
+    keyboardType,
+    autoCapitalize,
+    multiline,
+    ...rest
 }) => {
     return (
         <View style={[styles.container, containerStyle]}>
@@ -34,11 +40,17 @@ export const Input: React.FC<InputProps> = ({
                     inputStyle,
                 ]}
                 placeholderTextColor={Colors.input.placeholder}
-                {...props}
+                value={value}
+                onChangeText={onChangeText}
+                placeholder={placeholder}
+                keyboardType={keyboardType}
+                autoCapitalize={autoCapitalize}
+                multiline={multiline}
+                {...rest}
             />
         </View>
     );
-};
+});
 
 const styles = StyleSheet.create({
     container: {

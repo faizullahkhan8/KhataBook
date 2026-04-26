@@ -2,23 +2,69 @@ import React, { createContext, useContext, ReactNode } from 'react';
 import * as SQLite from 'expo-sqlite';
 import { useDatabase } from '../hooks/useDatabase';
 
+export type InvalidationDomain = "customers" | "accounts" | "transactions" | "all";
+
 interface DatabaseContextType {
-  db: SQLite.SQLiteDatabase | null;
-  isInitialized: boolean;
-  error: Error | null;
-  initDatabase: () => Promise<void>;
+    db: SQLite.SQLiteDatabase | null;
+    isInitialized: boolean;
+    error: Error | null;
+    initDatabase: () => Promise<void>;
+    refreshVersions: Record<InvalidationDomain, number>;
+    invalidate: (domain?: InvalidationDomain) => void;
 }
 
-const DatabaseContext = createContext<DatabaseContextType | undefined>(undefined);
+const DatabaseContext = createContext<DatabaseContextType | undefined>(
+    undefined,
+);
 
-export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const { db, isInitialized, error, initDatabase } = useDatabase();
+export const DatabaseProvider: React.FC<{ children: ReactNode }> = ({
+    children,
+}) => {
+    const { db, isInitialized, error, initDatabase } = useDatabase();
+    const [refreshVersions, setRefreshVersions] = React.useState<
+        Record<InvalidationDomain, number>
+    >({
+        customers: 0,
+        accounts: 0,
+        transactions: 0,
+        all: 0,
+    });
 
-  return (
-    <DatabaseContext.Provider value={{ db, isInitialized, error, initDatabase }}>
-      {children}
-    </DatabaseContext.Provider>
-  );
+    const invalidate = React.useCallback((domain: InvalidationDomain = "all") => {
+        setRefreshVersions((prev) => {
+            if (domain === "all") {
+                return {
+                    customers: prev.customers + 1,
+                    accounts: prev.accounts + 1,
+                    transactions: prev.transactions + 1,
+                    all: prev.all + 1,
+                };
+            }
+            return {
+                ...prev,
+                [domain]: prev[domain] + 1,
+                all: prev.all + 1,
+            };
+        });
+    }, []);
+
+    const value = React.useMemo(
+        () => ({
+            db,
+            isInitialized,
+            error,
+            initDatabase,
+            refreshVersions,
+            invalidate,
+        }),
+        [db, isInitialized, error, initDatabase, refreshVersions, invalidate],
+    );
+
+    return (
+        <DatabaseContext.Provider value={value}>
+            {children}
+        </DatabaseContext.Provider>
+    );
 };
 
 export const useDatabaseContext = () => {

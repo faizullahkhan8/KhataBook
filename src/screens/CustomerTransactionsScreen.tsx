@@ -4,13 +4,14 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Alert,
     FlatList,
-    Image,
     KeyboardAvoidingView,
     Platform,
     Pressable,
+    RefreshControl,
     StyleSheet,
     View,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
     Button,
@@ -25,6 +26,8 @@ import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useTransactions } from "../hooks/useTransactions";
 import { useDatabaseContext } from "../store";
 import { formatCurrency, formatDateTime } from "../utils";
+import { TransactionType, CustomerId, TransactionId, AccountId } from "../models";
+import { toInteger, fromInteger } from "../utils/currencyUtils";
 
 export const CustomerTransactionsScreen: React.FC = () => {
     const { customerId } = useLocalSearchParams<{ customerId: string }>();
@@ -33,56 +36,56 @@ export const CustomerTransactionsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const { customer, refresh: refreshCustomer } = useCustomerById(
         db,
-        parseInt(customerId || "0"),
+        parseInt(customerId || "0") as CustomerId,
     );
 
-    // Refresh customer data when screen comes into focus (e.g., after editing)
-    useFocusEffect(
-        useCallback(() => {
-            refreshCustomer();
-        }, [refreshCustomer]),
-    );
     const { deleteCustomer } = useCustomersWithAccounts(db);
     const {
         transactions,
         fetchTransactionsByAccount,
         createTransaction,
         deleteTransaction,
+        loading: loadingTransactions,
+        refresh: refreshTransactions,
     } = useTransactions(db);
-    const [customerTransactions, setCustomerTransactions] = useState<any[]>([]);
+
+    const handleRefresh = useCallback(async () => {
+        await refreshCustomer();
+        if (customer?.accounts?.[0]?.id) {
+            await fetchTransactionsByAccount(customer.accounts[0].id);
+        }
+    }, [refreshCustomer, fetchTransactionsByAccount, customer]);
+
     const [showAddModal, setShowAddModal] = useState(false);
-    const [transactionType, setTransactionType] = useState<"CREDIT" | "DEBIT">(
-        "CREDIT",
+    const [transactionType, setTransactionType] = useState<TransactionType>(
+        TransactionType.CREDIT,
     );
     const [amount, setAmount] = useState("");
     const [description, setDescription] = useState("");
 
-    useEffect(() => {
-        if (customer?.accounts && customer.accounts.length > 0) {
-            const accountId = customer.accounts[0].id;
-            if (accountId) {
-                fetchTransactionsByAccount(accountId);
-            }
-        }
-    }, [customer, fetchTransactionsByAccount]);
+    const accountId = customer?.accounts?.[0]?.id;
 
     useEffect(() => {
-        if (customer?.accounts && customer.accounts.length > 0) {
-            const accountIds = customer.accounts.map((a: any) => a.id);
-            const filtered = transactions.filter((t) =>
-                accountIds.includes(t.account_id),
-            );
-            setCustomerTransactions(filtered);
+        if (accountId) {
+            fetchTransactionsByAccount(accountId);
         }
+    }, [accountId, fetchTransactionsByAccount]);
+
+    const customerTransactions = useMemo(() => {
+        if (!customer?.accounts || customer.accounts.length === 0) return [];
+        const accountIds = customer.accounts.map((a: any) => a.id);
+        return transactions.filter((t) => accountIds.includes(t.account_id));
     }, [transactions, customer]);
 
     const stats = useMemo(() => {
         const totalReceived = customerTransactions
-            .filter((t) => t.type === "CREDIT")
+            .filter((t) => t.type === TransactionType.CREDIT)
             .reduce((sum, t) => sum + t.amount, 0);
         const totalPaid = customerTransactions
-            .filter((t) => t.type === "DEBIT")
+            .filter((t) => t.type === TransactionType.DEBIT)
             .reduce((sum, t) => sum + t.amount, 0);
+        
+        // Return values remain as integers for stats; TouchableAmount will handle formatting
         const balance = totalPaid - totalReceived;
         return { totalReceived, totalPaid, balance };
     }, [customerTransactions]);
@@ -93,13 +96,13 @@ export const CustomerTransactionsScreen: React.FC = () => {
         const account = customer.accounts[0];
         const accountId = account.id;
         if (!accountId) return;
-        const transactionAmount = parseFloat(amount);
+        const transactionAmount = toInteger(parseFloat(amount));
         const currentBalance = account.current_balance || 0;
         const creditLimit = account.credit_limit || 0;
 
         // Only validate DEBIT transactions (when customer is borrowing/paying)
         // and only if credit limit is set (> 0)
-        if (transactionType === "DEBIT" && creditLimit > 0) {
+        if (transactionType === TransactionType.DEBIT && creditLimit > 0) {
             const newBalance = currentBalance + transactionAmount;
 
             if (newBalance > creditLimit) {
@@ -134,7 +137,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
         setShowAddModal(false);
     };
 
-    const openAddModal = (type: "CREDIT" | "DEBIT") => {
+    const openAddModal = (type: TransactionType) => {
         setTransactionType(type);
         setShowAddModal(true);
     };
@@ -142,7 +145,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
     const handleDeleteTransaction = (transaction: any) => {
         Alert.alert(
             "Delete Transaction",
-            `Are you sure you want to delete this ${transaction.type === "CREDIT" ? "RECEIVED" : "PAID"} transaction of ${formatCurrency(transaction.amount)}?`,
+            `Are you sure you want to delete this ${transaction.type === TransactionType.CREDIT ? "RECEIVED" : "PAID"} transaction of ${formatCurrency(transaction.amount)}?`,
             [
                 { text: "Cancel", style: "cancel" },
                 {
@@ -150,7 +153,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     style: "destructive",
                     onPress: async () => {
                         if (transaction.id) {
-                            await deleteTransaction(transaction.id);
+                            await deleteTransaction(transaction.id as TransactionId);
                             if (customer?.accounts?.[0]?.id) {
                                 await fetchTransactionsByAccount(
                                     customer.accounts[0].id,
@@ -169,9 +172,9 @@ export const CustomerTransactionsScreen: React.FC = () => {
             <View style={styles.transactionHeader}>
                 <Typography
                     variant="body-medium"
-                    color={item.type === "CREDIT" ? "success" : "danger"}
+                    color={item.type === TransactionType.CREDIT ? "success" : "danger"}
                 >
-                    {item.type === "CREDIT" ? "RECEIVED" : "PAID"}
+                    {item.type === TransactionType.CREDIT ? "RECEIVED" : "PAID"}
                 </Typography>
                 <View style={styles.transactionActions}>
                     <Typography variant="small-small" color="muted">
@@ -193,7 +196,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 <TouchableAmount
                     amount={item.amount}
                     variant="heading-medium"
-                    color={item.type === "CREDIT" ? "success" : "danger"}
+                    color={item.type === TransactionType.CREDIT ? "success" : "danger"}
                     style={styles.amount}
                 />
             </View>
@@ -366,7 +369,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         styles.actionButton,
                         { backgroundColor: Colors.primary },
                     ]}
-                    onPress={() => openAddModal("CREDIT")}
+                    onPress={() => openAddModal(TransactionType.CREDIT)}
                 >
                     <Ionicons
                         name="arrow-down"
@@ -382,7 +385,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         styles.actionButton,
                         { backgroundColor: Colors.danger },
                     ]}
-                    onPress={() => openAddModal("DEBIT")}
+                    onPress={() => openAddModal(TransactionType.DEBIT)}
                 >
                     <Ionicons
                         name="arrow-up"
@@ -408,7 +411,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                 color="primary"
                                 style={styles.modalTitle}
                             >
-                                {transactionType === "CREDIT"
+                                {transactionType === TransactionType.CREDIT
                                     ? "Receive Payment"
                                     : "Make Payment"}
                             </Typography>
@@ -455,6 +458,8 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 renderItem={renderTransaction}
                 keyExtractor={(item) => item.id?.toString() || ""}
                 contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
+                refreshing={loadingTransactions}
+                onRefresh={handleRefresh}
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
                         <Typography variant="body-medium" color="muted">
@@ -462,6 +467,16 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         </Typography>
                     </View>
                 }
+                // Performance optimizations
+                initialNumToRender={10}
+                maxToRenderPerBatch={10}
+                windowSize={10}
+                removeClippedSubviews={Platform.OS === "android"}
+                getItemLayout={(_, index) => ({
+                    length: 100, // Estimated transaction card height
+                    offset: 100 * index,
+                    index,
+                })}
             />
 
             {/* FAB

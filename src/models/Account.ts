@@ -1,14 +1,25 @@
-export type AccountStatus = "ACTIVE" | "INACTIVE" | "SUSPENDED" | "CLOSED";
-export type AccountType = "CREDIT" | "DEBIT";
+import { AccountId, CurrencyAmount, CustomerId, Timestamp } from "./types";
+
+export enum AccountStatus {
+    ACTIVE = 0,
+    INACTIVE = 1,
+    SUSPENDED = 2,
+    CLOSED = 3,
+}
+
+export enum AccountType {
+    CREDIT = 0,
+    DEBIT = 1,
+}
 
 export interface Account {
-    id?: number;
-    customer_id: number;
+    id?: AccountId;
+    customer_id: CustomerId;
     account_number: string;
     account_type: AccountType;
-    credit_limit: number;
-    current_balance: number;
+    credit_limit: CurrencyAmount;
+    current_balance: CurrencyAmount;
     status: AccountStatus;
-    created_at?: number;
-    updated_at?: number;
+    created_at?: Timestamp;
+    updated_at?: Timestamp;
 }

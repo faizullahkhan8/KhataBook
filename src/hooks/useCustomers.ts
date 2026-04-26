@@ -2,9 +2,11 @@ import * as SQLite from "expo-sqlite";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Customer } from "../models";
 import { CustomerService } from "../services/CustomerService";
+import { useDatabaseContext } from "../store";
 import { usePagination } from "./usePagination";
 
 export const useCustomers = (db: SQLite.SQLiteDatabase | null) => {
+    const { refreshVersion, invalidate } = useDatabaseContext();
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -18,10 +20,12 @@ export const useCustomers = (db: SQLite.SQLiteDatabase | null) => {
         [db],
     );
 
-    const fetchCustomers = useCallback(async () => {
+    const fetchCustomers = useCallback(async (isManualRefresh = false) => {
         if (!customerService) return;
 
-        setLoading(true);
+        if (isManualRefresh || customers.length === 0) {
+            setLoading(true);
+        }
         setError(null);
         try {
             const data = searchQuery
@@ -37,7 +41,7 @@ export const useCustomers = (db: SQLite.SQLiteDatabase | null) => {
         } finally {
             setLoading(false);
         }
-    }, [customerService, searchQuery, pageSize, offset]);
+    }, [customerService, searchQuery, pageSize, offset, customers.length]);
 
     const createCustomer = useCallback(
         async (
@@ -50,7 +54,7 @@ export const useCustomers = (db: SQLite.SQLiteDatabase | null) => {
             try {
                 const customerId =
                     await customerService.createCustomer(customer);
-                await fetchCustomers();
+                invalidate(); // Trigger global refresh
                 return customerId;
             } catch (err) {
                 setError(err as Error);
@@ -59,7 +63,7 @@ export const useCustomers = (db: SQLite.SQLiteDatabase | null) => {
                 setLoading(false);
             }
         },
-        [customerService, fetchCustomers],
+        [customerService, invalidate],
     );
 
     const updateCustomer = useCallback(
@@ -70,14 +74,14 @@ export const useCustomers = (db: SQLite.SQLiteDatabase | null) => {
             setError(null);
             try {
                 await customerService.updateCustomer(id, customer);
-                await fetchCustomers();
+                invalidate(); // Trigger global refresh
             } catch (err) {
                 setError(err as Error);
             } finally {
                 setLoading(false);
             }
         },
-        [customerService, fetchCustomers],
+        [customerService, invalidate],
     );
 
     const deleteCustomer = useCallback(
@@ -88,14 +92,14 @@ export const useCustomers = (db: SQLite.SQLiteDatabase | null) => {
             setError(null);
             try {
                 await customerService.deleteCustomer(id);
-                await fetchCustomers();
+                invalidate(); // Trigger global refresh
             } catch (err) {
                 setError(err as Error);
             } finally {
                 setLoading(false);
             }
         },
-        [customerService, fetchCustomers],
+        [customerService, invalidate],
     );
 
     const handleSearch = useCallback(
@@ -108,7 +112,7 @@ export const useCustomers = (db: SQLite.SQLiteDatabase | null) => {
 
     useEffect(() => {
         fetchCustomers();
-    }, [fetchCustomers]);
+    }, [fetchCustomers, refreshVersion]);
 
     return {
         customers,
@@ -121,6 +125,6 @@ export const useCustomers = (db: SQLite.SQLiteDatabase | null) => {
         updateCustomer,
         deleteCustomer,
         handleSearch,
-        refresh: fetchCustomers,
+        refresh: () => fetchCustomers(true),
     };
 };

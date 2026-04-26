@@ -1,7 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Image, Pressable, StyleSheet, TextInput, View } from "react-native";
+import {
+    Alert,
+    Platform,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    TextInput,
+    View,
+} from "react-native";
 import DraggableFlatList, {
     ScaleDecorator,
 } from "react-native-draggable-flatlist";
@@ -11,22 +20,28 @@ import { Card, TouchableAmount, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useDebounce } from "../hooks/useDebounce";
-import { CustomerWithAccounts } from "../models";
+import { CustomerId, CustomerWithAccounts } from "../models";
+import { CustomerService } from "../services/CustomerService";
 import { useDatabaseContext } from "../store";
 
 export const CustomersScreen: React.FC = () => {
     const { db } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { customers, loading, handleSearch, refresh } =
+    const { customers, loading, handleSearch, refresh, bulkDeleteCustomers } =
         useCustomersWithAccounts(db);
     const [searchText, setSearchText] = useState("");
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [isReorderMode, setIsReorderMode] = useState(false);
+    const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<Set<CustomerId>>(new Set());
     const [orderedCustomers, setOrderedCustomers] = useState<
         CustomerWithAccounts[]
     >([]);
     const searchInputRef = useRef<TextInput>(null);
+
+    // Always get the latest db instance for customerService
+    const customerService = db ? new CustomerService(db) : null;
 
     const debouncedSearch = useDebounce(searchText, 500);
 
@@ -34,21 +49,21 @@ export const CustomersScreen: React.FC = () => {
         handleSearch(debouncedSearch);
     }, [debouncedSearch, handleSearch]);
 
-    useFocusEffect(
-        useCallback(() => {
-            refresh();
-        }, [refresh]),
-    );
-
+    // (Removed duplicate customerService declaration)
     // Load saved customer order from SQLite and apply to fetched customers
     useEffect(() => {
         const loadAndSortCustomers = async () => {
-            if (!db || customers.length === 0) return;
+            if (!db) return;
+
+            if (customers.length === 0) {
+                setOrderedCustomers([]);
+                return;
+            }
 
             try {
                 // Get saved order from SQLite
                 const savedOrder = await db.getAllAsync<{
-                    customer_id: number;
+                    customer_id: CustomerId;
                     sort_order: number;
                 }>(
                     "SELECT customer_id, sort_order FROM customer_order ORDER BY sort_order",
@@ -81,32 +96,95 @@ export const CustomersScreen: React.FC = () => {
         loadAndSortCustomers();
     }, [customers, db]);
 
-    const handleDragEnd = async ({
-        data,
-    }: {
-        data: CustomerWithAccounts[];
-    }) => {
-        if (!db) return;
-
-        setOrderedCustomers(data);
-        // Save the new order to SQLite
-        try {
-            await db.runAsync("DELETE FROM customer_order");
-            for (let i = 0; i < data.length; i++) {
-                const customerId = data[i].id;
-                if (customerId !== undefined && customerId !== null) {
-                    await db.runAsync(
-                        "INSERT INTO customer_order (customer_id, sort_order) VALUES (?, ?)",
-                        [customerId, i],
-                    );
+    const handleDragEnd = useCallback(
+        ({ data }: { data: CustomerWithAccounts[] }) => {
+            setOrderedCustomers(data); // Instantly update UI for smoothness
+            if (!db) return;
+            // Save the new order to SQLite asynchronously (no await, fire-and-forget)
+            (async () => {
+                try {
+                    await db.withTransactionAsync(async () => {
+                        await db.runAsync("DELETE FROM customer_order");
+                        for (let i = 0; i < data.length; i++) {
+                            const customerId = data[i].id;
+                            if (customerId !== undefined && customerId !== null) {
+                                await db.runAsync(
+                                    "INSERT INTO customer_order (customer_id, sort_order) VALUES (?, ?)",
+                                    [customerId, i],
+                                );
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.error("Error saving customer order:", error);
                 }
-            }
-        } catch (error) {
-            console.error("Error saving customer order:", error);
-        }
-    };
+            })();
+        },
+        [db],
+    );
 
-    const renderCustomer = ({
+    // Selection mode handlers
+    const activateSelectionMode = useCallback((customerId?: CustomerId) => {
+        setIsSelectionMode(true);
+        if (customerId) {
+            setSelectedIds(new Set([customerId]));
+        }
+    }, []);
+
+    const exitSelectionMode = useCallback(() => {
+        setIsSelectionMode(false);
+        setSelectedIds(new Set());
+        setIsReorderMode(false);
+    }, []);
+
+    const toggleSelection = useCallback((customerId: CustomerId) => {
+        setSelectedIds((prev) => {
+            const newSet = new Set(prev);
+            if (newSet.has(customerId)) {
+                newSet.delete(customerId);
+            } else {
+                newSet.add(customerId);
+            }
+            return newSet;
+        });
+    }, []);
+
+    const selectAll = useCallback(() => {
+        const allIds = orderedCustomers
+            .map((c) => c.id)
+            .filter((id): id is CustomerId => id !== undefined);
+        setSelectedIds(new Set(allIds));
+    }, [orderedCustomers]);
+
+    const handleBulkDelete = useCallback(() => {
+        if (selectedIds.size === 0) return;
+
+        Alert.alert(
+            "Delete Customers",
+            `Are you sure you want to delete ${selectedIds.size} customer${selectedIds.size > 1 ? "s" : ""}? This action cannot be undone.`,
+            [
+                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Delete",
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await bulkDeleteCustomers(Array.from(selectedIds));
+                            exitSelectionMode();
+                        } catch (error) {
+                            console.error("Error deleting customers:", error);
+                            Alert.alert(
+                                "Error",
+                                "Failed to delete some customers. Please try again.",
+                            );
+                        }
+                    },
+                },
+            ],
+        );
+    }, [selectedIds, bulkDeleteCustomers, exitSelectionMode]);
+
+    const renderCustomer = useCallback(({
         item,
         drag,
         isActive,
@@ -117,27 +195,56 @@ export const CustomersScreen: React.FC = () => {
     }) => {
         const balance = item.accounts?.[0]?.current_balance || 0;
         const accountNumber = item.accounts?.[0]?.account_number || "N/A";
+        const isSelected = item.id !== undefined && selectedIds.has(item.id);
 
         return (
             <ScaleDecorator>
                 <Pressable
                     onPress={() => {
-                        if (!isReorderMode && item.id) {
+                        if (isSelectionMode && item.id) {
+                            toggleSelection(item.id);
+                        } else if (!isReorderMode && item.id) {
                             router.push(
                                 `../customer-transactions?customerId=${item.id}` as any,
                             );
                         }
                     }}
-                    onLongPress={isReorderMode ? drag : undefined}
+                    onLongPress={() => {
+                        if (!isSelectionMode && item.id) {
+                            activateSelectionMode(item.id);
+                        } else if (isReorderMode) {
+                            drag();
+                        }
+                    }}
                     disabled={isActive}
                 >
                     <Card
                         style={{
                             ...styles.customerCard,
                             ...(isActive && styles.activeCustomerCard),
+                            ...(isSelected && styles.selectedCustomerCard),
                         }}
                     >
                         <View style={styles.customerRow}>
+                            {/* Selection Checkbox */}
+                            {isSelectionMode && (
+                                <View style={styles.checkbox}>
+                                    <Ionicons
+                                        name={
+                                            isSelected
+                                                ? "checkbox"
+                                                : "square-outline"
+                                        }
+                                        size={24}
+                                        color={
+                                            isSelected
+                                                ? Colors.primary
+                                                : Colors.text.muted
+                                        }
+                                    />
+                                </View>
+                            )}
+                            {/* Drag Handle (only in reorder mode) */}
                             {isReorderMode && (
                                 <View style={styles.dragHandle}>
                                     <Ionicons
@@ -151,6 +258,10 @@ export const CustomersScreen: React.FC = () => {
                                 <Image
                                     source={{ uri: item.image_uri }}
                                     style={styles.customerImage}
+                                    contentFit="cover"
+                                    transition={200}
+                                    priority="high"
+                                    cachePolicy="memory-disk"
                                 />
                             ) : (
                                 <View style={styles.customerImagePlaceholder}>
@@ -175,7 +286,7 @@ export const CustomersScreen: React.FC = () => {
                                         amount={balance}
                                         variant="heading-medium"
                                         color={
-                                            balance < 0 ? "danger" : "success"
+                                            balance > 0 ? "danger" : "success"
                                         }
                                         style={styles.balanceText}
                                     />
@@ -218,7 +329,7 @@ export const CustomersScreen: React.FC = () => {
                 </Pressable>
             </ScaleDecorator>
         );
-    };
+    }, [selectedIds, isSelectionMode, isReorderMode, toggleSelection, activateSelectionMode, router]);
 
     if (!db) {
         return (
@@ -237,88 +348,135 @@ export const CustomersScreen: React.FC = () => {
             >
                 <View style={styles.headerTopRow}>
                     <View style={styles.headerTitleRow}>
-                        <View style={styles.headerIconContainer}>
-                            <Ionicons
-                                name="people"
-                                size={28}
-                                color={Colors.primary}
-                            />
-                        </View>
-                        {!isSearchActive && (
-                            <View>
-                                <Typography
-                                    variant="heading-large"
-                                    color="primary"
+                        {!isSelectionMode ? (
+                            <>
+                                <View style={styles.headerIconContainer}>
+                                    <Ionicons
+                                        name="people"
+                                        size={28}
+                                        color={Colors.primary}
+                                    />
+                                </View>
+                                {!isSearchActive && (
+                                    <View>
+                                        <Typography
+                                            variant="heading-large"
+                                            color="primary"
+                                        >
+                                            Customers
+                                        </Typography>
+                                        <Typography
+                                            variant="body-small"
+                                            color="muted"
+                                        >
+                                            {customers.length} total customers
+                                        </Typography>
+                                    </View>
+                                )}
+                                {isSearchActive && (
+                                    <View style={styles.searchInputContainer}>
+                                        <TextInput
+                                            ref={searchInputRef}
+                                            style={styles.headerSearchInput}
+                                            placeholder="Search customers..."
+                                            placeholderTextColor={
+                                                Colors.text.muted
+                                            }
+                                            value={searchText}
+                                            onChangeText={setSearchText}
+                                            autoFocus
+                                            onBlur={() => {
+                                                if (!searchText)
+                                                    setIsSearchActive(false);
+                                            }}
+                                        />
+                                    </View>
+                                )}
+                            </>
+                        ) : (
+                            <View style={styles.selectionHeader}>
+                                <Pressable
+                                    onPress={exitSelectionMode}
+                                    style={styles.closeButton}
                                 >
-                                    Customers
-                                </Typography>
-                                <Typography variant="body-small" color="muted">
-                                    {customers.length} total customers
-                                </Typography>
+                                    <Ionicons
+                                        name="close"
+                                        size={28}
+                                        color={Colors.text.primary}
+                                    />
+                                </Pressable>
+                                <View>
+                                    <Typography
+                                        variant="heading-large"
+                                        color="primary"
+                                    >
+                                        {selectedIds.size} selected
+                                    </Typography>
+                                    <Pressable onPress={selectAll}>
+                                        <Typography
+                                            variant="body-small"
+                                            color="primary"
+                                        >
+                                            {selectedIds.size ===
+                                                orderedCustomers.length
+                                                ? "Deselect All"
+                                                : "Select All"}
+                                        </Typography>
+                                    </Pressable>
+                                </View>
                             </View>
                         )}
-                        {isSearchActive && (
-                            <View style={styles.searchInputContainer}>
-                                <TextInput
-                                    ref={searchInputRef}
-                                    style={styles.headerSearchInput}
-                                    placeholder="Search customers..."
-                                    placeholderTextColor={Colors.text.muted}
-                                    value={searchText}
-                                    onChangeText={setSearchText}
-                                    autoFocus
-                                    onBlur={() => {
-                                        if (!searchText)
-                                            setIsSearchActive(false);
-                                    }}
+                    </View>
+                    {!isSelectionMode && (
+                        <View style={styles.headerActions}>
+                            {/* <Pressable
+                                onPress={() => setIsReorderMode(!isReorderMode)}
+                                style={[
+                                    styles.actionButton,
+                                    isReorderMode && styles.actionButtonActive,
+                                ]}
+                            >
+                                <Ionicons
+                                    name={
+                                        isReorderMode
+                                            ? "checkmark"
+                                            : "swap-vertical"
+                                    }
+                                    size={22}
+                                    color={
+                                        isReorderMode
+                                            ? Colors.text.primary
+                                            : Colors.primary
+                                    }
                                 />
-                            </View>
-                        )}
-                    </View>
-                    <View style={styles.headerActions}>
-                        <Pressable
-                            onPress={() => setIsReorderMode(!isReorderMode)}
-                            style={[
-                                styles.actionButton,
-                                isReorderMode && styles.actionButtonActive,
-                            ]}
-                        >
-                            <Ionicons
-                                name={
-                                    isReorderMode
-                                        ? "checkmark"
-                                        : "swap-vertical"
-                                }
-                                size={22}
-                                color={
-                                    isReorderMode
-                                        ? Colors.text.primary
-                                        : Colors.primary
-                                }
-                            />
-                        </Pressable>
-                        <Pressable
-                            onPress={() => {
-                                if (isSearchActive) {
-                                    setSearchText("");
-                                    setIsSearchActive(false);
-                                } else {
-                                    setIsSearchActive(true);
-                                    setTimeout(
-                                        () => searchInputRef.current?.focus(),
-                                        100,
-                                    );
-                                }
-                            }}
-                            style={styles.actionButton}
-                        >
-                            <Ionicons
-                                name={isSearchActive ? "close" : "search"}
-                                size={22}
-                                color={Colors.primary}
-                            />
-                        </Pressable>
-                    </View>
+                            </Pressable> */}
+                            <Pressable
+                                onPress={() => {
+                                    if (isSearchActive) {
+                                        setSearchText("");
+                                        setIsSearchActive(false);
+                                    } else {
+                                        setIsSearchActive(true);
+                                        setTimeout(
+                                            () =>
+                                                searchInputRef.current?.focus(),
+                                            100,
+                                        );
+                                    }
+                                }}
+                                style={[
+                                    styles.actionButton,
+                                    isSearchActive && styles.actionButtonActive,
+                                ]}
+                            >
+                                <Ionicons
+                                    name={isSearchActive ? "close" : "search"}
+                                    size={22}
+                                    color={Colors.primary}
+                                />
+                            </Pressable>
+                        </View>
+                    )}
                 </View>
             </View>
 
@@ -333,12 +491,102 @@ export const CustomersScreen: React.FC = () => {
                     ]}
                     refreshing={loading}
                     onRefresh={refresh}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={loading}
+                            onRefresh={refresh}
+                            colors={[Colors.primary]}
+                            tintColor={Colors.primary}
+                        />
+                    }
                     onDragEnd={handleDragEnd}
                     activationDistance={isReorderMode ? 0 : 20}
+                    // Performance optimizations
+                    initialNumToRender={10}
+                    maxToRenderPerBatch={10}
+                    windowSize={10}
+                    removeClippedSubviews={Platform.OS === "android"}
+                    getItemLayout={(_, index) => ({
+                        length: 120, // Estimated card height
+                        offset: 120 * index,
+                        index,
+                    })}
                 />
             </GestureHandlerRootView>
 
-            {!isReorderMode && (
+            {/* Selection Mode Bottom Action Bar */}
+            {isSelectionMode && (
+                <View style={styles.bottomActionBar}>
+                    <View style={styles.actionBarContent}>
+                        <Pressable
+                            onPress={exitSelectionMode}
+                            style={styles.actionBarButton}
+                        >
+                            <Ionicons
+                                name="close"
+                                size={24}
+                                color={Colors.text.primary}
+                            />
+                            <Typography variant="body-small" color="primary">
+                                Cancel
+                            </Typography>
+                        </Pressable>
+                        <Pressable
+                            onPress={() => setIsReorderMode(!isReorderMode)}
+                            style={[
+                                styles.actionBarButton,
+                                isReorderMode && styles.actionBarButtonActive,
+                            ]}
+                        >
+                            <Ionicons
+                                name={
+                                    isReorderMode
+                                        ? "checkmark"
+                                        : "reorder-three"
+                                }
+                                size={24}
+                                color={
+                                    isReorderMode
+                                        ? Colors.primary
+                                        : Colors.text.primary
+                                }
+                            />
+                            <Typography
+                                variant="body-small"
+                                color={isReorderMode ? "primary" : "secondary"}
+                            >
+                                {isReorderMode ? "Done" : "Reorder"}
+                            </Typography>
+                        </Pressable>
+                        <Pressable
+                            onPress={handleBulkDelete}
+                            style={styles.actionBarButton}
+                            disabled={selectedIds.size === 0}
+                        >
+                            <Ionicons
+                                name="trash"
+                                size={24}
+                                color={
+                                    selectedIds.size > 0
+                                        ? Colors.danger
+                                        : Colors.text.muted
+                                }
+                            />
+                            <Typography
+                                variant="body-small"
+                                color={
+                                    selectedIds.size > 0 ? "danger" : "muted"
+                                }
+                            >
+                                Delete
+                            </Typography>
+                        </Pressable>
+                    </View>
+                </View>
+            )}
+
+            {/* FAB - only show when NOT in selection mode */}
+            {!isSelectionMode && !isReorderMode && (
                 <Pressable
                     style={[styles.fab, { bottom: 20 }]}
                     onPress={() => router.push("/add-customer" as any)}
@@ -445,6 +693,23 @@ const styles = StyleSheet.create({
     customerCard: {
         marginBottom: Spacing.md,
     },
+    selectedCustomerCard: {
+        backgroundColor: `${Colors.primary}15`,
+        borderColor: Colors.primary,
+        borderWidth: 1,
+    },
+    checkbox: {
+        marginRight: Spacing.sm,
+        justifyContent: "center",
+    },
+    selectionHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.md,
+    },
+    closeButton: {
+        padding: Spacing.xs,
+    },
     text: {
         marginBottom: Spacing.xs,
     },
@@ -478,6 +743,33 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
         elevation: 8,
+    },
+    bottomActionBar: {
+        position: "absolute",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        backgroundColor: Colors.surface,
+        borderTopWidth: 1,
+        borderTopColor: Colors.border,
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.lg,
+        paddingBottom: Spacing.lg,
+    },
+    actionBarContent: {
+        flexDirection: "row",
+        justifyContent: "space-around",
+        alignItems: "center",
+    },
+    actionBarButton: {
+        alignItems: "center",
+        paddingVertical: Spacing.xs,
+        paddingHorizontal: Spacing.md,
+        minWidth: 80,
+    },
+    actionBarButtonActive: {
+        backgroundColor: `${Colors.primary}20`,
+        borderRadius: 8,
     },
     customerHeader: {
         flexDirection: "row",

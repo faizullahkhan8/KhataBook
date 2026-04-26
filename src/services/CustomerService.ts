@@ -1,5 +1,6 @@
 import * as SQLite from "expo-sqlite";
-import { Customer } from "../models/Customer";
+import { Customer, CustomerSummary } from "../models/Customer";
+import { CustomerId } from "../models/types";
 
 export class CustomerService {
     private db: SQLite.SQLiteDatabase;
@@ -9,8 +10,16 @@ export class CustomerService {
     }
 
     async createCustomer(
-        customer: Omit<Customer, "id" | "created_at" | "updated_at">,
-    ): Promise<number> {
+        customer: Omit<
+            Customer,
+            | "id"
+            | "created_at"
+            | "updated_at"
+            | "total_receivable"
+            | "total_payable"
+            | "last_transaction_at"
+        >,
+    ): Promise<CustomerId> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
@@ -26,14 +35,14 @@ export class CustomerService {
                     customer.notes || null,
                 ],
             );
-            return result.lastInsertRowId;
+            return result.lastInsertRowId as CustomerId;
         } catch (error) {
             console.error("Error creating customer:", error);
             throw error;
         }
     }
 
-    async getCustomerById(id: number): Promise<Customer | null> {
+    async getCustomerById(id: CustomerId): Promise<Customer | null> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
@@ -58,12 +67,35 @@ export class CustomerService {
         }
         try {
             const customers = await this.db.getAllAsync<Customer>(
-                "SELECT * FROM customers ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                "SELECT * FROM customers ORDER BY name ASC LIMIT ? OFFSET ?",
                 [limit, offset],
             );
             return customers;
         } catch (error) {
             console.error("Error fetching customers:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * Fetch lightweight summaries for high-performance list rendering.
+     */
+    async getCustomerSummaries(
+        limit: number = 50,
+        offset: number = 0,
+    ): Promise<CustomerSummary[]> {
+        if (!this.db) {
+            throw new Error("Database is not initialized");
+        }
+        try {
+            // We use the denormalized fields directly for maximum speed
+            const summaries = await this.db.getAllAsync<CustomerSummary>(
+                "SELECT id, name, phone, image_uri, total_receivable, total_payable, last_transaction_at FROM customers ORDER BY name ASC LIMIT ? OFFSET ?",
+                [limit, offset],
+            );
+            return summaries;
+        } catch (error) {
+            console.error("Error fetching customer summaries:", error);
             throw error;
         }
     }
@@ -77,9 +109,10 @@ export class CustomerService {
             throw new Error("Database is not initialized");
         }
         try {
+            const searchTerm = `%${query}%`;
             const customers = await this.db.getAllAsync<Customer>(
-                `SELECT * FROM customers WHERE name LIKE ? OR phone LIKE ? OR email LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?`,
-                [`%${query}%`, `%${query}%`, `%${query}%`, limit, offset],
+                "SELECT * FROM customers WHERE name LIKE ? OR phone LIKE ? ORDER BY name ASC LIMIT ? OFFSET ?",
+                [searchTerm, searchTerm, limit, offset],
             );
             return customers;
         } catch (error) {
@@ -89,46 +122,48 @@ export class CustomerService {
     }
 
     async updateCustomer(
-        id: number,
+        id: CustomerId,
         customer: Partial<Customer>,
     ): Promise<void> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
-            const updates: string[] = [];
-            const values: any[] = [];
+            const fields: string[] = [];
+            const values: (string | number)[] = [];
 
             if (customer.name !== undefined) {
-                updates.push("name = ?");
+                fields.push("name = ?");
                 values.push(customer.name);
             }
             if (customer.phone !== undefined) {
-                updates.push("phone = ?");
+                fields.push("phone = ?");
                 values.push(customer.phone);
             }
             if (customer.email !== undefined) {
-                updates.push("email = ?");
+                fields.push("email = ?");
                 values.push(customer.email);
             }
             if (customer.address !== undefined) {
-                updates.push("address = ?");
+                fields.push("address = ?");
                 values.push(customer.address);
             }
             if (customer.image_uri !== undefined) {
-                updates.push("image_uri = ?");
+                fields.push("image_uri = ?");
                 values.push(customer.image_uri);
             }
             if (customer.notes !== undefined) {
-                updates.push("notes = ?");
+                fields.push("notes = ?");
                 values.push(customer.notes);
             }
 
-            updates.push("updated_at = strftime('%s', 'now')");
+            if (fields.length === 0) return;
+
+            fields.push("updated_at = strftime('%s', 'now')");
             values.push(id);
 
             await this.db.runAsync(
-                `UPDATE customers SET ${updates.join(", ")} WHERE id = ?`,
+                `UPDATE customers SET ${fields.join(", ")} WHERE id = ?`,
                 values,
             );
         } catch (error) {
@@ -137,7 +172,7 @@ export class CustomerService {
         }
     }
 
-    async deleteCustomer(id: number): Promise<void> {
+    async deleteCustomer(id: CustomerId): Promise<void> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }

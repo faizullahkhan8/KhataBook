@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
 import {
     Pressable,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     TextInput,
@@ -10,7 +11,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, TouchableAmount, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
-import { useAccounts, useCustomers, useTransactions } from "../hooks";
+import { useFinancialMetrics } from "../hooks";
 import { useDatabaseContext } from "../store";
 
 export const ReportsScreen: React.FC = () => {
@@ -19,26 +20,26 @@ export const ReportsScreen: React.FC = () => {
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [searchText, setSearchText] = useState("");
     const searchInputRef = useRef<TextInput>(null);
-    const { customers } = useCustomers(db);
-    const { accounts } = useAccounts(db);
-    const { transactions } = useTransactions(db);
+    const { metrics, loading: loadingMetrics, refresh: refreshMetrics } = useFinancialMetrics(db);
+    const isRefreshing = loadingMetrics;
 
-    const totalCreditLimit = accounts.reduce(
-        (sum, acc) => sum + acc.credit_limit,
-        0,
-    );
-    const totalCurrentBalance = accounts.reduce(
-        (sum, acc) => sum + acc.current_balance,
-        0,
-    );
+    const handleRefresh = async () => {
+        await refreshMetrics();
+    };
 
-    const creditTransactions = transactions.filter((t) => t.type === "CREDIT");
-    const debitTransactions = transactions.filter((t) => t.type === "DEBIT");
-    const totalCredits = creditTransactions.reduce(
-        (sum, t) => sum + t.amount,
-        0,
-    );
-    const totalDebits = debitTransactions.reduce((sum, t) => sum + t.amount, 0);
+    const {
+        totalCreditLimit,
+        totalCurrentBalance,
+        totalCredits,
+        totalDebits,
+        activeAccounts,
+        inactiveAccounts,
+        suspendedAccounts,
+        closedAccounts,
+        totalCustomers,
+        totalAccounts,
+        totalTransactions,
+    } = metrics;
 
     if (!db) {
         return (
@@ -119,7 +120,17 @@ export const ReportsScreen: React.FC = () => {
                 </View>
             </View>
 
-            <ScrollView style={styles.content}>
+            <ScrollView 
+                style={styles.content}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        colors={[Colors.primary]}
+                        tintColor={Colors.primary}
+                    />
+                }
+            >
                 <Card style={styles.card}>
                     <Typography
                         variant="heading-medium"
@@ -136,7 +147,7 @@ export const ReportsScreen: React.FC = () => {
                             Total Customers:
                         </Typography>
                         <Typography variant="heading-medium" color="primary">
-                            {customers.length}
+                            {totalCustomers}
                         </Typography>
                     </View>
                     <View style={styles.statRow}>
@@ -147,7 +158,7 @@ export const ReportsScreen: React.FC = () => {
                             Total Accounts:
                         </Typography>
                         <Typography variant="heading-medium" color="primary">
-                            {accounts.length}
+                            {totalAccounts}
                         </Typography>
                     </View>
                     <View style={styles.statRow}>
@@ -158,7 +169,7 @@ export const ReportsScreen: React.FC = () => {
                             Total Transactions:
                         </Typography>
                         <Typography variant="heading-medium" color="primary">
-                            {transactions.length}
+                            {totalTransactions}
                         </Typography>
                     </View>
                 </Card>
@@ -251,10 +262,7 @@ export const ReportsScreen: React.FC = () => {
                             Active Accounts:
                         </Typography>
                         <Typography variant="heading-medium" color="success">
-                            {
-                                accounts.filter((a) => a.status === "ACTIVE")
-                                    .length
-                            }
+                            {activeAccounts}
                         </Typography>
                     </View>
                     <View style={styles.statRow}>
@@ -265,10 +273,7 @@ export const ReportsScreen: React.FC = () => {
                             Inactive Accounts:
                         </Typography>
                         <Typography variant="heading-medium" color="muted">
-                            {
-                                accounts.filter((a) => a.status === "INACTIVE")
-                                    .length
-                            }
+                            {inactiveAccounts}
                         </Typography>
                     </View>
                     <View style={styles.statRow}>
@@ -279,10 +284,7 @@ export const ReportsScreen: React.FC = () => {
                             Suspended Accounts:
                         </Typography>
                         <Typography variant="heading-medium" color="warning">
-                            {
-                                accounts.filter((a) => a.status === "SUSPENDED")
-                                    .length
-                            }
+                            {suspendedAccounts}
                         </Typography>
                     </View>
                     <View style={styles.statRow}>
@@ -293,10 +295,7 @@ export const ReportsScreen: React.FC = () => {
                             Closed Accounts:
                         </Typography>
                         <Typography variant="heading-medium" color="danger">
-                            {
-                                accounts.filter((a) => a.status === "CLOSED")
-                                    .length
-                            }
+                            {closedAccounts}
                         </Typography>
                     </View>
                 </Card>

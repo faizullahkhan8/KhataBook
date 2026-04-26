@@ -1,13 +1,16 @@
 import * as SQLite from "expo-sqlite";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CustomerWithAccounts } from "../models";
+import { CustomerWithAccounts, CustomerId } from "../models";
 import { AccountService } from "../services/AccountService";
 import { CustomerService } from "../services/CustomerService";
 
+import { useDatabaseContext } from "../store";
+
 export const useCustomerById = (
     db: SQLite.SQLiteDatabase | null,
-    customerId: number,
+    customerId: CustomerId,
 ) => {
+    const { refreshVersions } = useDatabaseContext();
     const [customer, setCustomer] = useState<CustomerWithAccounts | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -21,7 +24,7 @@ export const useCustomerById = (
         [db],
     );
 
-    const fetchCustomer = useCallback(async () => {
+    const fetchCustomer = useCallback(async (isManualRefresh = false) => {
         if (!customerService || !accountService || !customerId) return;
 
         setLoading(true);
@@ -43,12 +46,12 @@ export const useCustomerById = (
 
     useEffect(() => {
         fetchCustomer();
-    }, [fetchCustomer]);
+    }, [fetchCustomer, refreshVersions.customers]);
 
     return {
         customer,
         loading,
         error,
-        refresh: fetchCustomer,
+        refresh: () => fetchCustomer(true),
     };
 };

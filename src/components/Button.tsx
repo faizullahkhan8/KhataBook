@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, Text, StyleSheet, ViewStyle, TextStyle } from 'react-native';
 import { Colors, Spacing, Typography } from '../constants';
 
@@ -13,7 +13,7 @@ interface ButtonProps {
   textStyle?: TextStyle;
 }
 
-export const Button: React.FC<ButtonProps> = ({
+export const Button: React.FC<ButtonProps> = React.memo(({
   title,
   onPress,
   variant = 'primary',
@@ -21,30 +21,26 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   textStyle,
 }) => {
-  const getBackgroundColor = (): string => {
+  const backgroundColor = useMemo(() => {
     if (disabled) return Colors.border;
     switch (variant) {
-      case 'primary':
-        return Colors.button.primary;
-      case 'secondary':
-        return Colors.button.secondary;
-      case 'danger':
-        return Colors.button.danger;
-      default:
-        return Colors.button.primary;
+      case 'primary': return Colors.button.primary;
+      case 'secondary': return Colors.button.secondary;
+      case 'danger': return Colors.button.danger;
+      default: return Colors.button.primary;
     }
-  };
+  }, [variant, disabled]);
 
-  const getBorderColor = (): string => {
+  const borderColor = useMemo(() => {
     if (variant === 'secondary') return Colors.primary;
     return 'transparent';
-  };
+  }, [variant]);
 
-  const getTextColor = (): string => {
+  const textColor = useMemo(() => {
     if (disabled) return Colors.text.muted;
     if (variant === 'secondary') return Colors.primary;
     return Colors.text.primary;
-  };
+  }, [variant, disabled]);
 
   return (
     <Pressable
@@ -53,8 +49,8 @@ export const Button: React.FC<ButtonProps> = ({
       style={[
         styles.button,
         {
-          backgroundColor: getBackgroundColor(),
-          borderColor: getBorderColor(),
+          backgroundColor,
+          borderColor,
           opacity: disabled ? 0.5 : 1,
         },
         style,
@@ -64,7 +60,7 @@ export const Button: React.FC<ButtonProps> = ({
         style={[
           styles.text,
           {
-            color: getTextColor(),
+            color: textColor,
           },
           textStyle,
         ]}
@@ -73,7 +69,7 @@ export const Button: React.FC<ButtonProps> = ({
       </Text>
     </Pressable>
   );
-};
+});
 
 const styles = StyleSheet.create({
   button: {

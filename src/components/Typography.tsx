@@ -22,7 +22,7 @@ interface TypographyProps {
     numberOfLines?: number;
 }
 
-export const Typography: React.FC<TypographyProps> = ({
+export const Typography: React.FC<TypographyProps> = React.memo(({
     children,
     variant = "body-medium",
     color = "primary",
@@ -82,7 +82,7 @@ export const Typography: React.FC<TypographyProps> = ({
             {children}
         </Text>
     );
-};
+});
 
 const styles = StyleSheet.create({
     text: {

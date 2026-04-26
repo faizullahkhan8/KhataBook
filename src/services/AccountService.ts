@@ -1,5 +1,6 @@
 import * as SQLite from "expo-sqlite";
 import { Account, AccountStatus } from "../models/Account";
+import { AccountId, CustomerId } from "../models/types";
 
 export class AccountService {
     private db: SQLite.SQLiteDatabase;
@@ -10,7 +11,7 @@ export class AccountService {
 
     async createAccount(
         account: Omit<Account, "id" | "created_at" | "updated_at">,
-    ): Promise<number> {
+    ): Promise<AccountId> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
@@ -26,14 +27,14 @@ export class AccountService {
                     account.status,
                 ],
             );
-            return result.lastInsertRowId;
+            return result.lastInsertRowId as AccountId;
         } catch (error) {
             console.error("Error creating account:", error);
             throw error;
         }
     }
 
-    async getAccountById(id: number): Promise<Account | null> {
+    async getAccountById(id: AccountId): Promise<Account | null> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
@@ -49,7 +50,7 @@ export class AccountService {
         }
     }
 
-    async getAccountsByCustomerId(customerId: number): Promise<Account[]> {
+    async getAccountsByCustomerId(customerId: CustomerId): Promise<Account[]> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
@@ -85,13 +86,14 @@ export class AccountService {
     }
 
     async updateAccountBalance(
-        accountId: number,
+        accountId: AccountId,
         amount: number,
     ): Promise<void> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
+            // Note: Customer summary updates are handled by triggers on current_balance update
             await this.db.runAsync(
                 "UPDATE accounts SET current_balance = current_balance + ?, updated_at = strftime('%s', 'now') WHERE id = ?",
                 [amount, accountId],
@@ -103,7 +105,7 @@ export class AccountService {
     }
 
     async updateAccountStatus(
-        accountId: number,
+        accountId: AccountId,
         status: AccountStatus,
     ): Promise<void> {
         if (!this.db) {
@@ -121,7 +123,7 @@ export class AccountService {
     }
 
     async updateAccount(
-        accountId: number,
+        accountId: AccountId,
         account: Partial<Omit<Account, "id" | "created_at" | "updated_at">>,
     ): Promise<void> {
         if (!this.db) {
@@ -165,7 +167,7 @@ export class AccountService {
         }
     }
 
-    async deleteAccount(id: number): Promise<void> {
+    async deleteAccount(id: AccountId): Promise<void> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
@@ -199,7 +201,7 @@ export class AccountService {
         try {
             const accounts = await this.db.getAllAsync<Account>(
                 "SELECT * FROM accounts WHERE status = ? ORDER BY created_at DESC",
-                ["ACTIVE"],
+                [AccountStatus.ACTIVE],
             );
             return accounts;
         } catch (error) {

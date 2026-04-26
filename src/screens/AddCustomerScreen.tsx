@@ -4,7 +4,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
     Alert,
-    Image,
     Keyboard,
     KeyboardAvoidingView,
     Platform,
@@ -13,6 +12,7 @@ import {
     StyleSheet,
     View,
 } from "react-native";
+import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Card, Input, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
@@ -21,16 +21,18 @@ import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { AccountService } from "../services/AccountService";
 import { CustomerService } from "../services/CustomerService";
 import { useDatabaseContext } from "../store";
+import { toInteger, fromInteger } from "../utils/currencyUtils";
+import { CustomerId } from "../models";
 
 export const AddCustomerScreen: React.FC = () => {
-    const { db } = useDatabaseContext();
+    const { db, invalidate } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { customerId } = useLocalSearchParams<{ customerId?: string }>();
     const { createCustomer } = useCustomersWithAccounts(db);
     const { customer } = useCustomerById(
         db,
-        customerId ? parseInt(customerId) : 0,
+        customerId ? (parseInt(customerId) as CustomerId) : (0 as any),
     );
     const customerService = useMemo(
         () => (db ? new CustomerService(db) : null),
@@ -89,8 +91,8 @@ export const AddCustomerScreen: React.FC = () => {
                 const account = customer.accounts[0];
                 setAccountInfo({
                     accountNumber: account.account_number || "",
-                    creditLimit: account.credit_limit?.toString() || "",
-                    initialBalance: account.current_balance?.toString() || "",
+                    creditLimit: fromInteger(account.credit_limit || 0).toString(),
+                    initialBalance: fromInteger(account.current_balance || 0).toString(),
                 });
             }
             if (customer.image_uri) {
@@ -132,7 +134,7 @@ export const AddCustomerScreen: React.FC = () => {
         try {
             if (isEditMode && customerId && customerService && accountService) {
                 // Update existing customer
-                await customerService.updateCustomer(parseInt(customerId), {
+                await customerService.updateCustomer(parseInt(customerId) as CustomerId, {
                     name: customerInfo.name.trim(),
                     phone: customerInfo.phone.trim(),
                     email: customerInfo.email.trim() || undefined,
@@ -147,23 +149,35 @@ export const AddCustomerScreen: React.FC = () => {
                     const creditLimitValue = accountInfo.creditLimit.trim();
                     await accountService.updateAccount(account.id, {
                         credit_limit: creditLimitValue
-                            ? parseFloat(creditLimitValue)
-                            : 0,
+                            ? toInteger(parseFloat(creditLimitValue))
+                            : 0 as any,
                     });
                 }
+
+                invalidate(); // Trigger global refresh
 
                 // Navigate back to customer transactions screen
                 router.back();
             } else {
                 // Create new customer
-                const newCustomerId = await createCustomer({
-                    name: customerInfo.name.trim(),
-                    phone: customerInfo.phone.trim(),
-                    email: customerInfo.email.trim() || undefined,
-                    address: customerInfo.address.trim() || undefined,
-                    notes: customerInfo.notes.trim() || undefined,
-                    image_uri: imageUri || undefined,
-                });
+                const newCustomerId = await createCustomer(
+                    {
+                        name: customerInfo.name.trim(),
+                        phone: customerInfo.phone.trim(),
+                        email: customerInfo.email.trim() || undefined,
+                        address: customerInfo.address.trim() || undefined,
+                        notes: customerInfo.notes.trim() || undefined,
+                        image_uri: imageUri || undefined,
+                    },
+                    {
+                        creditLimit: accountInfo.creditLimit.trim()
+                            ? toInteger(parseFloat(accountInfo.creditLimit.trim()))
+                            : 0,
+                        initialBalance: accountInfo.initialBalance.trim()
+                            ? toInteger(parseFloat(accountInfo.initialBalance.trim()))
+                            : 0,
+                    }
+                );
 
                 if (newCustomerId) {
                     // Navigate to customers screen

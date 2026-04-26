@@ -1,12 +1,13 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useMemo, useRef, useState } from "react";
-import { FlatList, Pressable, StyleSheet, TextInput, View } from "react-native";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, TouchableAmount, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomersWithAccounts, useTransactions } from "../hooks";
 import { useDatabaseContext } from "../store";
 import { formatDateTime } from "../utils";
+import { TransactionType, AccountId } from "../models";
 
 interface LedgerEntry {
     id: string;
@@ -22,8 +23,22 @@ interface LedgerEntry {
 export const LedgerScreen: React.FC = () => {
     const { db } = useDatabaseContext();
     const insets = useSafeAreaInsets();
-    const { transactions } = useTransactions(db);
-    const { customers } = useCustomersWithAccounts(db);
+    const {
+        transactions,
+        loading: loadingTransactions,
+        refresh: refreshTransactions,
+    } = useTransactions(db);
+    const {
+        customers,
+        loading: loadingCustomers,
+        refresh: refreshCustomers,
+    } = useCustomersWithAccounts(db);
+
+    const isRefreshing = loadingTransactions || loadingCustomers;
+
+    const handleRefresh = async () => {
+        await Promise.all([refreshTransactions(), refreshCustomers()]);
+    };
     const [searchText, setSearchText] = useState("");
     const [isSearchActive, setIsSearchActive] = useState(false);
     const searchInputRef = useRef<TextInput>(null);
@@ -31,13 +46,13 @@ export const LedgerScreen: React.FC = () => {
     // Create a lookup map for account_id -> { customerName, accountNumber }
     const accountLookup = useMemo(() => {
         const lookup: Record<
-            number,
+            string,
             { customerName: string; accountNumber: string }
         > = {};
         customers.forEach((customer) => {
             customer.accounts?.forEach((account) => {
                 if (account.id) {
-                    lookup[account.id] = {
+                    lookup[account.id.toString()] = {
                         customerName: customer.name,
                         accountNumber: account.account_number,
                     };
@@ -47,38 +62,37 @@ export const LedgerScreen: React.FC = () => {
         return lookup;
     }, [customers]);
 
-    const ledgerEntries: LedgerEntry[] = [
-        ...transactions.map((t) => {
-            const accountData = t.account_id
-                ? accountLookup[t.account_id]
-                : null;
-            return {
-                id: `t-${t.id}`,
-                type: "transaction" as const,
-                amount: t.amount,
-                description: t.description || t.type,
-                date: t.created_at || 0,
-                isCredit: t.type === "CREDIT",
-                customerName: accountData?.customerName || "Unknown",
-                accountNumber: accountData?.accountNumber || "N/A",
-            };
-        }),
-    ].sort((a, b) => b.date - a.date);
+    const ledgerEntries: LedgerEntry[] = useMemo(() => {
+        return [
+            ...transactions.map((t) => {
+                const accountData = t.account_id
+                    ? accountLookup[t.account_id.toString()]
+                    : null;
+                return {
+                    id: `t-${t.id}`,
+                    type: "transaction" as const,
+                    amount: t.amount,
+                    description: t.description || (t.type === TransactionType.CREDIT ? "CREDIT" : "DEBIT"),
+                    date: t.created_at || 0,
+                    isCredit: t.type === TransactionType.CREDIT,
+                    customerName: accountData?.customerName || "Unknown",
+                    accountNumber: accountData?.accountNumber || "N/A",
+                };
+            }),
+        ].sort((a, b) => b.date - a.date);
+    }, [transactions, accountLookup]);
 
-    const filteredEntries = ledgerEntries.filter(
-        (entry) =>
-            entry.description
-                .toLowerCase()
-                .includes(searchText.toLowerCase()) ||
-            entry.customerName
-                .toLowerCase()
-                .includes(searchText.toLowerCase()) ||
-            entry.accountNumber
-                .toLowerCase()
-                .includes(searchText.toLowerCase()),
-    );
+    const filteredEntries = useMemo(() => {
+        const lowerSearch = searchText.toLowerCase();
+        return ledgerEntries.filter(
+            (entry) =>
+                entry.description.toLowerCase().includes(lowerSearch) ||
+                entry.customerName.toLowerCase().includes(lowerSearch) ||
+                entry.accountNumber.toLowerCase().includes(lowerSearch),
+        );
+    }, [ledgerEntries, searchText]);
 
-    const renderEntry = ({ item }: { item: LedgerEntry }) => (
+    const renderEntry = useCallback(({ item }: { item: LedgerEntry }) => (
         <Card style={styles.entryCard}>
             <View style={styles.entryHeader}>
                 <Typography variant="body-medium" color="secondary">
@@ -101,7 +115,7 @@ export const LedgerScreen: React.FC = () => {
                         style={styles.description}
                         numberOfLines={1}
                     >
-                        {item.description === "CREDIT"
+                        {item.isCredit
                             ? "Received from"
                             : "Paid to"}
                     </Typography>
@@ -131,7 +145,7 @@ export const LedgerScreen: React.FC = () => {
                 </View>
             </View>
         </Card>
-    );
+    ), []);
 
     if (!db) {
         return (
@@ -217,6 +231,14 @@ export const LedgerScreen: React.FC = () => {
                 renderItem={renderEntry}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.list}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={isRefreshing}
+                        onRefresh={handleRefresh}
+                        colors={[Colors.primary]}
+                        tintColor={Colors.primary}
+                    />
+                }
             />
         </View>
     );

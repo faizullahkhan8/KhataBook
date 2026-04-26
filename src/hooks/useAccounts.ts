@@ -1,10 +1,12 @@
 import * as SQLite from "expo-sqlite";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Account } from "../models";
+import { Account, AccountId, CustomerId } from "../models";
 import { AccountService } from "../services/AccountService";
+import { useDatabaseContext } from "../store";
 import { usePagination } from "./usePagination";
 
 export const useAccounts = (db: SQLite.SQLiteDatabase | null) => {
+    const { refreshVersion, invalidate } = useDatabaseContext();
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -17,10 +19,12 @@ export const useAccounts = (db: SQLite.SQLiteDatabase | null) => {
         [db],
     );
 
-    const fetchAccounts = useCallback(async () => {
+    const fetchAccounts = useCallback(async (isManualRefresh = false) => {
         if (!accountService) return;
 
-        setLoading(true);
+        if (isManualRefresh || accounts.length === 0) {
+            setLoading(true);
+        }
         setError(null);
         try {
             const data = await accountService.getAllAccounts(pageSize, offset);
@@ -30,10 +34,10 @@ export const useAccounts = (db: SQLite.SQLiteDatabase | null) => {
         } finally {
             setLoading(false);
         }
-    }, [accountService, pageSize, offset]);
+    }, [accountService, pageSize, offset, accounts.length]);
 
     const fetchAccountsByCustomer = useCallback(
-        async (customerId: number) => {
+        async (customerId: CustomerId) => {
             if (!accountService) return;
 
             setLoading(true);
@@ -59,55 +63,55 @@ export const useAccounts = (db: SQLite.SQLiteDatabase | null) => {
             setError(null);
             try {
                 await accountService.createAccount(account);
-                await fetchAccounts();
+                invalidate(); // Trigger global refresh
             } catch (err) {
                 setError(err as Error);
             } finally {
                 setLoading(false);
             }
         },
-        [accountService, fetchAccounts],
+        [accountService, invalidate],
     );
 
     const updateAccountBalance = useCallback(
-        async (accountId: number, amount: number) => {
+        async (accountId: AccountId, amount: number) => {
             if (!accountService) return;
 
             setLoading(true);
             setError(null);
             try {
                 await accountService.updateAccountBalance(accountId, amount);
-                await fetchAccounts();
+                invalidate(); // Trigger global refresh
             } catch (err) {
                 setError(err as Error);
             } finally {
                 setLoading(false);
             }
         },
-        [accountService, fetchAccounts],
+        [accountService, invalidate],
     );
 
     const deleteAccount = useCallback(
-        async (id: number) => {
+        async (id: AccountId) => {
             if (!accountService) return;
 
             setLoading(true);
             setError(null);
             try {
                 await accountService.deleteAccount(id);
-                await fetchAccounts();
+                invalidate(); // Trigger global refresh
             } catch (err) {
                 setError(err as Error);
             } finally {
                 setLoading(false);
             }
         },
-        [accountService, fetchAccounts],
+        [accountService, invalidate],
     );
 
     useEffect(() => {
         fetchAccounts();
-    }, [fetchAccounts]);
+    }, [fetchAccounts, refreshVersion]);
 
     return {
         accounts,
@@ -119,6 +123,6 @@ export const useAccounts = (db: SQLite.SQLiteDatabase | null) => {
         updateAccountBalance,
         deleteAccount,
         fetchAccountsByCustomer,
-        refresh: fetchAccounts,
+        refresh: () => fetchAccounts(true),
     };
 };

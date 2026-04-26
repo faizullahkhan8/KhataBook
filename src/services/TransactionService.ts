@@ -1,5 +1,6 @@
 import * as SQLite from "expo-sqlite";
 import { Transaction, TransactionType } from "../models/Transaction";
+import { AccountId, TransactionId } from "../models/types";
 
 export class TransactionService {
     private db: SQLite.SQLiteDatabase;
@@ -10,7 +11,7 @@ export class TransactionService {
 
     async createTransaction(
         transaction: Omit<Transaction, "id" | "created_at">,
-    ): Promise<number> {
+    ): Promise<TransactionId> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
@@ -26,24 +27,15 @@ export class TransactionService {
                 ],
             );
 
-            // Update account balance
-            const amountChange =
-                transaction.type === "CREDIT"
-                    ? transaction.amount
-                    : -transaction.amount;
-            await this.db.runAsync(
-                "UPDATE accounts SET current_balance = current_balance + ?, updated_at = strftime('%s', 'now') WHERE id = ?",
-                [amountChange, transaction.account_id],
-            );
-
-            return result.lastInsertRowId;
+            // Note: Account balance and Customer summary updates are now handled by database triggers
+            return result.lastInsertRowId as TransactionId;
         } catch (error) {
             console.error("Error creating transaction:", error);
             throw error;
         }
     }
 
-    async getTransactionById(id: number): Promise<Transaction | null> {
+    async getTransactionById(id: TransactionId): Promise<Transaction | null> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
@@ -60,7 +52,7 @@ export class TransactionService {
     }
 
     async getTransactionsByAccountId(
-        accountId: number,
+        accountId: AccountId,
         limit: number = 50,
         offset: number = 0,
     ): Promise<Transaction[]> {
@@ -118,24 +110,12 @@ export class TransactionService {
         }
     }
 
-    async deleteTransaction(id: number): Promise<void> {
+    async deleteTransaction(id: TransactionId): Promise<void> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
-            const transaction = await this.getTransactionById(id);
-            if (transaction) {
-                // Revert account balance
-                const amountChange =
-                    transaction.type === "CREDIT"
-                        ? -transaction.amount
-                        : transaction.amount;
-                await this.db.runAsync(
-                    "UPDATE accounts SET current_balance = current_balance + ?, updated_at = strftime('%s', 'now') WHERE id = ?",
-                    [amountChange, transaction.account_id],
-                );
-            }
-
+            // Note: Reverting account balance and updating customer summary are now handled by database triggers
             await this.db.runAsync("DELETE FROM transactions WHERE id = ?", [
                 id,
             ]);
@@ -145,7 +125,7 @@ export class TransactionService {
         }
     }
 
-    async deleteTransactionsByAccountId(accountId: number): Promise<void> {
+    async deleteTransactionsByAccountId(accountId: AccountId): Promise<void> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
@@ -183,8 +163,21 @@ export class TransactionService {
         }
         try {
             await this.db.withTransactionAsync(async () => {
-                for (const transaction of transactions) {
-                    await this.createTransaction(transaction);
+                const statement = await this.db.prepareAsync(
+                    `INSERT INTO transactions (account_id, type, amount, description, reference) VALUES (?, ?, ?, ?, ?)`,
+                );
+                try {
+                    for (const transaction of transactions) {
+                        await statement.executeAsync([
+                            transaction.account_id,
+                            transaction.type,
+                            transaction.amount,
+                            transaction.description || null,
+                            transaction.reference || null,
+                        ]);
+                    }
+                } finally {
+                    await statement.finalizeAsync();
                 }
             });
         } catch (error) {
