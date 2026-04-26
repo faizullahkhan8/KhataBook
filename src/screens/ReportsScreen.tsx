@@ -1,26 +1,35 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Pressable,
     RefreshControl,
     ScrollView,
     StyleSheet,
     TextInput,
+    TextStyle,
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, TouchableAmount, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useFinancialMetrics } from "../hooks";
-import { useDatabaseContext } from "../store";
+import { useDatabaseContext, useLanguage, useTheme } from "../store";
 
 export const ReportsScreen: React.FC = () => {
     const { db } = useDatabaseContext();
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
+    const { t } = useTranslation();
+    const { isRTL } = useLanguage();
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [searchText, setSearchText] = useState("");
     const searchInputRef = useRef<TextInput>(null);
-    const { metrics, loading: loadingMetrics, refresh: refreshMetrics } = useFinancialMetrics(db);
+    const {
+        metrics,
+        loading: loadingMetrics,
+        refresh: refreshMetrics,
+    } = useFinancialMetrics(db);
     const isRefreshing = loadingMetrics;
 
     const handleRefresh = async () => {
@@ -43,26 +52,52 @@ export const ReportsScreen: React.FC = () => {
 
     if (!db) {
         return (
-            <View style={styles.center}>
+            <View
+                style={[styles.center, { backgroundColor: colors.background }]}
+            >
                 <Typography variant="body-medium" color="muted">
-                    Loading database...
+                    {t("reports.loading")}
                 </Typography>
             </View>
         );
     }
 
     return (
-        <View style={styles.container}>
+        <View
+            style={[styles.container, { backgroundColor: colors.background }]}
+        >
             <View
-                style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
+                style={[
+                    styles.header,
+                    {
+                        paddingTop: insets.top + Spacing.md,
+                        backgroundColor: colors.surface,
+                        borderBottomColor: colors.border,
+                    },
+                ]}
             >
-                <View style={styles.headerTopRow}>
-                    <View style={styles.headerTitleRow}>
-                        <View style={styles.headerIconContainer}>
+                <View
+                    style={[
+                        styles.headerTopRow,
+                        isRTL && { flexDirection: "row-reverse" },
+                    ]}
+                >
+                    <View
+                        style={[
+                            styles.headerTitleRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
+                        <View
+                            style={[
+                                styles.headerIconContainer,
+                                { backgroundColor: `${colors.primary}20` },
+                            ]}
+                        >
                             <Ionicons
                                 name="bar-chart"
                                 size={28}
-                                color={Colors.primary}
+                                color={colors.primary}
                             />
                         </View>
                         {!isSearchActive && (
@@ -71,10 +106,10 @@ export const ReportsScreen: React.FC = () => {
                                     variant="heading-large"
                                     color="primary"
                                 >
-                                    Reports
+                                    {t("reports.title")}
                                 </Typography>
                                 <Typography variant="body-small" color="muted">
-                                    Financial overview & analytics
+                                    {t("reports.subtitle")}
                                 </Typography>
                             </View>
                         )}
@@ -82,9 +117,15 @@ export const ReportsScreen: React.FC = () => {
                             <View style={styles.searchInputContainer}>
                                 <TextInput
                                     ref={searchInputRef}
-                                    style={styles.headerSearchInput}
-                                    placeholder="Search reports..."
-                                    placeholderTextColor={Colors.text.muted}
+                                    style={[
+                                        styles.headerSearchInput,
+                                        {
+                                            backgroundColor: colors.background,
+                                            color: colors.text.primary,
+                                        },
+                                    ]}
+                                    placeholder={t("reports.searchPlaceholder")}
+                                    placeholderTextColor={colors.text.muted}
                                     value={searchText}
                                     onChangeText={setSearchText}
                                     autoFocus
@@ -109,25 +150,28 @@ export const ReportsScreen: React.FC = () => {
                                 );
                             }
                         }}
-                        style={styles.searchIconButton}
+                        style={[
+                            styles.searchIconButton,
+                            { backgroundColor: `${colors.primary}15` },
+                        ]}
                     >
                         <Ionicons
                             name={isSearchActive ? "close" : "search"}
                             size={24}
-                            color={Colors.primary}
+                            color={colors.primary}
                         />
                     </Pressable>
                 </View>
             </View>
 
-            <ScrollView 
+            <ScrollView
                 style={styles.content}
                 refreshControl={
                     <RefreshControl
                         refreshing={isRefreshing}
                         onRefresh={handleRefresh}
-                        colors={[Colors.primary]}
-                        tintColor={Colors.primary}
+                        colors={[colors.primary]}
+                        tintColor={colors.primary}
                     />
                 }
             >
@@ -135,38 +179,60 @@ export const ReportsScreen: React.FC = () => {
                     <Typography
                         variant="heading-medium"
                         color="primary"
-                        style={styles.cardTitle}
+                        style={
+                            isRTL
+                                ? {
+                                      marginBottom: Spacing.md,
+                                      textAlign: "right",
+                                  }
+                                : styles.cardTitle
+                        }
                     >
-                        Overview
+                        {t("reports.overview")}
                     </Typography>
-                    <View style={styles.statRow}>
+                    <View
+                        style={[
+                            styles.statRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Typography
                             variant="subheading-small"
                             color="secondary"
                         >
-                            Total Customers:
+                            {t("reports.totalCustomers")}
                         </Typography>
                         <Typography variant="heading-medium" color="primary">
                             {totalCustomers}
                         </Typography>
                     </View>
-                    <View style={styles.statRow}>
+                    <View
+                        style={[
+                            styles.statRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Typography
                             variant="subheading-small"
                             color="secondary"
                         >
-                            Total Accounts:
+                            {t("reports.totalAccounts")}
                         </Typography>
                         <Typography variant="heading-medium" color="primary">
                             {totalAccounts}
                         </Typography>
                     </View>
-                    <View style={styles.statRow}>
+                    <View
+                        style={[
+                            styles.statRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Typography
                             variant="subheading-small"
                             color="secondary"
                         >
-                            Total Transactions:
+                            {t("reports.totalTransactions")}
                         </Typography>
                         <Typography variant="heading-medium" color="primary">
                             {totalTransactions}
@@ -178,17 +244,36 @@ export const ReportsScreen: React.FC = () => {
                     <Typography
                         variant="heading-medium"
                         color="primary"
-                        style={styles.cardTitle}
+                        style={
+                            isRTL
+                                ? {
+                                      marginBottom: Spacing.md,
+                                      textAlign: "right",
+                                  }
+                                : styles.cardTitle
+                        }
                     >
-                        Financial Summary
+                        {t("reports.financialSummary")}
                     </Typography>
-                    <View style={styles.statRow}>
+                    <View
+                        style={[
+                            styles.statRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Typography
                             variant="subheading-small"
                             color="secondary"
-                            style={styles.statLabel}
+                            style={
+                                isRTL
+                                    ? ({
+                                          flexShrink: 1,
+                                          textAlign: "right",
+                                      } as TextStyle)
+                                    : styles.statLabel
+                            }
                         >
-                            Total Credit Limit:
+                            {t("reports.totalCreditLimit")}
                         </Typography>
                         <TouchableAmount
                             amount={totalCreditLimit}
@@ -197,13 +282,25 @@ export const ReportsScreen: React.FC = () => {
                             style={styles.statValue}
                         />
                     </View>
-                    <View style={styles.statRow}>
+                    <View
+                        style={[
+                            styles.statRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Typography
                             variant="subheading-small"
                             color="secondary"
-                            style={styles.statLabel}
+                            style={
+                                isRTL
+                                    ? ({
+                                          flexShrink: 1,
+                                          textAlign: "right",
+                                      } as TextStyle)
+                                    : styles.statLabel
+                            }
                         >
-                            Total Current Balance:
+                            {t("reports.totalCurrentBalance")}
                         </Typography>
                         <TouchableAmount
                             amount={totalCurrentBalance}
@@ -214,13 +311,25 @@ export const ReportsScreen: React.FC = () => {
                             style={styles.statValue}
                         />
                     </View>
-                    <View style={styles.statRow}>
+                    <View
+                        style={[
+                            styles.statRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Typography
                             variant="subheading-small"
                             color="secondary"
-                            style={styles.statLabel}
+                            style={
+                                isRTL
+                                    ? ({
+                                          flexShrink: 1,
+                                          textAlign: "right",
+                                      } as TextStyle)
+                                    : styles.statLabel
+                            }
                         >
-                            Total Credits:
+                            {t("reports.totalCredits")}
                         </Typography>
                         <TouchableAmount
                             amount={totalCredits}
@@ -229,13 +338,25 @@ export const ReportsScreen: React.FC = () => {
                             style={styles.statValue}
                         />
                     </View>
-                    <View style={styles.statRow}>
+                    <View
+                        style={[
+                            styles.statRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Typography
                             variant="subheading-small"
                             color="secondary"
-                            style={styles.statLabel}
+                            style={
+                                isRTL
+                                    ? ({
+                                          flexShrink: 1,
+                                          textAlign: "right",
+                                      } as TextStyle)
+                                    : styles.statLabel
+                            }
                         >
-                            Total Debits:
+                            {t("reports.totalDebits")}
                         </Typography>
                         <TouchableAmount
                             amount={totalDebits}
@@ -250,49 +371,76 @@ export const ReportsScreen: React.FC = () => {
                     <Typography
                         variant="heading-medium"
                         color="primary"
-                        style={styles.cardTitle}
+                        style={
+                            isRTL
+                                ? {
+                                      marginBottom: Spacing.md,
+                                      textAlign: "right",
+                                  }
+                                : styles.cardTitle
+                        }
                     >
-                        Account Status
+                        {t("reports.accountStatus")}
                     </Typography>
-                    <View style={styles.statRow}>
+                    <View
+                        style={[
+                            styles.statRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Typography
                             variant="subheading-small"
                             color="secondary"
                         >
-                            Active Accounts:
+                            {t("reports.activeAccounts")}
                         </Typography>
                         <Typography variant="heading-medium" color="success">
                             {activeAccounts}
                         </Typography>
                     </View>
-                    <View style={styles.statRow}>
+                    <View
+                        style={[
+                            styles.statRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Typography
                             variant="subheading-small"
                             color="secondary"
                         >
-                            Inactive Accounts:
+                            {t("reports.inactiveAccounts")}
                         </Typography>
                         <Typography variant="heading-medium" color="muted">
                             {inactiveAccounts}
                         </Typography>
                     </View>
-                    <View style={styles.statRow}>
+                    <View
+                        style={[
+                            styles.statRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Typography
                             variant="subheading-small"
                             color="secondary"
                         >
-                            Suspended Accounts:
+                            {t("reports.suspendedAccounts")}
                         </Typography>
                         <Typography variant="heading-medium" color="warning">
                             {suspendedAccounts}
                         </Typography>
                     </View>
-                    <View style={styles.statRow}>
+                    <View
+                        style={[
+                            styles.statRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Typography
                             variant="subheading-small"
                             color="secondary"
                         >
-                            Closed Accounts:
+                            {t("reports.closedAccounts")}
                         </Typography>
                         <Typography variant="heading-medium" color="danger">
                             {closedAccounts}

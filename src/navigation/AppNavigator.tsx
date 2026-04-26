@@ -1,53 +1,46 @@
 import { Ionicons } from "@expo/vector-icons";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import {
-    AboutScreen,
     CustomersScreen,
     LedgerScreen,
     ReportsScreen,
+    SettingsScreen,
 } from "../screens";
+
+import { useTheme } from "../store";
 
 const Tab = createBottomTabNavigator();
 
 export const AppNavigator: React.FC = () => {
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
+    const { t } = useTranslation();
 
     return (
         <Tab.Navigator
             screenOptions={{
                 headerShown: false,
                 tabBarStyle: {
-                    backgroundColor: Colors.surface,
-                    borderTopColor: Colors.border,
+                    backgroundColor: colors.surface,
+                    borderTopColor: colors.border,
                     borderTopWidth: 1,
                     paddingBottom: Spacing.sm + insets.bottom,
                     paddingTop: Spacing.sm,
                     height: 60 + insets.bottom,
                 },
-                tabBarActiveTintColor: Colors.primary,
-                tabBarInactiveTintColor: Colors.text.muted,
+                tabBarActiveTintColor: colors.primary,
+                tabBarInactiveTintColor: colors.text.muted,
             }}
         >
             <Tab.Screen
                 name="Customers"
                 component={CustomersScreen}
                 options={{
-                    tabBarLabel: ({ color }) => (
-                        <Typography
-                            variant="small-small"
-                            color={
-                                color === Colors.primary
-                                    ? ("primary" as any)
-                                    : "muted"
-                            }
-                        >
-                            Customers
-                        </Typography>
-                    ),
+                    tabBarLabel: t("navigation.customers"),
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="people" size={size} color={color} />
                     ),
@@ -57,18 +50,7 @@ export const AppNavigator: React.FC = () => {
                 name="Reports"
                 component={ReportsScreen}
                 options={{
-                    tabBarLabel: ({ color }) => (
-                        <Typography
-                            variant="small-small"
-                            color={
-                                color === Colors.primary
-                                    ? ("primary" as any)
-                                    : "muted"
-                            }
-                        >
-                            Reports
-                        </Typography>
-                    ),
+                    tabBarLabel: t("navigation.reports"),
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="bar-chart" size={size} color={color} />
                     ),
@@ -78,42 +60,20 @@ export const AppNavigator: React.FC = () => {
                 name="Ledger"
                 component={LedgerScreen}
                 options={{
-                    tabBarLabel: ({ color }) => (
-                        <Typography
-                            variant="small-small"
-                            color={
-                                color === Colors.primary
-                                    ? ("primary" as any)
-                                    : "muted"
-                            }
-                        >
-                            Ledger
-                        </Typography>
-                    ),
+                    tabBarLabel: t("navigation.ledger"),
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="list" size={size} color={color} />
                     ),
                 }}
             />
             <Tab.Screen
-                name="About"
-                component={AboutScreen}
+                name="Settings"
+                component={SettingsScreen}
                 options={{
-                    tabBarLabel: ({ color }) => (
-                        <Typography
-                            variant="small-small"
-                            color={
-                                color === Colors.primary
-                                    ? ("primary" as any)
-                                    : "muted"
-                            }
-                        >
-                            About
-                        </Typography>
-                    ),
+                    tabBarLabel: t("navigation.settings"),
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons
-                            name="information-circle"
+                            name="settings"
                             size={size}
                             color={color}
                         />

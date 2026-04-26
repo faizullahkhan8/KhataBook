@@ -1,7 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Alert,
     Keyboard,
@@ -12,22 +14,24 @@ import {
     StyleSheet,
     View,
 } from "react-native";
-import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Card, Input, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomerById } from "../hooks/useCustomerById";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
+import { CustomerId } from "../models";
 import { AccountService } from "../services/AccountService";
 import { CustomerService } from "../services/CustomerService";
-import { useDatabaseContext } from "../store";
-import { toInteger, fromInteger } from "../utils/currencyUtils";
-import { CustomerId } from "../models";
+import { useDatabaseContext, useLanguage, useTheme } from "../store";
+import { fromInteger, toInteger } from "../utils/currencyUtils";
 
 export const AddCustomerScreen: React.FC = () => {
     const { db, invalidate } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
+    const { t } = useTranslation();
+    const { isRTL } = useLanguage();
     const { customerId } = useLocalSearchParams<{ customerId?: string }>();
     const { createCustomer } = useCustomersWithAccounts(db);
     const { customer } = useCustomerById(
@@ -91,8 +95,12 @@ export const AddCustomerScreen: React.FC = () => {
                 const account = customer.accounts[0];
                 setAccountInfo({
                     accountNumber: account.account_number || "",
-                    creditLimit: fromInteger(account.credit_limit || 0).toString(),
-                    initialBalance: fromInteger(account.current_balance || 0).toString(),
+                    creditLimit: fromInteger(
+                        account.credit_limit || 0,
+                    ).toString(),
+                    initialBalance: fromInteger(
+                        account.current_balance || 0,
+                    ).toString(),
                 });
             }
             if (customer.image_uri) {
@@ -108,19 +116,19 @@ export const AddCustomerScreen: React.FC = () => {
         const newErrors: Record<string, string> = {};
 
         if (!customerInfo.name.trim()) {
-            newErrors.name = "Name is required";
+            newErrors.name = t("addCustomer.nameRequired");
         }
         if (!customerInfo.phone.trim()) {
-            newErrors.phone = "Phone number is required";
+            newErrors.phone = t("addCustomer.phoneRequired");
         }
         if (
             customerInfo.email &&
             !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(customerInfo.email)
         ) {
-            newErrors.email = "Invalid email format";
+            newErrors.email = t("addCustomer.emailInvalid");
         }
         if (!accountInfo.accountNumber.trim()) {
-            newErrors.accountNumber = "Account number is required";
+            newErrors.accountNumber = t("addCustomer.accountRequired");
         }
 
         setErrors(newErrors);
@@ -134,14 +142,17 @@ export const AddCustomerScreen: React.FC = () => {
         try {
             if (isEditMode && customerId && customerService && accountService) {
                 // Update existing customer
-                await customerService.updateCustomer(parseInt(customerId) as CustomerId, {
-                    name: customerInfo.name.trim(),
-                    phone: customerInfo.phone.trim(),
-                    email: customerInfo.email.trim() || undefined,
-                    address: customerInfo.address.trim() || undefined,
-                    notes: customerInfo.notes.trim() || undefined,
-                    image_uri: imageUri || undefined,
-                });
+                await customerService.updateCustomer(
+                    parseInt(customerId) as CustomerId,
+                    {
+                        name: customerInfo.name.trim(),
+                        phone: customerInfo.phone.trim(),
+                        email: customerInfo.email.trim() || undefined,
+                        address: customerInfo.address.trim() || undefined,
+                        notes: customerInfo.notes.trim() || undefined,
+                        image_uri: imageUri || undefined,
+                    },
+                );
 
                 // Update account credit limit if account exists
                 const account = customer?.accounts?.[0];
@@ -150,7 +161,7 @@ export const AddCustomerScreen: React.FC = () => {
                     await accountService.updateAccount(account.id, {
                         credit_limit: creditLimitValue
                             ? toInteger(parseFloat(creditLimitValue))
-                            : 0 as any,
+                            : (0 as any),
                     });
                 }
 
@@ -171,12 +182,16 @@ export const AddCustomerScreen: React.FC = () => {
                     },
                     {
                         creditLimit: accountInfo.creditLimit.trim()
-                            ? toInteger(parseFloat(accountInfo.creditLimit.trim()))
+                            ? toInteger(
+                                  parseFloat(accountInfo.creditLimit.trim()),
+                              )
                             : 0,
                         initialBalance: accountInfo.initialBalance.trim()
-                            ? toInteger(parseFloat(accountInfo.initialBalance.trim()))
+                            ? toInteger(
+                                  parseFloat(accountInfo.initialBalance.trim()),
+                              )
                             : 0,
-                    }
+                    },
                 );
 
                 if (newCustomerId) {
@@ -186,10 +201,10 @@ export const AddCustomerScreen: React.FC = () => {
             }
         } catch {
             Alert.alert(
-                "Error",
+                t("addCustomer.error"),
                 isEditMode
-                    ? "Failed to update customer. Please try again."
-                    : "Failed to create customer. Please try again.",
+                    ? t("addCustomer.updateError")
+                    : t("addCustomer.createError"),
             );
         } finally {
             setIsSubmitting(false);
@@ -204,12 +219,12 @@ export const AddCustomerScreen: React.FC = () => {
             customerInfo.address
         ) {
             Alert.alert(
-                "Discard Changes?",
-                "You have unsaved changes. Are you sure you want to go back?",
+                t("addCustomer.discardTitle"),
+                t("addCustomer.discardMessage"),
                 [
-                    { text: "Stay", style: "cancel" },
+                    { text: t("addCustomer.stay"), style: "cancel" },
                     {
-                        text: "Discard",
+                        text: t("addCustomer.discard"),
                         style: "destructive",
                         onPress: () => router.back(),
                     },
@@ -224,8 +239,8 @@ export const AddCustomerScreen: React.FC = () => {
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== "granted") {
             Alert.alert(
-                "Permission Required",
-                "Camera permission is needed to take photos.",
+                t("addCustomer.permissionRequired"),
+                t("addCustomer.cameraPermission"),
             );
             return;
         }
@@ -246,8 +261,8 @@ export const AddCustomerScreen: React.FC = () => {
             await ImagePicker.requestMediaLibraryPermissionsAsync();
         if (status !== "granted") {
             Alert.alert(
-                "Permission Required",
-                "Gallery permission is needed to select photos.",
+                t("addCustomer.permissionRequired"),
+                t("addCustomer.galleryPermission"),
             );
             return;
         }
@@ -264,11 +279,15 @@ export const AddCustomerScreen: React.FC = () => {
     };
 
     const showImagePickerOptions = () => {
-        Alert.alert("Select Photo", "Choose an option", [
-            { text: "Cancel", style: "cancel" },
-            { text: "Camera", onPress: pickFromCamera },
-            { text: "Gallery", onPress: pickFromGallery },
-        ]);
+        Alert.alert(
+            t("addCustomer.selectPhoto"),
+            t("addCustomer.selectPhotoMessage"),
+            [
+                { text: t("addCustomer.cancel"), style: "cancel" },
+                { text: t("addCustomer.camera"), onPress: pickFromCamera },
+                { text: t("addCustomer.gallery"), onPress: pickFromGallery },
+            ],
+        );
     };
 
     const removeImage = () => {
@@ -278,19 +297,30 @@ export const AddCustomerScreen: React.FC = () => {
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={[styles.container, { paddingTop: insets.top }]}
+            style={[
+                styles.container,
+                { paddingTop: insets.top, backgroundColor: colors.background },
+            ]}
         >
             {/* Header */}
-            <View style={styles.header}>
+            <View
+                style={[
+                    styles.header,
+                    { borderBottomColor: colors.border },
+                    isRTL && { flexDirection: "row-reverse" },
+                ]}
+            >
                 <Pressable onPress={handleCancel} style={styles.backButton}>
                     <Ionicons
-                        name="arrow-back"
+                        name={isRTL ? "arrow-forward" : "arrow-back"}
                         size={24}
-                        color={Colors.text.primary}
+                        color={colors.text.primary}
                     />
                 </Pressable>
                 <Typography variant="heading-large" color="primary">
-                    {isEditMode ? "Edit Customer" : "Add Customer"}
+                    {isEditMode
+                        ? t("addCustomer.editTitle")
+                        : t("addCustomer.addTitle")}
                 </Typography>
                 <View style={styles.placeholder} />
             </View>
@@ -302,14 +332,19 @@ export const AddCustomerScreen: React.FC = () => {
             >
                 {/* Customer Information Section */}
                 <Card style={styles.sectionCard}>
-                    <View style={styles.sectionHeader}>
+                    <View
+                        style={[
+                            styles.sectionHeader,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Ionicons
                             name="person-outline"
                             size={20}
-                            color={Colors.primary}
+                            color={colors.primary}
                         />
                         <Typography variant="heading-small" color="primary">
-                            Customer Information
+                            {t("addCustomer.customerInfo")}
                         </Typography>
                     </View>
 
@@ -319,7 +354,10 @@ export const AddCustomerScreen: React.FC = () => {
                             <View style={styles.imageWrapper}>
                                 <Image
                                     source={{ uri: imageUri }}
-                                    style={styles.profileImage}
+                                    style={[
+                                        styles.profileImage,
+                                        { backgroundColor: colors.surface },
+                                    ]}
                                 />
                                 <Pressable
                                     onPress={removeImage}
@@ -328,44 +366,55 @@ export const AddCustomerScreen: React.FC = () => {
                                     <Ionicons
                                         name="close-circle"
                                         size={24}
-                                        color={Colors.danger}
+                                        color={colors.danger}
                                     />
                                 </Pressable>
                             </View>
                         ) : (
                             <Pressable
                                 onPress={showImagePickerOptions}
-                                style={styles.imagePlaceholder}
+                                style={[
+                                    styles.imagePlaceholder,
+                                    {
+                                        backgroundColor: colors.surface,
+                                        borderColor: colors.border,
+                                    },
+                                ]}
                             >
                                 <Ionicons
                                     name="camera"
                                     size={32}
-                                    color={Colors.text.muted}
+                                    color={colors.text.muted}
                                 />
                                 <Typography
                                     variant="body-small"
                                     color="muted"
                                     style={styles.imagePlaceholderText}
                                 >
-                                    Add Photo
+                                    {t("addCustomer.addPhoto")}
                                 </Typography>
                             </Pressable>
                         )}
                     </View>
 
                     <View style={styles.inputContainer}>
-                        <View style={styles.inputLabelRow}>
+                        <View
+                            style={[
+                                styles.inputLabelRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
                             <Ionicons
                                 name="person"
                                 size={18}
-                                color={Colors.text.muted}
+                                color={colors.text.muted}
                             />
                             <Typography variant="body-small" color="secondary">
-                                Full Name *
+                                {t("addCustomer.fullName")}
                             </Typography>
                         </View>
                         <Input
-                            placeholder="Enter customer name"
+                            placeholder={t("addCustomer.fullNamePlaceholder")}
                             value={customerInfo.name}
                             onChangeText={(text) => {
                                 setCustomerInfo({
@@ -389,18 +438,23 @@ export const AddCustomerScreen: React.FC = () => {
                     </View>
 
                     <View style={styles.inputContainer}>
-                        <View style={styles.inputLabelRow}>
+                        <View
+                            style={[
+                                styles.inputLabelRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
                             <Ionicons
                                 name="call"
                                 size={18}
-                                color={Colors.text.muted}
+                                color={colors.text.muted}
                             />
                             <Typography variant="body-small" color="secondary">
-                                Phone Number *
+                                {t("addCustomer.phoneNumber")}
                             </Typography>
                         </View>
                         <Input
-                            placeholder="Enter phone number"
+                            placeholder={t("addCustomer.phonePlaceholder")}
                             value={customerInfo.phone}
                             onChangeText={(text) => {
                                 setCustomerInfo({
@@ -425,18 +479,23 @@ export const AddCustomerScreen: React.FC = () => {
                     </View>
 
                     <View style={styles.inputContainer}>
-                        <View style={styles.inputLabelRow}>
+                        <View
+                            style={[
+                                styles.inputLabelRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
                             <Ionicons
                                 name="mail"
                                 size={18}
-                                color={Colors.text.muted}
+                                color={colors.text.muted}
                             />
                             <Typography variant="body-small" color="secondary">
-                                Email
+                                {t("addCustomer.email")}
                             </Typography>
                         </View>
                         <Input
-                            placeholder="Enter email address (optional)"
+                            placeholder={t("addCustomer.emailPlaceholder")}
                             value={customerInfo.email}
                             onChangeText={(text) => {
                                 setCustomerInfo({
@@ -462,18 +521,23 @@ export const AddCustomerScreen: React.FC = () => {
                     </View>
 
                     <View style={styles.inputContainer}>
-                        <View style={styles.inputLabelRow}>
+                        <View
+                            style={[
+                                styles.inputLabelRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
                             <Ionicons
                                 name="location"
                                 size={18}
-                                color={Colors.text.muted}
+                                color={colors.text.muted}
                             />
                             <Typography variant="body-small" color="secondary">
-                                Address
+                                {t("addCustomer.address")}
                             </Typography>
                         </View>
                         <Input
-                            placeholder="Enter address (optional)"
+                            placeholder={t("addCustomer.addressPlaceholder")}
                             value={customerInfo.address}
                             onChangeText={(text) =>
                                 setCustomerInfo({
@@ -486,18 +550,23 @@ export const AddCustomerScreen: React.FC = () => {
                     </View>
 
                     <View style={styles.inputContainer}>
-                        <View style={styles.inputLabelRow}>
+                        <View
+                            style={[
+                                styles.inputLabelRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
                             <Ionicons
                                 name="document-text"
                                 size={18}
-                                color={Colors.text.muted}
+                                color={colors.text.muted}
                             />
                             <Typography variant="body-small" color="secondary">
-                                Notes
+                                {t("addCustomer.notes")}
                             </Typography>
                         </View>
                         <Input
-                            placeholder="Additional notes (optional)"
+                            placeholder={t("addCustomer.notesPlaceholder")}
                             value={customerInfo.notes}
                             onChangeText={(text) =>
                                 setCustomerInfo({
@@ -512,30 +581,42 @@ export const AddCustomerScreen: React.FC = () => {
 
                 {/* Account Information Section */}
                 <Card style={styles.sectionCard}>
-                    <View style={styles.sectionHeader}>
+                    <View
+                        style={[
+                            styles.sectionHeader,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Ionicons
                             name="card-outline"
                             size={20}
-                            color={Colors.success}
+                            color={colors.success}
                         />
                         <Typography variant="heading-small" color="primary">
-                            Account Information
+                            {t("addCustomer.accountInfo")}
                         </Typography>
                     </View>
 
                     <View style={styles.inputContainer}>
-                        <View style={styles.inputLabelRow}>
+                        <View
+                            style={[
+                                styles.inputLabelRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
                             <Ionicons
                                 name="card"
                                 size={18}
-                                color={Colors.text.muted}
+                                color={colors.text.muted}
                             />
                             <Typography variant="body-small" color="secondary">
-                                Account Number *
+                                {t("addCustomer.accountNumber")}
                             </Typography>
                         </View>
                         <Input
-                            placeholder="Auto-generated account number"
+                            placeholder={t(
+                                "addCustomer.accountNumberPlaceholder",
+                            )}
                             value={accountInfo.accountNumber}
                             onChangeText={(text) => {
                                 setAccountInfo({
@@ -559,18 +640,25 @@ export const AddCustomerScreen: React.FC = () => {
                     </View>
 
                     <View style={styles.inputContainer}>
-                        <View style={styles.inputLabelRow}>
+                        <View
+                            style={[
+                                styles.inputLabelRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
                             <Ionicons
                                 name="cash"
                                 size={18}
-                                color={Colors.text.muted}
+                                color={colors.text.muted}
                             />
                             <Typography variant="body-small" color="secondary">
-                                Credit Limit
+                                {t("addCustomer.creditLimit")}
                             </Typography>
                         </View>
                         <Input
-                            placeholder="Enter credit limit (optional)"
+                            placeholder={t(
+                                "addCustomer.creditLimitPlaceholder",
+                            )}
                             value={accountInfo.creditLimit}
                             onChangeText={(text) =>
                                 setAccountInfo({
@@ -583,18 +671,25 @@ export const AddCustomerScreen: React.FC = () => {
                     </View>
 
                     <View style={styles.inputContainer}>
-                        <View style={styles.inputLabelRow}>
+                        <View
+                            style={[
+                                styles.inputLabelRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
                             <Ionicons
                                 name="wallet"
                                 size={18}
-                                color={Colors.text.muted}
+                                color={colors.text.muted}
                             />
                             <Typography variant="body-small" color="secondary">
-                                Opening Balance
+                                {t("addCustomer.openingBalance")}
                             </Typography>
                         </View>
                         <Input
-                            placeholder="Enter opening balance (optional)"
+                            placeholder={t(
+                                "addCustomer.openingBalancePlaceholder",
+                            )}
                             value={accountInfo.initialBalance}
                             onChangeText={(text) =>
                                 setAccountInfo({
@@ -606,19 +701,24 @@ export const AddCustomerScreen: React.FC = () => {
                         />
                     </View>
 
-                    <View style={styles.accountInfo}>
+                    <View
+                        style={[
+                            styles.accountInfo,
+                            { backgroundColor: `${colors.primary}10` },
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
                         <Ionicons
                             name="information-circle"
                             size={16}
-                            color={Colors.text.muted}
+                            color={colors.text.muted}
                         />
                         <Typography
                             variant="small-small"
                             color="muted"
                             style={styles.accountInfoText}
                         >
-                            Account will be created automatically with ACTIVE
-                            status.
+                            {t("addCustomer.accountInfoMessage")}
                         </Typography>
                     </View>
                 </Card>
@@ -629,6 +729,7 @@ export const AddCustomerScreen: React.FC = () => {
                 style={[
                     styles.footer,
                     {
+                        borderTopColor: colors.border,
                         paddingBottom: isKeyboardVisible
                             ? Spacing.sm
                             : Math.max(insets.bottom + Spacing.md),
@@ -636,7 +737,7 @@ export const AddCustomerScreen: React.FC = () => {
                 ]}
             >
                 <Button
-                    title="Cancel"
+                    title={t("addCustomer.cancel")}
                     variant="secondary"
                     onPress={handleCancel}
                     style={styles.footerButton}
@@ -644,10 +745,10 @@ export const AddCustomerScreen: React.FC = () => {
                 <Button
                     title={
                         isEditMode && isSubmitting
-                            ? "Updating..."
+                            ? t("addCustomer.updating")
                             : isEditMode
-                              ? "Update Customer"
-                              : "Create Customer"
+                              ? t("addCustomer.updateCustomer")
+                              : t("addCustomer.createCustomer")
                     }
                     onPress={handleSubmit}
                     disabled={isSubmitting}

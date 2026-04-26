@@ -41,3 +41,9 @@ app-example
 # generated native folders
 /ios
 /android
+
+# ai configs
+.kilocode
+.vscode
+
+client_secret_72923726304-k4nnektkfokn4a06n9bh4fkn3jvhtgc3.apps.googleusercontent.com.json

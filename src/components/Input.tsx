@@ -7,7 +7,8 @@ import {
     View,
     ViewStyle,
 } from "react-native";
-import { Colors, Spacing, Typography } from "../constants";
+import { Spacing, Typography } from "../constants";
+import { useTheme } from "../store";
 
 interface InputProps extends Omit<TextInputProps, "style"> {
     containerStyle?: ViewStyle;
@@ -27,19 +28,23 @@ export const Input: React.FC<InputProps> = React.memo(({
     multiline,
     ...rest
 }) => {
+    const { colors } = useTheme();
+
     return (
         <View style={[styles.container, containerStyle]}>
             <TextInput
                 style={[
                     styles.input,
                     {
+                        backgroundColor: colors.input.background,
                         borderColor: error
-                            ? Colors.danger
-                            : Colors.input.border,
+                            ? colors.danger
+                            : colors.input.border,
+                        color: colors.text.primary,
                     },
                     inputStyle,
                 ]}
-                placeholderTextColor={Colors.input.placeholder}
+                placeholderTextColor={colors.input.placeholder}
                 value={value}
                 onChangeText={onChangeText}
                 placeholder={placeholder}
@@ -57,13 +62,11 @@ const styles = StyleSheet.create({
         marginBottom: Spacing.md,
     },
     input: {
-        backgroundColor: Colors.input.background,
         borderWidth: 1,
         borderRadius: 8,
         paddingVertical: Spacing.md,
         paddingHorizontal: Spacing.md,
         fontSize: Typography.body.medium,
-        color: Colors.text.primary,
         minHeight: 44,
     },
 });

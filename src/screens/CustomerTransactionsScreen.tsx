@@ -24,7 +24,7 @@ import { Colors, Spacing } from "../constants";
 import { useCustomerById } from "../hooks";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useTransactions } from "../hooks/useTransactions";
-import { useDatabaseContext } from "../store";
+import { useDatabaseContext, useTheme } from "../store";
 import { formatCurrency, formatDateTime } from "../utils";
 import { TransactionType, CustomerId, TransactionId, AccountId } from "../models";
 import { toInteger, fromInteger } from "../utils/currencyUtils";
@@ -34,6 +34,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
     const { db } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
     const { customer, refresh: refreshCustomer } = useCustomerById(
         db,
         parseInt(customerId || "0") as CustomerId,
@@ -187,7 +188,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         <Ionicons
                             name="trash-outline"
                             size={18}
-                            color={Colors.danger}
+                            color={colors.danger}
                         />
                     </Pressable>
                 </View>
@@ -214,7 +215,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
 
     if (!db) {
         return (
-            <View style={styles.center}>
+            <View style={[styles.center, { backgroundColor: colors.background }]}>
                 <Typography variant="body-medium" color="muted">
                     Loading database...
                 </Typography>
@@ -223,9 +224,9 @@ export const CustomerTransactionsScreen: React.FC = () => {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             <View
-                style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
+                style={[styles.header, { paddingTop: insets.top + Spacing.md, backgroundColor: colors.surface, borderBottomColor: colors.border }]}
             >
                 <Pressable
                     onPress={() => router.back()}
@@ -234,7 +235,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <Ionicons
                         name="arrow-back"
                         size={24}
-                        color={Colors.text.primary}
+                        color={colors.text.primary}
                     />
                 </Pressable>
                 <View style={styles.headerContent}>
@@ -245,11 +246,11 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                 style={styles.headerImage}
                             />
                         ) : (
-                            <View style={styles.headerImagePlaceholder}>
+                            <View style={[styles.headerImagePlaceholder, { backgroundColor: colors.background }]}>
                                 <Ionicons
                                     name="person"
                                     size={20}
-                                    color={Colors.text.muted}
+                                    color={colors.text.muted}
                                 />
                             </View>
                         )}
@@ -286,7 +287,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         <Ionicons
                             name="create-outline"
                             size={24}
-                            color={Colors.primary}
+                            color={colors.primary}
                         />
                     </Pressable>
                     <Pressable
@@ -316,7 +317,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         <Ionicons
                             name="trash-outline"
                             size={24}
-                            color={Colors.danger}
+                            color={colors.danger}
                         />
                     </Pressable>
                 </View>
@@ -367,14 +368,14 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 <Pressable
                     style={[
                         styles.actionButton,
-                        { backgroundColor: Colors.primary },
+                        { backgroundColor: colors.primary },
                     ]}
                     onPress={() => openAddModal(TransactionType.CREDIT)}
                 >
                     <Ionicons
                         name="arrow-down"
                         size={20}
-                        color={Colors.text.primary}
+                        color={colors.text.primary}
                     />
                     <Typography variant="body-medium" color="primary">
                         Receive
@@ -383,14 +384,14 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 <Pressable
                     style={[
                         styles.actionButton,
-                        { backgroundColor: Colors.danger },
+                        { backgroundColor: colors.danger },
                     ]}
                     onPress={() => openAddModal(TransactionType.DEBIT)}
                 >
                     <Ionicons
                         name="arrow-up"
                         size={20}
-                        color={Colors.text.primary}
+                        color={colors.text.primary}
                     />
                     <Typography variant="body-medium" color="primary">
                         Pay

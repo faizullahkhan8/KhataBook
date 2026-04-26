@@ -1,6 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, TextStyle } from "react-native";
-import { Colors, Typography as TypographySizes } from "../constants";
+import { Typography as TypographySizes } from "../constants";
+import { useTheme } from "../store";
 
 type TypographyVariant =
     | "heading-large"
@@ -17,7 +18,7 @@ type TypographyVariant =
 interface TypographyProps {
     children: React.ReactNode;
     variant?: TypographyVariant;
-    color?: keyof typeof Colors.text;
+    color?: "primary" | "secondary" | "muted" | "success" | "danger" | "warning";
     style?: TextStyle;
     numberOfLines?: number;
 }
@@ -29,6 +30,8 @@ export const Typography: React.FC<TypographyProps> = React.memo(({
     style,
     numberOfLines,
 }) => {
+    const { colors } = useTheme();
+
     const getFontSize = (): number => {
         switch (variant) {
             case "heading-large":
@@ -73,7 +76,7 @@ export const Typography: React.FC<TypographyProps> = React.memo(({
                 {
                     fontSize: getFontSize(),
                     fontWeight: getFontWeight(),
-                    color: Colors.text[color],
+                    color: colors.text[color],
                 },
                 style,
             ]}

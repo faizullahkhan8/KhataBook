@@ -1,26 +1,36 @@
-import React from 'react';
-import { View, StyleSheet, ViewStyle } from 'react-native';
-import { Colors, Spacing } from '../constants';
+import React from "react";
+import { View, StyleSheet, ViewStyle } from "react-native";
+import { Spacing } from "../constants";
+import { useTheme } from "../store";
 
 interface CardProps {
-  children: React.ReactNode;
-  style?: ViewStyle;
+    children: React.ReactNode;
+    style?: ViewStyle | ViewStyle[];
 }
 
 export const Card: React.FC<CardProps> = React.memo(({ children, style }) => {
-  return (
-    <View style={[styles.card, style]}>
-      {children}
-    </View>
-  );
+    const { colors } = useTheme();
+
+    return (
+        <View
+            style={[
+                styles.card,
+                {
+                    backgroundColor: colors.surface,
+                    borderColor: colors.border,
+                },
+                style,
+            ]}
+        >
+            {children}
+        </View>
+    );
 });
 
 const styles = StyleSheet.create({
-  card: {
-    backgroundColor: Colors.surface,
-    borderRadius: 12,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
+    card: {
+        borderRadius: 12,
+        padding: Spacing.lg,
+        borderWidth: 1,
+    },
 });

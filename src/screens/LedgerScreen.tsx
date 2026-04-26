@@ -1,13 +1,21 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useMemo, useRef, useState } from "react";
-import { FlatList, Pressable, RefreshControl, StyleSheet, TextInput, View } from "react-native";
+import { useTranslation } from "react-i18next";
+import {
+    FlatList,
+    Pressable,
+    RefreshControl,
+    StyleSheet,
+    TextInput,
+    View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, TouchableAmount, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomersWithAccounts, useTransactions } from "../hooks";
-import { useDatabaseContext } from "../store";
+import { TransactionType } from "../models";
+import { useDatabaseContext, useLanguage, useTheme } from "../store";
 import { formatDateTime } from "../utils";
-import { TransactionType, AccountId } from "../models";
 
 interface LedgerEntry {
     id: string;
@@ -23,6 +31,9 @@ interface LedgerEntry {
 export const LedgerScreen: React.FC = () => {
     const { db } = useDatabaseContext();
     const insets = useSafeAreaInsets();
+    const { colors } = useTheme();
+    const { t } = useTranslation();
+    const { isRTL } = useLanguage();
     const {
         transactions,
         loading: loadingTransactions,
@@ -64,23 +75,29 @@ export const LedgerScreen: React.FC = () => {
 
     const ledgerEntries: LedgerEntry[] = useMemo(() => {
         return [
-            ...transactions.map((t) => {
-                const accountData = t.account_id
-                    ? accountLookup[t.account_id.toString()]
+            ...transactions.map((transaction) => {
+                const accountData = transaction.account_id
+                    ? accountLookup[transaction.account_id.toString()]
                     : null;
                 return {
-                    id: `t-${t.id}`,
+                    id: `t-${transaction.id}`,
                     type: "transaction" as const,
-                    amount: t.amount,
-                    description: t.description || (t.type === TransactionType.CREDIT ? "CREDIT" : "DEBIT"),
-                    date: t.created_at || 0,
-                    isCredit: t.type === TransactionType.CREDIT,
-                    customerName: accountData?.customerName || "Unknown",
-                    accountNumber: accountData?.accountNumber || "N/A",
+                    amount: transaction.amount,
+                    description:
+                        transaction.description ||
+                        (transaction.type === TransactionType.CREDIT
+                            ? t("ledger.credit")
+                            : t("ledger.debit")),
+                    date: transaction.created_at || 0,
+                    isCredit: transaction.type === TransactionType.CREDIT,
+                    customerName:
+                        accountData?.customerName || t("ledger.unknown"),
+                    accountNumber:
+                        accountData?.accountNumber || t("ledger.notAvailable"),
                 };
             }),
         ].sort((a, b) => b.date - a.date);
-    }, [transactions, accountLookup]);
+    }, [transactions, accountLookup, t]);
 
     const filteredEntries = useMemo(() => {
         const lowerSearch = searchText.toLowerCase();
@@ -92,83 +109,117 @@ export const LedgerScreen: React.FC = () => {
         );
     }, [ledgerEntries, searchText]);
 
-    const renderEntry = useCallback(({ item }: { item: LedgerEntry }) => (
-        <Card style={styles.entryCard}>
-            <View style={styles.entryHeader}>
-                <Typography variant="body-medium" color="secondary">
-                    Transaction
-                </Typography>
-                <Typography variant="small-small" color="muted">
-                    {formatDateTime(item.date)}
-                </Typography>
-            </View>
-            <View
-                style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                }}
-            >
-                <View style={styles.entryContent}>
-                    <Typography
-                        variant="heading-small"
-                        color="primary"
-                        style={styles.description}
-                        numberOfLines={1}
-                    >
-                        {item.isCredit
-                            ? "Received from"
-                            : "Paid to"}
+    const renderEntry = useCallback(
+        ({ item }: { item: LedgerEntry }) => (
+            <Card style={styles.entryCard}>
+                <View
+                    style={[
+                        styles.entryHeader,
+                        isRTL && { flexDirection: "row-reverse" },
+                    ]}
+                >
+                    <Typography variant="body-medium" color="secondary">
+                        {t("ledger.transaction")}
                     </Typography>
-                    <Typography
-                        variant="heading-small"
-                        numberOfLines={1}
-                        style={styles.customerName}
-                    >
-                        {item.customerName}
-                    </Typography>
-                    <Typography
-                        variant="small-small"
-                        color="muted"
-                        style={styles.accountNumber}
-                        numberOfLines={1}
-                    >
-                        {item.accountNumber}
+                    <Typography variant="small-small" color="muted">
+                        {formatDateTime(item.date)}
                     </Typography>
                 </View>
-                <View style={styles.amountContainer}>
-                    <TouchableAmount
-                        amount={item.amount}
-                        variant="heading-large"
-                        color={item.isCredit ? "success" : "danger"}
-                        style={styles.amount}
-                    />
+                <View
+                    style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                    }}
+                >
+                    <View style={styles.entryContent}>
+                        <Typography
+                            variant="heading-small"
+                            color="primary"
+                            style={styles.description}
+                            numberOfLines={1}
+                        >
+                            {item.isCredit
+                                ? t("ledger.receivedFrom")
+                                : t("ledger.paidTo")}
+                        </Typography>
+                        <Typography
+                            variant="heading-small"
+                            numberOfLines={1}
+                            style={styles.customerName}
+                        >
+                            {item.customerName}
+                        </Typography>
+                        <Typography
+                            variant="small-small"
+                            color="muted"
+                            style={styles.accountNumber}
+                            numberOfLines={1}
+                        >
+                            {item.accountNumber}
+                        </Typography>
+                    </View>
+                    <View style={styles.amountContainer}>
+                        <TouchableAmount
+                            amount={item.amount}
+                            variant="heading-large"
+                            color={item.isCredit ? "success" : "danger"}
+                            style={styles.amount}
+                        />
+                    </View>
                 </View>
-            </View>
-        </Card>
-    ), []);
+            </Card>
+        ),
+        [isRTL, t],
+    );
 
     if (!db) {
         return (
-            <View style={styles.center}>
+            <View
+                style={[styles.center, { backgroundColor: colors.background }]}
+            >
                 <Typography variant="body-medium" color="muted">
-                    Loading database...
+                    {t("ledger.loading")}
                 </Typography>
             </View>
         );
     }
 
     return (
-        <View style={styles.container}>
+        <View
+            style={[styles.container, { backgroundColor: colors.background }]}
+        >
             <View
-                style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
+                style={[
+                    styles.header,
+                    {
+                        paddingTop: insets.top + Spacing.md,
+                        backgroundColor: colors.surface,
+                        borderBottomColor: colors.border,
+                    },
+                ]}
             >
-                <View style={styles.headerTopRow}>
-                    <View style={styles.headerTitleRow}>
-                        <View style={styles.headerIconContainer}>
+                <View
+                    style={[
+                        styles.headerTopRow,
+                        isRTL && { flexDirection: "row-reverse" },
+                    ]}
+                >
+                    <View
+                        style={[
+                            styles.headerTitleRow,
+                            isRTL && { flexDirection: "row-reverse" },
+                        ]}
+                    >
+                        <View
+                            style={[
+                                styles.headerIconContainer,
+                                { backgroundColor: `${colors.primary}20` },
+                            ]}
+                        >
                             <Ionicons
                                 name="book"
                                 size={28}
-                                color={Colors.primary}
+                                color={colors.primary}
                             />
                         </View>
                         {!isSearchActive && (
@@ -177,10 +228,12 @@ export const LedgerScreen: React.FC = () => {
                                     variant="heading-large"
                                     color="primary"
                                 >
-                                    Ledger
+                                    {t("ledger.title")}
                                 </Typography>
                                 <Typography variant="body-small" color="muted">
-                                    {filteredEntries.length} transactions
+                                    {t("ledger.subtitle", {
+                                        count: filteredEntries.length,
+                                    })}
                                 </Typography>
                             </View>
                         )}
@@ -188,9 +241,15 @@ export const LedgerScreen: React.FC = () => {
                             <View style={styles.searchInputContainer}>
                                 <TextInput
                                     ref={searchInputRef}
-                                    style={styles.headerSearchInput}
-                                    placeholder="Search ledger..."
-                                    placeholderTextColor={Colors.text.muted}
+                                    style={[
+                                        styles.headerSearchInput,
+                                        {
+                                            backgroundColor: colors.background,
+                                            color: colors.text.primary,
+                                        },
+                                    ]}
+                                    placeholder={t("ledger.searchPlaceholder")}
+                                    placeholderTextColor={colors.text.muted}
                                     value={searchText}
                                     onChangeText={setSearchText}
                                     autoFocus
@@ -215,12 +274,15 @@ export const LedgerScreen: React.FC = () => {
                                 );
                             }
                         }}
-                        style={styles.searchIconButton}
+                        style={[
+                            styles.searchIconButton,
+                            { backgroundColor: `${colors.primary}15` },
+                        ]}
                     >
                         <Ionicons
                             name={isSearchActive ? "close" : "search"}
                             size={24}
-                            color={Colors.primary}
+                            color={colors.primary}
                         />
                     </Pressable>
                 </View>
@@ -235,8 +297,8 @@ export const LedgerScreen: React.FC = () => {
                     <RefreshControl
                         refreshing={isRefreshing}
                         onRefresh={handleRefresh}
-                        colors={[Colors.primary]}
-                        tintColor={Colors.primary}
+                        colors={[colors.primary]}
+                        tintColor={colors.primary}
                     />
                 }
             />
