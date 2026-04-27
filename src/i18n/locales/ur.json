@@ -56,7 +56,24 @@
         "activeAccounts": "فعال اکاؤنٹس:",
         "inactiveAccounts": "غیر فعال اکاؤنٹس:",
         "suspendedAccounts": "معطل اکاؤنٹس:",
-        "closedAccounts": "بند اکاؤنٹس:"
+        "closedAccounts": "بند اکاؤنٹس:",
+        "filter": {
+            "all": "سب",
+            "today": "آج",
+            "yesterday": "کل",
+            "last7Days": "پچھلے 7 دن",
+            "lastMonth": "پچھلا مہینہ",
+            "custom": "کسٹم"
+        },
+        "dateRange": "تاریخ کی حد",
+        "selectDate": "تاریخ منتخب کریں",
+        "selectStartDate": "شروع کی تاریخ منتخب کریں",
+        "selectEndDate": "آخری تاریخ منتخب کریں",
+        "from": "سے",
+        "to": "تک",
+        "cancel": "منسوخ کریں",
+        "apply": "لگائیں",
+        "clear": "صاف کریں"
     },
     "ledger": {
         "title": "لیجر",
@@ -74,6 +91,7 @@
     "addCustomer": {
         "editTitle": "گاہک میں ترمیم کریں",
         "addTitle": "گاہک شامل کریں",
+        "loading": "ڈیٹا بیس لوڈ ہو رہا ہے...",
         "updating": "اپڈیٹ ہو رہا ہے...",
         "createCustomer": "گاہک بنائیں",
         "updateCustomer": "گاہک اپڈیٹ کریں",

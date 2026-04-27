@@ -10,9 +10,21 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Card, TouchableAmount, Typography } from "../components";
+import {
+    Card,
+    DateFilter,
+    DateRangePicker,
+    ErrorScreen,
+    TouchableAmount,
+    Typography,
+} from "../components";
+import { DateFilterType, DateRange } from "../components/DateFilter";
 import { Colors, Spacing } from "../constants";
-import { useCustomersWithAccounts, useTransactions } from "../hooks";
+import {
+    DateRange as HookDateRange,
+    useCustomersWithAccounts,
+    useTransactions,
+} from "../hooks";
 import { TransactionType } from "../models";
 import { useDatabaseContext, useLanguage, useTheme } from "../store";
 import { formatDateTime } from "../utils";
@@ -29,16 +41,62 @@ interface LedgerEntry {
 }
 
 export const LedgerScreen: React.FC = () => {
-    const { db } = useDatabaseContext();
+    const { db, error: dbError, initDatabase } = useDatabaseContext();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { t } = useTranslation();
     const { isRTL } = useLanguage();
+    const [selectedFilter, setSelectedFilter] = useState<DateFilterType>("all");
+    const [customRange, setCustomRange] = useState<DateRange | undefined>(
+        undefined,
+    );
+    const [showDatePicker, setShowDatePicker] = useState(false);
+
+    // Calculate date range based on selected filter
+    const dateRange = useMemo<HookDateRange | null>(() => {
+        const now = new Date();
+        const today = new Date(
+            now.getFullYear(),
+            now.getMonth(),
+            now.getDate(),
+        );
+
+        switch (selectedFilter) {
+            case "today":
+                return { startDate: today, endDate: today };
+            case "yesterday": {
+                const yesterday = new Date(today);
+                yesterday.setDate(yesterday.getDate() - 1);
+                return { startDate: yesterday, endDate: yesterday };
+            }
+            case "last7Days": {
+                const last7Days = new Date(today);
+                last7Days.setDate(last7Days.getDate() - 6);
+                return { startDate: last7Days, endDate: today };
+            }
+            case "lastMonth": {
+                const lastMonth = new Date(today);
+                lastMonth.setDate(lastMonth.getDate() - 29);
+                return { startDate: lastMonth, endDate: today };
+            }
+            case "custom":
+                if (customRange?.startDate && customRange?.endDate) {
+                    return {
+                        startDate: customRange.startDate,
+                        endDate: customRange.endDate,
+                    };
+                }
+                return null;
+            default:
+                return null;
+        }
+    }, [selectedFilter, customRange]);
+
     const {
         transactions,
         loading: loadingTransactions,
         refresh: refreshTransactions,
-    } = useTransactions(db);
+    } = useTransactions(db, dateRange);
     const {
         customers,
         loading: loadingCustomers,
@@ -53,6 +111,29 @@ export const LedgerScreen: React.FC = () => {
     const [searchText, setSearchText] = useState("");
     const [isSearchActive, setIsSearchActive] = useState(false);
     const searchInputRef = useRef<TextInput>(null);
+
+    const handleFilterChange = useCallback((filter: DateFilterType) => {
+        if (filter === "custom") {
+            setShowDatePicker(true);
+        } else {
+            setSelectedFilter(filter);
+            setCustomRange(undefined);
+        }
+    }, []);
+
+    const handleDateRangeApply = useCallback(
+        (range: { startDate: Date | null; endDate: Date | null }) => {
+            if (range.startDate && range.endDate) {
+                setCustomRange({
+                    startDate: range.startDate,
+                    endDate: range.endDate,
+                });
+                setSelectedFilter("custom");
+            }
+            setShowDatePicker(false);
+        },
+        [],
+    );
 
     // Create a lookup map for account_id -> { customerName, accountNumber }
     const accountLookup = useMemo(() => {
@@ -185,124 +266,162 @@ export const LedgerScreen: React.FC = () => {
     }
 
     return (
-        <View
-            style={[styles.container, { backgroundColor: colors.background }]}
+        <ErrorScreen
+            error={dbError}
+            type="database"
+            isLoading={!db && !dbError}
+            onRetry={initDatabase}
         >
             <View
                 style={[
-                    styles.header,
-                    {
-                        paddingTop: insets.top + Spacing.md,
-                        backgroundColor: colors.surface,
-                        borderBottomColor: colors.border,
-                    },
+                    styles.container,
+                    { backgroundColor: colors.background },
                 ]}
             >
                 <View
                     style={[
-                        styles.headerTopRow,
-                        isRTL && { flexDirection: "row-reverse" },
+                        styles.header,
+                        {
+                            paddingTop: insets.top + Spacing.md,
+                            backgroundColor: colors.surface,
+                            borderBottomColor: colors.border,
+                        },
                     ]}
                 >
                     <View
                         style={[
-                            styles.headerTitleRow,
+                            styles.headerTopRow,
                             isRTL && { flexDirection: "row-reverse" },
                         ]}
                     >
                         <View
                             style={[
-                                styles.headerIconContainer,
-                                { backgroundColor: `${colors.primary}20` },
+                                styles.headerTitleRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
+                            <View
+                                style={[
+                                    styles.headerIconContainer,
+                                    { backgroundColor: `${colors.primary}20` },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="book"
+                                    size={28}
+                                    color={colors.primary}
+                                />
+                            </View>
+                            {!isSearchActive && (
+                                <View>
+                                    <Typography
+                                        variant="heading-large"
+                                        color="primary"
+                                    >
+                                        {t("ledger.title")}
+                                    </Typography>
+                                    <Typography
+                                        variant="body-small"
+                                        color="muted"
+                                    >
+                                        {t("ledger.subtitle", {
+                                            count: filteredEntries.length,
+                                        })}
+                                    </Typography>
+                                </View>
+                            )}
+                            {isSearchActive && (
+                                <View style={styles.searchInputContainer}>
+                                    <TextInput
+                                        ref={searchInputRef}
+                                        style={[
+                                            styles.headerSearchInput,
+                                            {
+                                                backgroundColor:
+                                                    colors.background,
+                                                color: colors.text.primary,
+                                            },
+                                        ]}
+                                        placeholder={t(
+                                            "ledger.searchPlaceholder",
+                                        )}
+                                        placeholderTextColor={colors.text.muted}
+                                        value={searchText}
+                                        onChangeText={setSearchText}
+                                        autoFocus
+                                        onBlur={() => {
+                                            if (!searchText)
+                                                setIsSearchActive(false);
+                                        }}
+                                    />
+                                </View>
+                            )}
+                        </View>
+                        <Pressable
+                            onPress={() => {
+                                if (isSearchActive) {
+                                    setSearchText("");
+                                    setIsSearchActive(false);
+                                } else {
+                                    setIsSearchActive(true);
+                                    setTimeout(
+                                        () => searchInputRef.current?.focus(),
+                                        100,
+                                    );
+                                }
+                            }}
+                            style={[
+                                styles.searchIconButton,
+                                { backgroundColor: `${colors.primary}15` },
                             ]}
                         >
                             <Ionicons
-                                name="book"
-                                size={28}
+                                name={isSearchActive ? "close" : "search"}
+                                size={24}
                                 color={colors.primary}
                             />
-                        </View>
-                        {!isSearchActive && (
-                            <View>
-                                <Typography
-                                    variant="heading-large"
-                                    color="primary"
-                                >
-                                    {t("ledger.title")}
-                                </Typography>
-                                <Typography variant="body-small" color="muted">
-                                    {t("ledger.subtitle", {
-                                        count: filteredEntries.length,
-                                    })}
-                                </Typography>
-                            </View>
-                        )}
-                        {isSearchActive && (
-                            <View style={styles.searchInputContainer}>
-                                <TextInput
-                                    ref={searchInputRef}
-                                    style={[
-                                        styles.headerSearchInput,
-                                        {
-                                            backgroundColor: colors.background,
-                                            color: colors.text.primary,
-                                        },
-                                    ]}
-                                    placeholder={t("ledger.searchPlaceholder")}
-                                    placeholderTextColor={colors.text.muted}
-                                    value={searchText}
-                                    onChangeText={setSearchText}
-                                    autoFocus
-                                    onBlur={() => {
-                                        if (!searchText)
-                                            setIsSearchActive(false);
-                                    }}
-                                />
-                            </View>
-                        )}
+                        </Pressable>
                     </View>
-                    <Pressable
-                        onPress={() => {
-                            if (isSearchActive) {
-                                setSearchText("");
-                                setIsSearchActive(false);
-                            } else {
-                                setIsSearchActive(true);
-                                setTimeout(
-                                    () => searchInputRef.current?.focus(),
-                                    100,
-                                );
-                            }
-                        }}
-                        style={[
-                            styles.searchIconButton,
-                            { backgroundColor: `${colors.primary}15` },
-                        ]}
-                    >
-                        <Ionicons
-                            name={isSearchActive ? "close" : "search"}
-                            size={24}
-                            color={colors.primary}
-                        />
-                    </Pressable>
                 </View>
-            </View>
 
-            <FlatList
-                data={filteredEntries}
-                renderItem={renderEntry}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.list}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={isRefreshing}
-                        onRefresh={handleRefresh}
-                        colors={[colors.primary]}
-                        tintColor={colors.primary}
-                    />
-                }
-            />
-        </View>
+                {/* Date Filter */}
+                <DateFilter
+                    selectedFilter={selectedFilter}
+                    onFilterChange={handleFilterChange}
+                    customRange={customRange}
+                />
+
+                {/* Date Range Picker Modal */}
+                <DateRangePicker
+                    visible={showDatePicker}
+                    onClose={() => setShowDatePicker(false)}
+                    onApply={handleDateRangeApply}
+                    initialRange={
+                        customRange?.startDate && customRange?.endDate
+                            ? {
+                                  startDate: customRange.startDate,
+                                  endDate: customRange.endDate,
+                              }
+                            : undefined
+                    }
+                />
+
+                <FlatList
+                    data={filteredEntries}
+                    renderItem={renderEntry}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={styles.list}
+                    refreshControl={
+                        <RefreshControl
+                            refreshing={isRefreshing}
+                            onRefresh={handleRefresh}
+                            colors={[colors.primary]}
+                            tintColor={colors.primary}
+                        />
+                    }
+                />
+            </View>
+        </ErrorScreen>
     );
 };
 

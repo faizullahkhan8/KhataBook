@@ -17,12 +17,12 @@ import DraggableFlatList, {
 } from "react-native-draggable-flatlist";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Card, TouchableAmount, Typography } from "../components";
+import { Card, ErrorScreen, TouchableAmount, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useDebounce } from "../hooks/useDebounce";
 import { CustomerId, CustomerWithAccounts } from "../models";
-import { CustomerService } from "../services/CustomerService";
+
 import { useDatabaseContext, useLanguage, useTheme } from "../store";
 
 export const CustomersScreen: React.FC = () => {
@@ -32,8 +32,14 @@ export const CustomersScreen: React.FC = () => {
     const { colors } = useTheme();
     const { t } = useTranslation();
     const { isRTL } = useLanguage();
-    const { customers, loading, handleSearch, refresh, bulkDeleteCustomers } =
-        useCustomersWithAccounts(db);
+    const {
+        customers,
+        loading,
+        error,
+        handleSearch,
+        refresh,
+        bulkDeleteCustomers,
+    } = useCustomersWithAccounts(db);
     const [searchText, setSearchText] = useState("");
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [isReorderMode, setIsReorderMode] = useState(false);
@@ -43,8 +49,6 @@ export const CustomersScreen: React.FC = () => {
         CustomerWithAccounts[]
     >([]);
     const searchInputRef = useRef<TextInput>(null);
-
-    const customerService = db ? new CustomerService(db) : null;
 
     const debouncedSearch = useDebounce(searchText, 500);
 
@@ -84,7 +88,7 @@ export const CustomersScreen: React.FC = () => {
                 } else {
                     setOrderedCustomers(customers);
                 }
-            } catch (error) {
+            } catch {
                 setOrderedCustomers(customers);
             }
         };
@@ -113,7 +117,7 @@ export const CustomersScreen: React.FC = () => {
                             }
                         }
                     });
-                } catch (error) {}
+                } catch {}
             })();
         },
         [db],
@@ -166,7 +170,7 @@ export const CustomersScreen: React.FC = () => {
                         try {
                             await bulkDeleteCustomers(Array.from(selectedIds));
                             exitSelectionMode();
-                        } catch (error) {
+                        } catch {
                             Alert.alert(
                                 t("customers.deleteError"),
                                 t("customers.deleteErrorMessage"),
@@ -238,7 +242,13 @@ export const CustomersScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.customerRow,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    ...(isRTL
+                                        ? [
+                                              {
+                                                  flexDirection: "row-reverse",
+                                              } as const,
+                                          ]
+                                        : []),
                                 ]}
                             >
                                 {isSelectionMode && (
@@ -318,9 +328,14 @@ export const CustomersScreen: React.FC = () => {
                                     <View
                                         style={[
                                             styles.customerHeader,
-                                            isRTL && {
-                                                flexDirection: "row-reverse",
-                                            },
+                                            ...(isRTL
+                                                ? [
+                                                      {
+                                                          flexDirection:
+                                                              "row-reverse",
+                                                      } as const,
+                                                  ]
+                                                : []),
                                         ]}
                                     >
                                         <Typography
@@ -329,11 +344,17 @@ export const CustomersScreen: React.FC = () => {
                                             numberOfLines={1}
                                             style={[
                                                 styles.customerName,
-                                                isRTL && {
-                                                    textAlign: "right",
-                                                    marginLeft: Spacing.sm,
-                                                    marginRight: 0,
-                                                },
+                                                ...(isRTL
+                                                    ? [
+                                                          {
+                                                              textAlign:
+                                                                  "right",
+                                                              marginLeft:
+                                                                  Spacing.sm,
+                                                              marginRight: 0,
+                                                          } as const,
+                                                      ]
+                                                    : []),
                                             ]}
                                         >
                                             {item.name}
@@ -354,7 +375,13 @@ export const CustomersScreen: React.FC = () => {
                                         color="secondary"
                                         style={[
                                             styles.text,
-                                            isRTL && { textAlign: "right" },
+                                            ...(isRTL
+                                                ? [
+                                                      {
+                                                          textAlign: "right",
+                                                      } as const,
+                                                  ]
+                                                : []),
                                         ]}
                                     >
                                         {item.phone}
@@ -364,7 +391,13 @@ export const CustomersScreen: React.FC = () => {
                                         color="muted"
                                         style={[
                                             styles.text,
-                                            isRTL && { textAlign: "right" },
+                                            ...(isRTL
+                                                ? [
+                                                      {
+                                                          textAlign: "right",
+                                                      } as const,
+                                                  ]
+                                                : []),
                                         ]}
                                     >
                                         {t("customers.account", {
@@ -377,7 +410,14 @@ export const CustomersScreen: React.FC = () => {
                                             color="muted"
                                             style={[
                                                 styles.text,
-                                                isRTL && { textAlign: "right" },
+                                                ...(isRTL
+                                                    ? [
+                                                          {
+                                                              textAlign:
+                                                                  "right",
+                                                          } as const,
+                                                      ]
+                                                    : []),
                                             ]}
                                         >
                                             {item.email}
@@ -389,7 +429,14 @@ export const CustomersScreen: React.FC = () => {
                                             color="muted"
                                             style={[
                                                 styles.text,
-                                                isRTL && { textAlign: "right" },
+                                                ...(isRTL
+                                                    ? [
+                                                          {
+                                                              textAlign:
+                                                                  "right",
+                                                          } as const,
+                                                      ]
+                                                    : []),
                                             ]}
                                         >
                                             {item.address}
@@ -429,320 +476,366 @@ export const CustomersScreen: React.FC = () => {
     }
 
     return (
-        <View
-            style={[styles.container, { backgroundColor: colors.background }]}
+        <ErrorScreen
+            error={error}
+            type="database"
+            onRetry={refresh}
+            isLoading={loading}
+            loadingText={t("customers.loading")}
         >
             <View
                 style={[
-                    styles.header,
-                    {
-                        paddingTop: insets.top + Spacing.md,
-                        backgroundColor: colors.surface,
-                        borderBottomColor: colors.border,
-                    },
+                    styles.container,
+                    { backgroundColor: colors.background },
                 ]}
             >
                 <View
                     style={[
-                        styles.headerTopRow,
-                        isRTL && { flexDirection: "row-reverse" },
+                        styles.header,
+                        {
+                            paddingTop: insets.top + Spacing.md,
+                            backgroundColor: colors.surface,
+                            borderBottomColor: colors.border,
+                        },
                     ]}
                 >
                     <View
                         style={[
-                            styles.headerTitleRow,
-                            isRTL && { flexDirection: "row-reverse" },
+                            styles.headerTopRow,
+                            ...(isRTL
+                                ? [{ flexDirection: "row-reverse" } as const]
+                                : []),
                         ]}
                     >
-                        {!isSelectionMode ? (
-                            <>
+                        <View
+                            style={[
+                                styles.headerTitleRow,
+                                ...(isRTL
+                                    ? [
+                                          {
+                                              flexDirection: "row-reverse",
+                                          } as const,
+                                      ]
+                                    : []),
+                            ]}
+                        >
+                            {!isSelectionMode ? (
+                                <>
+                                    <View
+                                        style={[
+                                            styles.headerIconContainer,
+                                            {
+                                                backgroundColor: `${colors.primary}20`,
+                                            },
+                                        ]}
+                                    >
+                                        <Ionicons
+                                            name="people"
+                                            size={28}
+                                            color={colors.primary}
+                                        />
+                                    </View>
+                                    {!isSearchActive && (
+                                        <View>
+                                            <Typography
+                                                variant="heading-large"
+                                                color="primary"
+                                            >
+                                                {t("customers.title")}
+                                            </Typography>
+                                            <Typography
+                                                variant="body-small"
+                                                color="muted"
+                                            >
+                                                {t("customers.totalCustomers", {
+                                                    count: customers.length,
+                                                })}
+                                            </Typography>
+                                        </View>
+                                    )}
+                                    {isSearchActive && (
+                                        <View
+                                            style={styles.searchInputContainer}
+                                        >
+                                            <TextInput
+                                                ref={searchInputRef}
+                                                style={[
+                                                    styles.headerSearchInput,
+                                                    {
+                                                        backgroundColor:
+                                                            colors.background,
+                                                        color: colors.text
+                                                            .primary,
+                                                        textAlign: isRTL
+                                                            ? "right"
+                                                            : "left",
+                                                    },
+                                                ]}
+                                                placeholder={t(
+                                                    "customers.searchPlaceholder",
+                                                )}
+                                                placeholderTextColor={
+                                                    colors.text.muted
+                                                }
+                                                value={searchText}
+                                                onChangeText={setSearchText}
+                                                autoFocus
+                                                onBlur={() => {
+                                                    if (!searchText)
+                                                        setIsSearchActive(
+                                                            false,
+                                                        );
+                                                }}
+                                            />
+                                        </View>
+                                    )}
+                                </>
+                            ) : (
                                 <View
                                     style={[
-                                        styles.headerIconContainer,
-                                        {
-                                            backgroundColor: `${colors.primary}20`,
-                                        },
+                                        styles.selectionHeader,
+                                        ...(isRTL
+                                            ? [
+                                                  {
+                                                      flexDirection:
+                                                          "row-reverse",
+                                                  } as const,
+                                              ]
+                                            : []),
                                     ]}
                                 >
-                                    <Ionicons
-                                        name="people"
-                                        size={28}
-                                        color={colors.primary}
-                                    />
-                                </View>
-                                {!isSearchActive && (
+                                    <Pressable
+                                        onPress={exitSelectionMode}
+                                        style={styles.closeButton}
+                                    >
+                                        <Ionicons
+                                            name="close"
+                                            size={28}
+                                            color={colors.text.primary}
+                                        />
+                                    </Pressable>
                                     <View>
                                         <Typography
                                             variant="heading-large"
                                             color="primary"
                                         >
-                                            {t("customers.title")}
-                                        </Typography>
-                                        <Typography
-                                            variant="body-small"
-                                            color="muted"
-                                        >
-                                            {t("customers.totalCustomers", {
-                                                count: customers.length,
+                                            {t("customers.selected", {
+                                                count: selectedIds.size,
                                             })}
                                         </Typography>
+                                        <Pressable onPress={selectAll}>
+                                            <Typography
+                                                variant="body-small"
+                                                color="primary"
+                                            >
+                                                {selectedIds.size ===
+                                                orderedCustomers.length
+                                                    ? t("customers.deselectAll")
+                                                    : t("customers.selectAll")}
+                                            </Typography>
+                                        </Pressable>
                                     </View>
-                                )}
-                                {isSearchActive && (
-                                    <View style={styles.searchInputContainer}>
-                                        <TextInput
-                                            ref={searchInputRef}
-                                            style={[
-                                                styles.headerSearchInput,
-                                                {
-                                                    backgroundColor:
-                                                        colors.background,
-                                                    color: colors.text.primary,
-                                                    textAlign: isRTL
-                                                        ? "right"
-                                                        : "left",
-                                                },
-                                            ]}
-                                            placeholder={t(
-                                                "customers.searchPlaceholder",
-                                            )}
-                                            placeholderTextColor={
-                                                colors.text.muted
-                                            }
-                                            value={searchText}
-                                            onChangeText={setSearchText}
-                                            autoFocus
-                                            onBlur={() => {
-                                                if (!searchText)
-                                                    setIsSearchActive(false);
-                                            }}
-                                        />
-                                    </View>
-                                )}
-                            </>
-                        ) : (
-                            <View
-                                style={[
-                                    styles.selectionHeader,
-                                    isRTL && { flexDirection: "row-reverse" },
-                                ]}
-                            >
+                                </View>
+                            )}
+                        </View>
+                        {!isSelectionMode && (
+                            <View style={styles.headerActions}>
                                 <Pressable
-                                    onPress={exitSelectionMode}
-                                    style={styles.closeButton}
+                                    onPress={() => {
+                                        if (isSearchActive) {
+                                            setSearchText("");
+                                            setIsSearchActive(false);
+                                        } else {
+                                            setIsSearchActive(true);
+                                            setTimeout(
+                                                () =>
+                                                    searchInputRef.current?.focus(),
+                                                100,
+                                            );
+                                        }
+                                    }}
+                                    style={[
+                                        styles.actionButton,
+                                        {
+                                            backgroundColor: isSearchActive
+                                                ? colors.primary
+                                                : `${colors.primary}15`,
+                                        },
+                                    ]}
                                 >
                                     <Ionicons
-                                        name="close"
-                                        size={28}
-                                        color={colors.text.primary}
+                                        name={
+                                            isSearchActive ? "close" : "search"
+                                        }
+                                        size={22}
+                                        color={
+                                            isSearchActive
+                                                ? colors.text.primary
+                                                : colors.primary
+                                        }
                                     />
                                 </Pressable>
-                                <View>
-                                    <Typography
-                                        variant="heading-large"
-                                        color="primary"
-                                    >
-                                        {t("customers.selected", {
-                                            count: selectedIds.size,
-                                        })}
-                                    </Typography>
-                                    <Pressable onPress={selectAll}>
-                                        <Typography
-                                            variant="body-small"
-                                            color="primary"
-                                        >
-                                            {selectedIds.size ===
-                                            orderedCustomers.length
-                                                ? t("customers.deselectAll")
-                                                : t("customers.selectAll")}
-                                        </Typography>
-                                    </Pressable>
-                                </View>
                             </View>
                         )}
                     </View>
-                    {!isSelectionMode && (
-                        <View style={styles.headerActions}>
+                </View>
+
+                <GestureHandlerRootView style={styles.listContainer}>
+                    <DraggableFlatList
+                        data={orderedCustomers}
+                        renderItem={renderCustomer}
+                        keyExtractor={(item) => item.id?.toString() || ""}
+                        contentContainerStyle={[
+                            styles.list,
+                            { paddingBottom: 100 },
+                        ]}
+                        refreshing={loading}
+                        onRefresh={refresh}
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={loading}
+                                onRefresh={refresh}
+                                colors={[colors.primary]}
+                                tintColor={colors.primary}
+                            />
+                        }
+                        onDragEnd={handleDragEnd}
+                        activationDistance={isReorderMode ? 0 : 20}
+                        initialNumToRender={10}
+                        maxToRenderPerBatch={10}
+                        windowSize={10}
+                        removeClippedSubviews={Platform.OS === "android"}
+                        getItemLayout={(_, index) => ({
+                            length: 120,
+                            offset: 120 * index,
+                            index,
+                        })}
+                    />
+                </GestureHandlerRootView>
+
+                {isSelectionMode && (
+                    <View
+                        style={[
+                            styles.bottomActionBar,
+                            {
+                                backgroundColor: colors.surface,
+                                borderTopColor: colors.border,
+                            },
+                        ]}
+                    >
+                        <View
+                            style={[
+                                styles.actionBarContent,
+                                ...(isRTL
+                                    ? [
+                                          {
+                                              flexDirection: "row-reverse",
+                                          } as const,
+                                      ]
+                                    : []),
+                            ]}
+                        >
                             <Pressable
-                                onPress={() => {
-                                    if (isSearchActive) {
-                                        setSearchText("");
-                                        setIsSearchActive(false);
-                                    } else {
-                                        setIsSearchActive(true);
-                                        setTimeout(
-                                            () =>
-                                                searchInputRef.current?.focus(),
-                                            100,
-                                        );
-                                    }
-                                }}
+                                onPress={exitSelectionMode}
+                                style={styles.actionBarButton}
+                            >
+                                <Ionicons
+                                    name="close"
+                                    size={24}
+                                    color={colors.text.primary}
+                                />
+                                <Typography
+                                    variant="body-small"
+                                    color="primary"
+                                >
+                                    {t("customers.cancel")}
+                                </Typography>
+                            </Pressable>
+                            <Pressable
+                                onPress={() => setIsReorderMode(!isReorderMode)}
                                 style={[
-                                    styles.actionButton,
-                                    {
-                                        backgroundColor: isSearchActive
-                                            ? colors.primary
-                                            : `${colors.primary}15`,
+                                    styles.actionBarButton,
+                                    isReorderMode && {
+                                        backgroundColor: `${colors.primary}20`,
+                                        borderRadius: 8,
                                     },
                                 ]}
                             >
                                 <Ionicons
-                                    name={isSearchActive ? "close" : "search"}
-                                    size={22}
+                                    name={
+                                        isReorderMode
+                                            ? "checkmark"
+                                            : "reorder-three"
+                                    }
+                                    size={24}
                                     color={
-                                        isSearchActive
-                                            ? colors.text.primary
-                                            : colors.primary
+                                        isReorderMode
+                                            ? colors.primary
+                                            : colors.text.primary
                                     }
                                 />
+                                <Typography
+                                    variant="body-small"
+                                    color={
+                                        isReorderMode ? "primary" : "secondary"
+                                    }
+                                >
+                                    {isReorderMode
+                                        ? t("customers.done")
+                                        : t("customers.reorder")}
+                                </Typography>
+                            </Pressable>
+                            <Pressable
+                                onPress={handleBulkDelete}
+                                style={styles.actionBarButton}
+                                disabled={selectedIds.size === 0}
+                            >
+                                <Ionicons
+                                    name="trash"
+                                    size={24}
+                                    color={
+                                        selectedIds.size > 0
+                                            ? colors.danger
+                                            : colors.text.muted
+                                    }
+                                />
+                                <Typography
+                                    variant="body-small"
+                                    color={
+                                        selectedIds.size > 0
+                                            ? "danger"
+                                            : "muted"
+                                    }
+                                >
+                                    {t("customers.delete")}
+                                </Typography>
                             </Pressable>
                         </View>
-                    )}
-                </View>
-            </View>
-
-            <GestureHandlerRootView style={styles.listContainer}>
-                <DraggableFlatList
-                    data={orderedCustomers}
-                    renderItem={renderCustomer}
-                    keyExtractor={(item) => item.id?.toString() || ""}
-                    contentContainerStyle={[
-                        styles.list,
-                        { paddingBottom: 100 },
-                    ]}
-                    refreshing={loading}
-                    onRefresh={refresh}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={loading}
-                            onRefresh={refresh}
-                            colors={[colors.primary]}
-                            tintColor={colors.primary}
-                        />
-                    }
-                    onDragEnd={handleDragEnd}
-                    activationDistance={isReorderMode ? 0 : 20}
-                    initialNumToRender={10}
-                    maxToRenderPerBatch={10}
-                    windowSize={10}
-                    removeClippedSubviews={Platform.OS === "android"}
-                    getItemLayout={(_, index) => ({
-                        length: 120,
-                        offset: 120 * index,
-                        index,
-                    })}
-                />
-            </GestureHandlerRootView>
-
-            {isSelectionMode && (
-                <View
-                    style={[
-                        styles.bottomActionBar,
-                        {
-                            backgroundColor: colors.surface,
-                            borderTopColor: colors.border,
-                        },
-                    ]}
-                >
-                    <View
-                        style={[
-                            styles.actionBarContent,
-                            isRTL && { flexDirection: "row-reverse" },
-                        ]}
-                    >
-                        <Pressable
-                            onPress={exitSelectionMode}
-                            style={styles.actionBarButton}
-                        >
-                            <Ionicons
-                                name="close"
-                                size={24}
-                                color={colors.text.primary}
-                            />
-                            <Typography variant="body-small" color="primary">
-                                {t("customers.cancel")}
-                            </Typography>
-                        </Pressable>
-                        <Pressable
-                            onPress={() => setIsReorderMode(!isReorderMode)}
-                            style={[
-                                styles.actionBarButton,
-                                isReorderMode && {
-                                    backgroundColor: `${colors.primary}20`,
-                                    borderRadius: 8,
-                                },
-                            ]}
-                        >
-                            <Ionicons
-                                name={
-                                    isReorderMode
-                                        ? "checkmark"
-                                        : "reorder-three"
-                                }
-                                size={24}
-                                color={
-                                    isReorderMode
-                                        ? colors.primary
-                                        : colors.text.primary
-                                }
-                            />
-                            <Typography
-                                variant="body-small"
-                                color={isReorderMode ? "primary" : "secondary"}
-                            >
-                                {isReorderMode
-                                    ? t("customers.done")
-                                    : t("customers.reorder")}
-                            </Typography>
-                        </Pressable>
-                        <Pressable
-                            onPress={handleBulkDelete}
-                            style={styles.actionBarButton}
-                            disabled={selectedIds.size === 0}
-                        >
-                            <Ionicons
-                                name="trash"
-                                size={24}
-                                color={
-                                    selectedIds.size > 0
-                                        ? colors.danger
-                                        : colors.text.muted
-                                }
-                            />
-                            <Typography
-                                variant="body-small"
-                                color={
-                                    selectedIds.size > 0 ? "danger" : "muted"
-                                }
-                            >
-                                {t("customers.delete")}
-                            </Typography>
-                        </Pressable>
                     </View>
-                </View>
-            )}
+                )}
 
-            {!isSelectionMode && !isReorderMode && (
-                <Pressable
-                    style={[
-                        styles.fab,
-                        {
-                            bottom: 20,
-                            backgroundColor: colors.primary,
-                            shadowColor: colors.primary,
-                            [isRTL ? "left" : "right"]: Spacing.lg,
-                        },
-                    ]}
-                    onPress={() => router.push("/add-customer" as any)}
-                >
-                    <Ionicons
-                        name="add"
-                        size={28}
-                        color={colors.text.primary}
-                    />
-                </Pressable>
-            )}
-        </View>
+                {!isSelectionMode && !isReorderMode && (
+                    <Pressable
+                        style={[
+                            styles.fab,
+                            {
+                                bottom: 20,
+                                backgroundColor: colors.primary,
+                                shadowColor: colors.primary,
+                                [isRTL ? "left" : "right"]: Spacing.lg,
+                            },
+                        ]}
+                        onPress={() => router.push("/add-customer" as any)}
+                    >
+                        <Ionicons
+                            name="add"
+                            size={28}
+                            color={colors.text.primary}
+                        />
+                    </Pressable>
+                )}
+            </View>
+        </ErrorScreen>
     );
 };
 

@@ -1,6 +1,5 @@
 import * as SQLite from "expo-sqlite";
 import { useCallback, useEffect, useState } from "react";
-import { fromInteger } from "../utils/currencyUtils";
 import { useDatabaseContext } from "../store";
 
 export interface FinancialMetrics {
@@ -17,7 +16,15 @@ export interface FinancialMetrics {
     totalTransactions: number;
 }
 
-export const useFinancialMetrics = (db: SQLite.SQLiteDatabase | null) => {
+export interface DateRange {
+    startDate: Date;
+    endDate: Date;
+}
+
+export const useFinancialMetrics = (
+    db: SQLite.SQLiteDatabase | null,
+    dateRange?: DateRange | null,
+) => {
     const { refreshVersions } = useDatabaseContext();
     const [metrics, setMetrics] = useState<FinancialMetrics>({
         totalCredits: 0,
@@ -34,20 +41,60 @@ export const useFinancialMetrics = (db: SQLite.SQLiteDatabase | null) => {
     });
     const [loading, setLoading] = useState(false);
 
+    const toUnixTimestamp = (date: Date): number => {
+        return Math.floor(date.getTime() / 1000);
+    };
+
     const fetchMetrics = useCallback(async () => {
         if (!db) return;
 
         setLoading(true);
         try {
-            // Fetch transaction totals (0: DEBIT, 1: CREDIT)
-            const transResult = await db.getFirstAsync<{ credits: number; debits: number }>(
-                `SELECT 
+            let transactionWhereClause = "";
+            const queryParams: (string | number)[] = [];
+
+            if (dateRange) {
+                const startTimestamp = toUnixTimestamp(dateRange.startDate);
+                const endTimestamp = toUnixTimestamp(dateRange.endDate);
+                // Add 86400 seconds (1 day) to include the full end date
+                const endTimestampInclusive = endTimestamp + 86399;
+                transactionWhereClause =
+                    "WHERE t.created_at >= ? AND t.created_at <= ?";
+                queryParams.push(startTimestamp, endTimestampInclusive);
+            }
+
+            // Fetch transaction totals with optional date filter
+            const transQuery = `
+                SELECT 
                     SUM(CASE WHEN type = 1 THEN amount ELSE 0 END) as credits,
                     SUM(CASE WHEN type = 0 THEN amount ELSE 0 END) as debits
-                 FROM transactions`
-            );
+                 FROM transactions t
+                 ${transactionWhereClause}
+            `;
+            const transResult = await db.getFirstAsync<{
+                credits: number;
+                debits: number;
+            }>(transQuery, dateRange ? queryParams : []);
 
-            // Fetch account totals and statuses (0: ACTIVE, 1: INACTIVE, 2: SUSPENDED, 3: CLOSED)
+            // Fetch transaction count with optional date filter
+            const transCountQuery = `
+                SELECT COUNT(*) as totalTrans 
+                FROM transactions t
+                ${transactionWhereClause}
+            `;
+            const transCountResult = await db.getFirstAsync<{
+                totalTrans: number;
+            }>(transCountQuery, dateRange ? queryParams : []);
+
+            console.log(
+                "Date range filter:",
+                dateRange,
+                "Query params:",
+                queryParams,
+            );
+            console.log("Transaction count result:", transCountResult);
+
+            // Account stats are not date-dependent (they're current state)
             const accountResult = await db.getFirstAsync<{
                 totalLimit: number;
                 totalBalance: number;
@@ -65,18 +112,13 @@ export const useFinancialMetrics = (db: SQLite.SQLiteDatabase | null) => {
                     COUNT(CASE WHEN status = 2 THEN 1 END) as suspended,
                     COUNT(CASE WHEN status = 3 THEN 1 END) as closed,
                     COUNT(*) as totalAcc
-                 FROM accounts`
+                 FROM accounts`,
             );
 
             // Fetch total customers
-            const customerResult = await db.getFirstAsync<{ totalCust: number }>(
-                "SELECT COUNT(*) as totalCust FROM customers"
-            );
-
-            // Fetch total transactions count
-            const transCountResult = await db.getFirstAsync<{ totalTrans: number }>(
-                "SELECT COUNT(*) as totalTrans FROM transactions"
-            );
+            const customerResult = await db.getFirstAsync<{
+                totalCust: number;
+            }>("SELECT COUNT(*) as totalCust FROM customers");
 
             setMetrics({
                 totalCredits: transResult?.credits || 0,
@@ -96,7 +138,7 @@ export const useFinancialMetrics = (db: SQLite.SQLiteDatabase | null) => {
         } finally {
             setLoading(false);
         }
-    }, [db]);
+    }, [db, dateRange]);
 
     useEffect(() => {
         fetchMetrics();

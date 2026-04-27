@@ -1,17 +1,25 @@
 import * as SQLite from "expo-sqlite";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Transaction, AccountId, TransactionId } from "../models";
+import { AccountId, Transaction, TransactionId } from "../models";
 import { TransactionService } from "../services/TransactionService";
 import { useDatabaseContext } from "../store";
 import { usePagination } from "./usePagination";
 
-export const useTransactions = (db: SQLite.SQLiteDatabase | null) => {
+export interface DateRange {
+    startDate: Date;
+    endDate: Date;
+}
+
+export const useTransactions = (
+    db: SQLite.SQLiteDatabase | null,
+    dateRange?: DateRange | null,
+) => {
     const { refreshVersions, invalidate } = useDatabaseContext();
-    const [transactions, setTransactions] = useState<Transaction[]>([]);
+    const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
     const { page, pageSize, offset, resetPage } = usePagination({
-        pageSize: 20,
+        pageSize: 100, // Load more to allow client-side filtering
     });
 
     const transactionService = useMemo(
@@ -19,25 +27,50 @@ export const useTransactions = (db: SQLite.SQLiteDatabase | null) => {
         [db],
     );
 
-    const fetchTransactions = useCallback(async (isManualRefresh = false) => {
-        if (!transactionService) return;
+    const toUnixTimestamp = (date: Date): number => {
+        return Math.floor(date.getTime() / 1000);
+    };
 
-        if (isManualRefresh || transactions.length === 0) {
-            setLoading(true);
-        }
-        setError(null);
-        try {
-            const data = await transactionService.getAllTransactions(
-                pageSize,
-                offset,
+    const fetchTransactions = useCallback(
+        async (isManualRefresh = false) => {
+            if (!transactionService) return;
+
+            if (isManualRefresh || allTransactions.length === 0) {
+                setLoading(true);
+            }
+            setError(null);
+            try {
+                const data = await transactionService.getAllTransactions(
+                    pageSize,
+                    offset,
+                );
+                setAllTransactions(data);
+            } catch (err) {
+                setError(err as Error);
+            } finally {
+                setLoading(false);
+            }
+        },
+        [transactionService, pageSize, offset, allTransactions.length],
+    );
+
+    // Filter transactions by date range
+    const transactions = useMemo(() => {
+        if (!dateRange) return allTransactions;
+
+        const startTimestamp = toUnixTimestamp(dateRange.startDate);
+        const endTimestamp = toUnixTimestamp(dateRange.endDate);
+        // Add 86400 seconds (1 day) to include the full end date
+        const endTimestampInclusive = endTimestamp + 86399;
+
+        return allTransactions.filter((transaction) => {
+            const timestamp = transaction.created_at || 0;
+            return (
+                timestamp >= startTimestamp &&
+                timestamp <= endTimestampInclusive
             );
-            setTransactions(data);
-        } catch (err) {
-            setError(err as Error);
-        } finally {
-            setLoading(false);
-        }
-    }, [transactionService, pageSize, offset, transactions.length]);
+        });
+    }, [allTransactions, dateRange]);
 
     const fetchTransactionsByAccount = useCallback(
         async (accountId: AccountId) => {
@@ -52,7 +85,7 @@ export const useTransactions = (db: SQLite.SQLiteDatabase | null) => {
                         pageSize,
                         offset,
                     );
-                setTransactions(data);
+                setAllTransactions(data);
             } catch (err) {
                 setError(err as Error);
             } finally {
@@ -106,6 +139,7 @@ export const useTransactions = (db: SQLite.SQLiteDatabase | null) => {
 
     return {
         transactions,
+        allTransactions,
         loading,
         error,
         page,

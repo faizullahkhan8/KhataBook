@@ -15,7 +15,7 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, Card, Input, Typography } from "../components";
+import { Button, Card, ErrorScreen, Input, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomerById } from "../hooks/useCustomerById";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
@@ -26,7 +26,12 @@ import { useDatabaseContext, useLanguage, useTheme } from "../store";
 import { fromInteger, toInteger } from "../utils/currencyUtils";
 
 export const AddCustomerScreen: React.FC = () => {
-    const { db, invalidate } = useDatabaseContext();
+    const {
+        db,
+        error: dbError,
+        initDatabase,
+        invalidate,
+    } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
@@ -295,467 +300,508 @@ export const AddCustomerScreen: React.FC = () => {
     };
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
-            style={[
-                styles.container,
-                { paddingTop: insets.top, backgroundColor: colors.background },
-            ]}
+        <ErrorScreen
+            error={dbError}
+            type="database"
+            isLoading={!db && !dbError}
+            onRetry={initDatabase}
         >
-            {/* Header */}
-            <View
+            <KeyboardAvoidingView
+                behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={[
-                    styles.header,
-                    { borderBottomColor: colors.border },
-                    isRTL && { flexDirection: "row-reverse" },
+                    styles.container,
+                    {
+                        paddingTop: insets.top,
+                        backgroundColor: colors.background,
+                    },
                 ]}
             >
-                <Pressable onPress={handleCancel} style={styles.backButton}>
-                    <Ionicons
-                        name={isRTL ? "arrow-forward" : "arrow-back"}
-                        size={24}
-                        color={colors.text.primary}
-                    />
-                </Pressable>
-                <Typography variant="heading-large" color="primary">
-                    {isEditMode
-                        ? t("addCustomer.editTitle")
-                        : t("addCustomer.addTitle")}
-                </Typography>
-                <View style={styles.placeholder} />
-            </View>
-
-            <ScrollView
-                style={styles.scrollView}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-            >
-                {/* Customer Information Section */}
-                <Card style={styles.sectionCard}>
-                    <View
-                        style={[
-                            styles.sectionHeader,
-                            isRTL && { flexDirection: "row-reverse" },
-                        ]}
-                    >
+                {/* Header */}
+                <View
+                    style={[
+                        styles.header,
+                        { borderBottomColor: colors.border },
+                        isRTL && { flexDirection: "row-reverse" },
+                    ]}
+                >
+                    <Pressable onPress={handleCancel} style={styles.backButton}>
                         <Ionicons
-                            name="person-outline"
-                            size={20}
-                            color={colors.primary}
+                            name={isRTL ? "arrow-forward" : "arrow-back"}
+                            size={24}
+                            color={colors.text.primary}
                         />
-                        <Typography variant="heading-small" color="primary">
-                            {t("addCustomer.customerInfo")}
-                        </Typography>
-                    </View>
+                    </Pressable>
+                    <Typography variant="heading-large" color="primary">
+                        {isEditMode
+                            ? t("addCustomer.editTitle")
+                            : t("addCustomer.addTitle")}
+                    </Typography>
+                    <View style={styles.placeholder} />
+                </View>
 
-                    {/* Profile Image */}
-                    <View style={styles.imageContainer}>
-                        {imageUri ? (
-                            <View style={styles.imageWrapper}>
-                                <Image
-                                    source={{ uri: imageUri }}
-                                    style={[
-                                        styles.profileImage,
-                                        { backgroundColor: colors.surface },
-                                    ]}
-                                />
+                <ScrollView
+                    style={styles.scrollView}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Customer Information Section */}
+                    <Card style={styles.sectionCard}>
+                        <View
+                            style={[
+                                styles.sectionHeader,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
+                            <Ionicons
+                                name="person-outline"
+                                size={20}
+                                color={colors.primary}
+                            />
+                            <Typography variant="heading-small" color="primary">
+                                {t("addCustomer.customerInfo")}
+                            </Typography>
+                        </View>
+
+                        {/* Profile Image */}
+                        <View style={styles.imageContainer}>
+                            {imageUri ? (
+                                <View style={styles.imageWrapper}>
+                                    <Image
+                                        source={{ uri: imageUri }}
+                                        style={[
+                                            styles.profileImage,
+                                            { backgroundColor: colors.surface },
+                                        ]}
+                                    />
+                                    <Pressable
+                                        onPress={removeImage}
+                                        style={styles.removeImageButton}
+                                    >
+                                        <Ionicons
+                                            name="close-circle"
+                                            size={24}
+                                            color={colors.danger}
+                                        />
+                                    </Pressable>
+                                </View>
+                            ) : (
                                 <Pressable
-                                    onPress={removeImage}
-                                    style={styles.removeImageButton}
+                                    onPress={showImagePickerOptions}
+                                    style={[
+                                        styles.imagePlaceholder,
+                                        {
+                                            backgroundColor: colors.surface,
+                                            borderColor: colors.border,
+                                        },
+                                    ]}
                                 >
                                     <Ionicons
-                                        name="close-circle"
-                                        size={24}
-                                        color={colors.danger}
+                                        name="camera"
+                                        size={32}
+                                        color={colors.text.muted}
                                     />
+                                    <Typography
+                                        variant="body-small"
+                                        color="muted"
+                                        style={styles.imagePlaceholderText}
+                                    >
+                                        {t("addCustomer.addPhoto")}
+                                    </Typography>
                                 </Pressable>
-                            </View>
-                        ) : (
-                            <Pressable
-                                onPress={showImagePickerOptions}
+                            )}
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <View
                                 style={[
-                                    styles.imagePlaceholder,
-                                    {
-                                        backgroundColor: colors.surface,
-                                        borderColor: colors.border,
-                                    },
+                                    styles.inputLabelRow,
+                                    isRTL && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
-                                    name="camera"
-                                    size={32}
+                                    name="person"
+                                    size={18}
                                     color={colors.text.muted}
                                 />
                                 <Typography
                                     variant="body-small"
-                                    color="muted"
-                                    style={styles.imagePlaceholderText}
+                                    color="secondary"
                                 >
-                                    {t("addCustomer.addPhoto")}
+                                    {t("addCustomer.fullName")}
                                 </Typography>
-                            </Pressable>
-                        )}
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <View
-                            style={[
-                                styles.inputLabelRow,
-                                isRTL && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Ionicons
-                                name="person"
-                                size={18}
-                                color={colors.text.muted}
+                            </View>
+                            <Input
+                                placeholder={t(
+                                    "addCustomer.fullNamePlaceholder",
+                                )}
+                                value={customerInfo.name}
+                                onChangeText={(text) => {
+                                    setCustomerInfo({
+                                        ...customerInfo,
+                                        name: text,
+                                    });
+                                    if (errors.name)
+                                        setErrors({ ...errors, name: "" });
+                                }}
+                                error={!!errors.name}
                             />
-                            <Typography variant="body-small" color="secondary">
-                                {t("addCustomer.fullName")}
-                            </Typography>
-                        </View>
-                        <Input
-                            placeholder={t("addCustomer.fullNamePlaceholder")}
-                            value={customerInfo.name}
-                            onChangeText={(text) => {
-                                setCustomerInfo({
-                                    ...customerInfo,
-                                    name: text,
-                                });
-                                if (errors.name)
-                                    setErrors({ ...errors, name: "" });
-                            }}
-                            error={!!errors.name}
-                        />
-                        {errors.name && (
-                            <Typography
-                                variant="small-small"
-                                color="danger"
-                                style={styles.errorText}
-                            >
-                                {errors.name}
-                            </Typography>
-                        )}
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <View
-                            style={[
-                                styles.inputLabelRow,
-                                isRTL && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Ionicons
-                                name="call"
-                                size={18}
-                                color={colors.text.muted}
-                            />
-                            <Typography variant="body-small" color="secondary">
-                                {t("addCustomer.phoneNumber")}
-                            </Typography>
-                        </View>
-                        <Input
-                            placeholder={t("addCustomer.phonePlaceholder")}
-                            value={customerInfo.phone}
-                            onChangeText={(text) => {
-                                setCustomerInfo({
-                                    ...customerInfo,
-                                    phone: text,
-                                });
-                                if (errors.phone)
-                                    setErrors({ ...errors, phone: "" });
-                            }}
-                            error={!!errors.phone}
-                            keyboardType="phone-pad"
-                        />
-                        {errors.phone && (
-                            <Typography
-                                variant="small-small"
-                                color="danger"
-                                style={styles.errorText}
-                            >
-                                {errors.phone}
-                            </Typography>
-                        )}
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <View
-                            style={[
-                                styles.inputLabelRow,
-                                isRTL && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Ionicons
-                                name="mail"
-                                size={18}
-                                color={colors.text.muted}
-                            />
-                            <Typography variant="body-small" color="secondary">
-                                {t("addCustomer.email")}
-                            </Typography>
-                        </View>
-                        <Input
-                            placeholder={t("addCustomer.emailPlaceholder")}
-                            value={customerInfo.email}
-                            onChangeText={(text) => {
-                                setCustomerInfo({
-                                    ...customerInfo,
-                                    email: text,
-                                });
-                                if (errors.email)
-                                    setErrors({ ...errors, email: "" });
-                            }}
-                            error={!!errors.email}
-                            keyboardType="email-address"
-                            autoCapitalize="none"
-                        />
-                        {errors.email && (
-                            <Typography
-                                variant="small-small"
-                                color="danger"
-                                style={styles.errorText}
-                            >
-                                {errors.email}
-                            </Typography>
-                        )}
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <View
-                            style={[
-                                styles.inputLabelRow,
-                                isRTL && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Ionicons
-                                name="location"
-                                size={18}
-                                color={colors.text.muted}
-                            />
-                            <Typography variant="body-small" color="secondary">
-                                {t("addCustomer.address")}
-                            </Typography>
-                        </View>
-                        <Input
-                            placeholder={t("addCustomer.addressPlaceholder")}
-                            value={customerInfo.address}
-                            onChangeText={(text) =>
-                                setCustomerInfo({
-                                    ...customerInfo,
-                                    address: text,
-                                })
-                            }
-                            multiline
-                        />
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <View
-                            style={[
-                                styles.inputLabelRow,
-                                isRTL && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Ionicons
-                                name="document-text"
-                                size={18}
-                                color={colors.text.muted}
-                            />
-                            <Typography variant="body-small" color="secondary">
-                                {t("addCustomer.notes")}
-                            </Typography>
-                        </View>
-                        <Input
-                            placeholder={t("addCustomer.notesPlaceholder")}
-                            value={customerInfo.notes}
-                            onChangeText={(text) =>
-                                setCustomerInfo({
-                                    ...customerInfo,
-                                    notes: text,
-                                })
-                            }
-                            multiline
-                        />
-                    </View>
-                </Card>
-
-                {/* Account Information Section */}
-                <Card style={styles.sectionCard}>
-                    <View
-                        style={[
-                            styles.sectionHeader,
-                            isRTL && { flexDirection: "row-reverse" },
-                        ]}
-                    >
-                        <Ionicons
-                            name="card-outline"
-                            size={20}
-                            color={colors.success}
-                        />
-                        <Typography variant="heading-small" color="primary">
-                            {t("addCustomer.accountInfo")}
-                        </Typography>
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <View
-                            style={[
-                                styles.inputLabelRow,
-                                isRTL && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Ionicons
-                                name="card"
-                                size={18}
-                                color={colors.text.muted}
-                            />
-                            <Typography variant="body-small" color="secondary">
-                                {t("addCustomer.accountNumber")}
-                            </Typography>
-                        </View>
-                        <Input
-                            placeholder={t(
-                                "addCustomer.accountNumberPlaceholder",
+                            {errors.name && (
+                                <Typography
+                                    variant="small-small"
+                                    color="danger"
+                                    style={styles.errorText}
+                                >
+                                    {errors.name}
+                                </Typography>
                             )}
-                            value={accountInfo.accountNumber}
-                            onChangeText={(text) => {
-                                setAccountInfo({
-                                    ...accountInfo,
-                                    accountNumber: text,
-                                });
-                                if (errors.accountNumber)
-                                    setErrors({ ...errors, accountNumber: "" });
-                            }}
-                            error={!!errors.accountNumber}
-                        />
-                        {errors.accountNumber && (
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <View
+                                style={[
+                                    styles.inputLabelRow,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="call"
+                                    size={18}
+                                    color={colors.text.muted}
+                                />
+                                <Typography
+                                    variant="body-small"
+                                    color="secondary"
+                                >
+                                    {t("addCustomer.phoneNumber")}
+                                </Typography>
+                            </View>
+                            <Input
+                                placeholder={t("addCustomer.phonePlaceholder")}
+                                value={customerInfo.phone}
+                                onChangeText={(text) => {
+                                    setCustomerInfo({
+                                        ...customerInfo,
+                                        phone: text,
+                                    });
+                                    if (errors.phone)
+                                        setErrors({ ...errors, phone: "" });
+                                }}
+                                error={!!errors.phone}
+                                keyboardType="phone-pad"
+                            />
+                            {errors.phone && (
+                                <Typography
+                                    variant="small-small"
+                                    color="danger"
+                                    style={styles.errorText}
+                                >
+                                    {errors.phone}
+                                </Typography>
+                            )}
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <View
+                                style={[
+                                    styles.inputLabelRow,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="mail"
+                                    size={18}
+                                    color={colors.text.muted}
+                                />
+                                <Typography
+                                    variant="body-small"
+                                    color="secondary"
+                                >
+                                    {t("addCustomer.email")}
+                                </Typography>
+                            </View>
+                            <Input
+                                placeholder={t("addCustomer.emailPlaceholder")}
+                                value={customerInfo.email}
+                                onChangeText={(text) => {
+                                    setCustomerInfo({
+                                        ...customerInfo,
+                                        email: text,
+                                    });
+                                    if (errors.email)
+                                        setErrors({ ...errors, email: "" });
+                                }}
+                                error={!!errors.email}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                            />
+                            {errors.email && (
+                                <Typography
+                                    variant="small-small"
+                                    color="danger"
+                                    style={styles.errorText}
+                                >
+                                    {errors.email}
+                                </Typography>
+                            )}
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <View
+                                style={[
+                                    styles.inputLabelRow,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="location"
+                                    size={18}
+                                    color={colors.text.muted}
+                                />
+                                <Typography
+                                    variant="body-small"
+                                    color="secondary"
+                                >
+                                    {t("addCustomer.address")}
+                                </Typography>
+                            </View>
+                            <Input
+                                placeholder={t(
+                                    "addCustomer.addressPlaceholder",
+                                )}
+                                value={customerInfo.address}
+                                onChangeText={(text) =>
+                                    setCustomerInfo({
+                                        ...customerInfo,
+                                        address: text,
+                                    })
+                                }
+                                multiline
+                            />
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <View
+                                style={[
+                                    styles.inputLabelRow,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="document-text"
+                                    size={18}
+                                    color={colors.text.muted}
+                                />
+                                <Typography
+                                    variant="body-small"
+                                    color="secondary"
+                                >
+                                    {t("addCustomer.notes")}
+                                </Typography>
+                            </View>
+                            <Input
+                                placeholder={t("addCustomer.notesPlaceholder")}
+                                value={customerInfo.notes}
+                                onChangeText={(text) =>
+                                    setCustomerInfo({
+                                        ...customerInfo,
+                                        notes: text,
+                                    })
+                                }
+                                multiline
+                            />
+                        </View>
+                    </Card>
+
+                    {/* Account Information Section */}
+                    <Card style={styles.sectionCard}>
+                        <View
+                            style={[
+                                styles.sectionHeader,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
+                            <Ionicons
+                                name="card-outline"
+                                size={20}
+                                color={colors.success}
+                            />
+                            <Typography variant="heading-small" color="primary">
+                                {t("addCustomer.accountInfo")}
+                            </Typography>
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <View
+                                style={[
+                                    styles.inputLabelRow,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="card"
+                                    size={18}
+                                    color={colors.text.muted}
+                                />
+                                <Typography
+                                    variant="body-small"
+                                    color="secondary"
+                                >
+                                    {t("addCustomer.accountNumber")}
+                                </Typography>
+                            </View>
+                            <Input
+                                placeholder={t(
+                                    "addCustomer.accountNumberPlaceholder",
+                                )}
+                                value={accountInfo.accountNumber}
+                                onChangeText={(text) => {
+                                    setAccountInfo({
+                                        ...accountInfo,
+                                        accountNumber: text,
+                                    });
+                                    if (errors.accountNumber)
+                                        setErrors({
+                                            ...errors,
+                                            accountNumber: "",
+                                        });
+                                }}
+                                error={!!errors.accountNumber}
+                            />
+                            {errors.accountNumber && (
+                                <Typography
+                                    variant="small-small"
+                                    color="danger"
+                                    style={styles.errorText}
+                                >
+                                    {errors.accountNumber}
+                                </Typography>
+                            )}
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <View
+                                style={[
+                                    styles.inputLabelRow,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="cash"
+                                    size={18}
+                                    color={colors.text.muted}
+                                />
+                                <Typography
+                                    variant="body-small"
+                                    color="secondary"
+                                >
+                                    {t("addCustomer.creditLimit")}
+                                </Typography>
+                            </View>
+                            <Input
+                                placeholder={t(
+                                    "addCustomer.creditLimitPlaceholder",
+                                )}
+                                value={accountInfo.creditLimit}
+                                onChangeText={(text) =>
+                                    setAccountInfo({
+                                        ...accountInfo,
+                                        creditLimit: text,
+                                    })
+                                }
+                                keyboardType="decimal-pad"
+                            />
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <View
+                                style={[
+                                    styles.inputLabelRow,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="wallet"
+                                    size={18}
+                                    color={colors.text.muted}
+                                />
+                                <Typography
+                                    variant="body-small"
+                                    color="secondary"
+                                >
+                                    {t("addCustomer.openingBalance")}
+                                </Typography>
+                            </View>
+                            <Input
+                                placeholder={t(
+                                    "addCustomer.openingBalancePlaceholder",
+                                )}
+                                value={accountInfo.initialBalance}
+                                onChangeText={(text) =>
+                                    setAccountInfo({
+                                        ...accountInfo,
+                                        initialBalance: text,
+                                    })
+                                }
+                                keyboardType="decimal-pad"
+                            />
+                        </View>
+
+                        <View
+                            style={[
+                                styles.accountInfo,
+                                { backgroundColor: `${colors.primary}10` },
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
+                            <Ionicons
+                                name="information-circle"
+                                size={16}
+                                color={colors.text.muted}
+                            />
                             <Typography
                                 variant="small-small"
-                                color="danger"
-                                style={styles.errorText}
+                                color="muted"
+                                style={styles.accountInfoText}
                             >
-                                {errors.accountNumber}
-                            </Typography>
-                        )}
-                    </View>
-
-                    <View style={styles.inputContainer}>
-                        <View
-                            style={[
-                                styles.inputLabelRow,
-                                isRTL && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Ionicons
-                                name="cash"
-                                size={18}
-                                color={colors.text.muted}
-                            />
-                            <Typography variant="body-small" color="secondary">
-                                {t("addCustomer.creditLimit")}
+                                {t("addCustomer.accountInfoMessage")}
                             </Typography>
                         </View>
-                        <Input
-                            placeholder={t(
-                                "addCustomer.creditLimitPlaceholder",
-                            )}
-                            value={accountInfo.creditLimit}
-                            onChangeText={(text) =>
-                                setAccountInfo({
-                                    ...accountInfo,
-                                    creditLimit: text,
-                                })
-                            }
-                            keyboardType="decimal-pad"
-                        />
-                    </View>
+                    </Card>
+                </ScrollView>
 
-                    <View style={styles.inputContainer}>
-                        <View
-                            style={[
-                                styles.inputLabelRow,
-                                isRTL && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Ionicons
-                                name="wallet"
-                                size={18}
-                                color={colors.text.muted}
-                            />
-                            <Typography variant="body-small" color="secondary">
-                                {t("addCustomer.openingBalance")}
-                            </Typography>
-                        </View>
-                        <Input
-                            placeholder={t(
-                                "addCustomer.openingBalancePlaceholder",
-                            )}
-                            value={accountInfo.initialBalance}
-                            onChangeText={(text) =>
-                                setAccountInfo({
-                                    ...accountInfo,
-                                    initialBalance: text,
-                                })
-                            }
-                            keyboardType="decimal-pad"
-                        />
-                    </View>
-
-                    <View
-                        style={[
-                            styles.accountInfo,
-                            { backgroundColor: `${colors.primary}10` },
-                            isRTL && { flexDirection: "row-reverse" },
-                        ]}
-                    >
-                        <Ionicons
-                            name="information-circle"
-                            size={16}
-                            color={colors.text.muted}
-                        />
-                        <Typography
-                            variant="small-small"
-                            color="muted"
-                            style={styles.accountInfoText}
-                        >
-                            {t("addCustomer.accountInfoMessage")}
-                        </Typography>
-                    </View>
-                </Card>
-            </ScrollView>
-
-            {/* Footer Actions */}
-            <View
-                style={[
-                    styles.footer,
-                    {
-                        borderTopColor: colors.border,
-                        paddingBottom: isKeyboardVisible
-                            ? Spacing.sm
-                            : Math.max(insets.bottom + Spacing.md),
-                    },
-                ]}
-            >
-                <Button
-                    title={t("addCustomer.cancel")}
-                    variant="secondary"
-                    onPress={handleCancel}
-                    style={styles.footerButton}
-                />
-                <Button
-                    title={
-                        isEditMode && isSubmitting
-                            ? t("addCustomer.updating")
-                            : isEditMode
-                              ? t("addCustomer.updateCustomer")
-                              : t("addCustomer.createCustomer")
-                    }
-                    onPress={handleSubmit}
-                    disabled={isSubmitting}
-                    style={styles.footerButton}
-                />
-            </View>
-        </KeyboardAvoidingView>
+                {/* Footer Actions */}
+                <View
+                    style={[
+                        styles.footer,
+                        {
+                            borderTopColor: colors.border,
+                            paddingBottom: isKeyboardVisible
+                                ? Spacing.sm
+                                : Math.max(insets.bottom + Spacing.md),
+                        },
+                    ]}
+                >
+                    <Button
+                        title={t("addCustomer.cancel")}
+                        variant="secondary"
+                        onPress={handleCancel}
+                        style={styles.footerButton}
+                    />
+                    <Button
+                        title={
+                            isEditMode && isSubmitting
+                                ? t("addCustomer.updating")
+                                : isEditMode
+                                  ? t("addCustomer.updateCustomer")
+                                  : t("addCustomer.createCustomer")
+                        }
+                        onPress={handleSubmit}
+                        disabled={isSubmitting}
+                        style={styles.footerButton}
+                    />
+                </View>
+            </KeyboardAvoidingView>
+        </ErrorScreen>
     );
 };
 

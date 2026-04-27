@@ -56,7 +56,24 @@
         "activeAccounts": "Active Accounts:",
         "inactiveAccounts": "Inactive Accounts:",
         "suspendedAccounts": "Suspended Accounts:",
-        "closedAccounts": "Closed Accounts:"
+        "closedAccounts": "Closed Accounts:",
+        "filter": {
+            "all": "All",
+            "today": "Today",
+            "yesterday": "Yesterday",
+            "last7Days": "Last 7 Days",
+            "lastMonth": "Last Month",
+            "custom": "Custom"
+        },
+        "dateRange": "Date Range",
+        "selectDate": "Select Date",
+        "selectStartDate": "Select Start Date",
+        "selectEndDate": "Select End Date",
+        "from": "From",
+        "to": "To",
+        "cancel": "Cancel",
+        "apply": "Apply",
+        "clear": "Clear"
     },
     "ledger": {
         "title": "Ledger",
@@ -74,6 +91,7 @@
     "addCustomer": {
         "editTitle": "Edit Customer",
         "addTitle": "Add Customer",
+        "loading": "Loading database...",
         "updating": "Updating...",
         "createCustomer": "Create Customer",
         "updateCustomer": "Update Customer",
@@ -137,6 +155,14 @@
         "contactMessage": "You can contact us for any business problems or custom software development needs. We provide tailored solutions for your specific requirements.",
         "callNow": "Call Now",
         "emailUs": "Email Us"
+    },
+    "common": {
+        "loading": "Loading...",
+        "errorTitle": "Oops!",
+        "databaseError": "Something went wrong with the database. Please try again.",
+        "networkError": "Network connection failed. Please check your internet.",
+        "generalError": "Something went wrong. Please try again.",
+        "retry": "Retry"
     },
     "navigation": {
         "customers": "Customers",
