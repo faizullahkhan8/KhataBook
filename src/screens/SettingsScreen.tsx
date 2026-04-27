@@ -1,17 +1,18 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
-import {
-    FlatList,
-    Pressable,
-    StyleSheet,
-    View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
+import { FlatList, Pressable, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
-import { useTheme, useLanguage } from "../store";
+import { useLanguage, useTheme } from "../store";
+
+import {
+    GoogleSignin,
+    isErrorWithCode,
+    isSuccessResponse,
+} from "@react-native-google-signin/google-signin";
 
 interface SettingItem {
     id: string;
@@ -31,42 +32,64 @@ export const SettingsScreen: React.FC = () => {
     const [showThemeOptions, setShowThemeOptions] = useState(false);
     const [showLanguageOptions, setShowLanguageOptions] = useState(false);
 
+    const handleGoogleSignIn = async () => {
+        try {
+            await GoogleSignin.hasPlayServices();
+            const response = await GoogleSignin.signIn();
+            if (isSuccessResponse(response)) {
+                console.log(response.data);
+            } else {
+                console.log("Sign is cencelled by the user.");
+            }
+        } catch (error) {
+            if (isErrorWithCode(error)) {
+                console.log(error);
+            }
+        }
+    };
+
     const SETTINGS_DATA: SettingItem[] = [
         {
             id: "theme",
-            title: t('settings.theme'),
-            subtitle: mode === 'light' ? t('settings.theme_light') : mode === 'dark' ? t('settings.theme_dark') : t('settings.theme_system'),
+            title: t("settings.theme"),
+            subtitle:
+                mode === "light"
+                    ? t("settings.theme_light")
+                    : mode === "dark"
+                      ? t("settings.theme_dark")
+                      : t("settings.theme_system"),
             icon: "moon-outline",
             type: "navigation",
             section: "General",
         },
         {
             id: "language",
-            title: t('settings.language'),
-            subtitle: language === 'ur' ? t('settings.urdu') : t('settings.english'),
+            title: t("settings.language"),
+            subtitle:
+                language === "ur" ? t("settings.urdu") : t("settings.english"),
             icon: "globe-outline",
             type: "navigation",
             section: "General",
         },
         {
             id: "passcode",
-            title: t('settings.passcode'),
-            subtitle: t('settings.passcodeSubtitle'),
+            title: t("settings.passcode"),
+            subtitle: t("settings.passcodeSubtitle"),
             icon: "lock-closed-outline",
             type: "navigation",
             section: "Security",
         },
         {
             id: "backup",
-            title: t('settings.cloudBackup'),
-            subtitle: t('settings.cloudBackupSubtitle'),
+            title: t("settings.cloudBackup"),
+            subtitle: t("settings.cloudBackupSubtitle"),
             icon: "cloud-upload-outline",
             type: "navigation",
             section: "Security",
         },
         {
             id: "about",
-            title: t('settings.aboutDeveloper'),
+            title: t("settings.aboutDeveloper"),
             subtitle: "Faiz Ullah Khan",
             icon: "person-outline",
             type: "navigation",
@@ -74,8 +97,8 @@ export const SettingsScreen: React.FC = () => {
         },
         {
             id: "privacy",
-            title: t('settings.privacyPolicy'),
-            subtitle: t('settings.privacyPolicySubtitle'),
+            title: t("settings.privacyPolicy"),
+            subtitle: t("settings.privacyPolicySubtitle"),
             icon: "shield-checkmark-outline",
             type: "navigation",
             section: "Support",
@@ -91,14 +114,27 @@ export const SettingsScreen: React.FC = () => {
             setShowThemeOptions(false);
         } else if (item.id === "about") {
             router.push("/about");
+        } else if (item.id === "backup") {
+            router.push("/backup");
         }
     };
 
-    const renderItem = ({ item, index }: { item: SettingItem; index: number }) => {
+    const renderItem = ({
+        item,
+        index,
+    }: {
+        item: SettingItem;
+        index: number;
+    }) => {
         const isFirstInSection =
             index === 0 || SETTINGS_DATA[index - 1].section !== item.section;
 
-        const sectionTitle = item.section === "General" ? t('settings.general') : item.section === "Security" ? t('settings.security') : t('settings.support');
+        const sectionTitle =
+            item.section === "General"
+                ? t("settings.general")
+                : item.section === "Security"
+                  ? t("settings.security")
+                  : t("settings.support");
 
         return (
             <View>
@@ -106,7 +142,13 @@ export const SettingsScreen: React.FC = () => {
                     <Typography
                         variant="subheading-small"
                         color="muted"
-                        style={[styles.sectionHeader, isRTL && { textAlign: 'right', marginRight: Spacing.sm }]}
+                        style={[
+                            styles.sectionHeader,
+                            isRTL && {
+                                textAlign: "right",
+                                marginRight: Spacing.sm,
+                            },
+                        ]}
                     >
                         {sectionTitle}
                     </Typography>
@@ -118,9 +160,22 @@ export const SettingsScreen: React.FC = () => {
                     ]}
                     onPress={() => handlePress(item)}
                 >
-                    <Card style={[styles.itemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+                    <Card
+                        style={[
+                            styles.itemCard,
+                            {
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border,
+                            },
+                        ]}
+                    >
                         <View style={styles.itemContent}>
-                            <View style={[styles.iconBox, { backgroundColor: `${colors.primary}25` }]}>
+                            <View
+                                style={[
+                                    styles.iconBox,
+                                    { backgroundColor: `${colors.primary}25` },
+                                ]}
+                            >
                                 <Ionicons
                                     name={item.icon}
                                     size={22}
@@ -128,7 +183,10 @@ export const SettingsScreen: React.FC = () => {
                                 />
                             </View>
                             <View style={styles.textContainer}>
-                                <Typography variant="body-large" color="primary">
+                                <Typography
+                                    variant="body-large"
+                                    color="primary"
+                                >
                                     {item.title}
                                 </Typography>
                                 <Typography variant="small-small" color="muted">
@@ -137,11 +195,14 @@ export const SettingsScreen: React.FC = () => {
                             </View>
                             <Ionicons
                                 name={
-                                    item.id === "theme" && showThemeOptions 
-                                        ? "chevron-down" 
-                                        : item.id === "language" && showLanguageOptions 
-                                            ? "chevron-down" 
-                                            : isRTL ? "chevron-back" : "chevron-forward"
+                                    item.id === "theme" && showThemeOptions
+                                        ? "chevron-down"
+                                        : item.id === "language" &&
+                                            showLanguageOptions
+                                          ? "chevron-down"
+                                          : isRTL
+                                            ? "chevron-back"
+                                            : "chevron-forward"
                                 }
                                 size={20}
                                 color={colors.border}
@@ -151,30 +212,55 @@ export const SettingsScreen: React.FC = () => {
                 </Pressable>
                 {item.id === "theme" && showThemeOptions && (
                     <View style={styles.themeOptionsContainer}>
-                        {(["light", "dark", "system"] as const).map((option) => (
-                            <Pressable
-                                key={option}
-                                style={[
-                                    styles.themeOptionButton,
-                                    { borderColor: mode === option ? colors.primary : colors.border },
-                                    mode === option ? { backgroundColor: `${colors.primary}10` } : null
-                                ]}
-                                onPress={() => setMode(option)}
-                            >
-                                <Ionicons 
-                                    name={option === "light" ? "sunny" : option === "dark" ? "moon" : "settings-outline"} 
-                                    size={20} 
-                                    color={mode === option ? colors.primary : colors.text.muted} 
-                                />
-                                <Typography 
-                                    variant="body-small" 
-                                    color={mode === option ? "primary" : "muted"}
-                                    style={styles.themeOptionText}
+                        {(["light", "dark", "system"] as const).map(
+                            (option) => (
+                                <Pressable
+                                    key={option}
+                                    style={[
+                                        styles.themeOptionButton,
+                                        {
+                                            borderColor:
+                                                mode === option
+                                                    ? colors.primary
+                                                    : colors.border,
+                                        },
+                                        mode === option
+                                            ? {
+                                                  backgroundColor: `${colors.primary}10`,
+                                              }
+                                            : null,
+                                    ]}
+                                    onPress={() => setMode(option)}
                                 >
-                                    {t(`settings.theme_${option}`)}
-                                </Typography>
-                            </Pressable>
-                        ))}
+                                    <Ionicons
+                                        name={
+                                            option === "light"
+                                                ? "sunny"
+                                                : option === "dark"
+                                                  ? "moon"
+                                                  : "settings-outline"
+                                        }
+                                        size={20}
+                                        color={
+                                            mode === option
+                                                ? colors.primary
+                                                : colors.text.muted
+                                        }
+                                    />
+                                    <Typography
+                                        variant="body-small"
+                                        color={
+                                            mode === option
+                                                ? "primary"
+                                                : "muted"
+                                        }
+                                        style={styles.themeOptionText}
+                                    >
+                                        {t(`settings.theme_${option}`)}
+                                    </Typography>
+                                </Pressable>
+                            ),
+                        )}
                     </View>
                 )}
                 {item.id === "language" && showLanguageOptions && (
@@ -184,19 +270,32 @@ export const SettingsScreen: React.FC = () => {
                                 key={option}
                                 style={[
                                     styles.themeOptionButton,
-                                    { borderColor: language === option ? colors.primary : colors.border },
-                                    language === option ? { backgroundColor: `${colors.primary}10` } : null
+                                    {
+                                        borderColor:
+                                            language === option
+                                                ? colors.primary
+                                                : colors.border,
+                                    },
+                                    language === option
+                                        ? {
+                                              backgroundColor: `${colors.primary}10`,
+                                          }
+                                        : null,
                                 ]}
                                 onPress={() => {
                                     setLanguage(option);
                                 }}
                             >
-                                <Typography 
-                                    variant="body-small" 
-                                    color={language === option ? "primary" : "muted"}
+                                <Typography
+                                    variant="body-small"
+                                    color={
+                                        language === option
+                                            ? "primary"
+                                            : "muted"
+                                    }
                                     style={styles.themeOptionText}
                                 >
-                                    {option === 'en' ? 'English' : 'اردو'}
+                                    {option === "en" ? "English" : "اردو"}
                                 </Typography>
                             </Pressable>
                         ))}
@@ -207,7 +306,9 @@ export const SettingsScreen: React.FC = () => {
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View
+            style={[styles.container, { backgroundColor: colors.background }]}
+        >
             <FlatList
                 data={SETTINGS_DATA}
                 renderItem={renderItem}
@@ -217,9 +318,17 @@ export const SettingsScreen: React.FC = () => {
                     { paddingBottom: insets.bottom + Spacing.xl },
                 ]}
                 ListHeaderComponent={
-                    <View style={[styles.header, { paddingTop: insets.top + Spacing.lg, alignItems: isRTL ? 'flex-end' : 'flex-start' }]}>
+                    <View
+                        style={[
+                            styles.header,
+                            {
+                                paddingTop: insets.top + Spacing.lg,
+                                alignItems: isRTL ? "flex-end" : "flex-start",
+                            },
+                        ]}
+                    >
                         <Typography variant="heading-large" color="primary">
-                            {t('settings.title')}
+                            {t("settings.title")}
                         </Typography>
                     </View>
                 }
