@@ -25,10 +25,11 @@ export class CustomerService {
         }
         try {
             const result = await this.db.runAsync(
-                `INSERT INTO customers (name, phone, email, address, image_uri, notes) VALUES (?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO customers (name, phone, cnic, email, address, image_uri, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
                 [
                     customer.name,
-                    customer.phone,
+                    customer.phone || "",
+                    customer.cnic || null,
                     customer.email || null,
                     customer.address || null,
                     customer.image_uri || null,
@@ -111,8 +112,8 @@ export class CustomerService {
         try {
             const searchTerm = `%${query}%`;
             const customers = await this.db.getAllAsync<Customer>(
-                "SELECT * FROM customers WHERE name LIKE ? OR phone LIKE ? ORDER BY name ASC LIMIT ? OFFSET ?",
-                [searchTerm, searchTerm, limit, offset],
+                "SELECT * FROM customers WHERE name LIKE ? OR phone LIKE ? OR cnic LIKE ? ORDER BY name ASC LIMIT ? OFFSET ?",
+                [searchTerm, searchTerm, searchTerm, limit, offset],
             );
             return customers;
         } catch (error) {
@@ -139,6 +140,10 @@ export class CustomerService {
             if (customer.phone !== undefined) {
                 fields.push("phone = ?");
                 values.push(customer.phone);
+            }
+            if (customer.cnic !== undefined) {
+                fields.push("cnic = ?");
+                values.push(customer.cnic);
             }
             if (customer.email !== undefined) {
                 fields.push("email = ?");

@@ -31,7 +31,8 @@ export const initializeDatabase = async (
             CREATE TABLE IF NOT EXISTS customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 name TEXT NOT NULL,
-                phone TEXT NOT NULL,
+                phone TEXT NOT NULL DEFAULT '',
+                cnic TEXT,
                 email TEXT,
                 address TEXT,
                 image_uri TEXT,
@@ -96,6 +97,16 @@ export const initializeDatabase = async (
                 FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
             );
         `);
+
+        const customerColumns = await db.getAllAsync<{ name: string }>(
+            "PRAGMA table_info(customers)",
+        );
+        if (!customerColumns.some((column) => column.name === "cnic")) {
+            await db.execAsync("ALTER TABLE customers ADD COLUMN cnic TEXT;");
+        }
+        await db.execAsync(
+            "CREATE INDEX IF NOT EXISTS idx_customers_cnic ON customers(cnic);",
+        );
 
         // 2. Data Migration (Handle existing string enums and float amounts)
         // Check if we need to migrate (simple check: if 'ACTIVE' still exists in accounts)

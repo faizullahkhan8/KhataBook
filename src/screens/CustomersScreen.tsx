@@ -5,6 +5,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Alert,
+    Modal,
     Platform,
     Pressable,
     RefreshControl,
@@ -12,9 +13,7 @@ import {
     TextInput,
     View,
 } from "react-native";
-import DraggableFlatList, {
-    ScaleDecorator,
-} from "react-native-draggable-flatlist";
+import DraggableFlatList from "react-native-draggable-flatlist";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, ErrorScreen, TouchableAmount, Typography } from "../components";
@@ -44,11 +43,17 @@ export const CustomersScreen: React.FC = () => {
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [isReorderMode, setIsReorderMode] = useState(false);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
+    const [isSelectionMenuVisible, setIsSelectionMenuVisible] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<CustomerId>>(new Set());
+    const [pendingDeleteIds, setPendingDeleteIds] = useState<Set<CustomerId>>(
+        new Set(),
+    );
     const [orderedCustomers, setOrderedCustomers] = useState<
         CustomerWithAccounts[]
     >([]);
     const searchInputRef = useRef<TextInput>(null);
+    const selectionSnapshotRef = useRef<CustomerWithAccounts[]>([]);
+    const isDraggingRef = useRef(false);
 
     const debouncedSearch = useDebounce(searchText, 500);
 
@@ -58,7 +63,7 @@ export const CustomersScreen: React.FC = () => {
 
     useEffect(() => {
         const loadAndSortCustomers = async () => {
-            if (!db) return;
+            if (!db || isSelectionMode) return;
 
             if (customers.length === 0) {
                 setOrderedCustomers([]);
@@ -94,47 +99,86 @@ export const CustomersScreen: React.FC = () => {
         };
 
         loadAndSortCustomers();
-    }, [customers, db]);
+    }, [customers, db, isSelectionMode]);
 
-    const handleDragEnd = useCallback(
-        ({ data }: { data: CustomerWithAccounts[] }) => {
-            setOrderedCustomers(data);
+    const persistCustomerOrder = useCallback(
+        async (data: CustomerWithAccounts[]) => {
             if (!db) return;
-            (async () => {
-                try {
-                    await db.withTransactionAsync(async () => {
-                        await db.runAsync("DELETE FROM customer_order");
-                        for (let i = 0; i < data.length; i++) {
-                            const customerId = data[i].id;
-                            if (
-                                customerId !== undefined &&
-                                customerId !== null
-                            ) {
-                                await db.runAsync(
-                                    "INSERT INTO customer_order (customer_id, sort_order) VALUES (?, ?)",
-                                    [customerId, i],
-                                );
-                            }
-                        }
-                    });
-                } catch {}
-            })();
+
+            await db.withTransactionAsync(async () => {
+                await db.runAsync("DELETE FROM customer_order");
+                for (let i = 0; i < data.length; i++) {
+                    const customerId = data[i].id;
+                    if (customerId !== undefined && customerId !== null) {
+                        await db.runAsync(
+                            "INSERT INTO customer_order (customer_id, sort_order) VALUES (?, ?)",
+                            [customerId, i],
+                        );
+                    }
+                }
+            });
         },
         [db],
     );
 
-    const activateSelectionMode = useCallback((customerId?: CustomerId) => {
-        setIsSelectionMode(true);
-        if (customerId) {
-            setSelectedIds(new Set([customerId]));
-        }
-    }, []);
+    const handleDragEnd = useCallback(
+        ({ data }: { data: CustomerWithAccounts[] }) => {
+            setOrderedCustomers(data);
+            setTimeout(() => {
+                isDraggingRef.current = false;
+            }, 100);
+        },
+        [],
+    );
 
-    const exitSelectionMode = useCallback(() => {
+    const closeSelectionMode = useCallback(() => {
+        setIsSelectionMenuVisible(false);
         setIsSelectionMode(false);
         setSelectedIds(new Set());
+        setPendingDeleteIds(new Set());
         setIsReorderMode(false);
+        selectionSnapshotRef.current = [];
     }, []);
+
+    const activateSelectionMode = useCallback(
+        (customerId?: CustomerId) => {
+            selectionSnapshotRef.current = [...orderedCustomers];
+            setPendingDeleteIds(new Set());
+            setIsSelectionMode(true);
+            setIsReorderMode(true);
+            if (customerId) {
+                setSelectedIds(new Set([customerId]));
+            }
+        },
+        [orderedCustomers],
+    );
+
+    const cancelSelectionMode = useCallback(() => {
+        setOrderedCustomers(selectionSnapshotRef.current);
+        closeSelectionMode();
+    }, [closeSelectionMode]);
+
+    const confirmSelectionMode = useCallback(async () => {
+        try {
+            if (pendingDeleteIds.size > 0) {
+                await bulkDeleteCustomers(Array.from(pendingDeleteIds));
+            }
+            await persistCustomerOrder(orderedCustomers);
+            closeSelectionMode();
+        } catch {
+            Alert.alert(
+                t("customers.deleteError"),
+                t("customers.deleteErrorMessage"),
+            );
+        }
+    }, [
+        pendingDeleteIds,
+        bulkDeleteCustomers,
+        persistCustomerOrder,
+        orderedCustomers,
+        closeSelectionMode,
+        t,
+    ]);
 
     const toggleSelection = useCallback((customerId: CustomerId) => {
         setSelectedIds((prev) => {
@@ -158,29 +202,34 @@ export const CustomersScreen: React.FC = () => {
     const handleBulkDelete = useCallback(() => {
         if (selectedIds.size === 0) return;
 
+        setIsSelectionMenuVisible(false);
         Alert.alert(
             t("customers.deleteTitle"),
-            t("customers.deleteMessage", { count: selectedIds.size }),
+            t("customers.stageDeleteMessage", { count: selectedIds.size }),
             [
                 { text: t("customers.cancel"), style: "cancel" },
                 {
                     text: t("customers.delete"),
                     style: "destructive",
-                    onPress: async () => {
-                        try {
-                            await bulkDeleteCustomers(Array.from(selectedIds));
-                            exitSelectionMode();
-                        } catch {
-                            Alert.alert(
-                                t("customers.deleteError"),
-                                t("customers.deleteErrorMessage"),
-                            );
-                        }
+                    onPress: () => {
+                        setPendingDeleteIds((previousIds) => {
+                            const nextIds = new Set(previousIds);
+                            selectedIds.forEach((id) => nextIds.add(id));
+                            return nextIds;
+                        });
+                        setOrderedCustomers((previousCustomers) =>
+                            previousCustomers.filter(
+                                (customer) =>
+                                    customer.id === undefined ||
+                                    !selectedIds.has(customer.id),
+                            ),
+                        );
+                        setSelectedIds(new Set());
                     },
                 },
             ],
         );
-    }, [selectedIds, bulkDeleteCustomers, exitSelectionMode, t]);
+    }, [selectedIds, t]);
 
     const renderCustomer = useCallback(
         ({
@@ -198,9 +247,11 @@ export const CustomersScreen: React.FC = () => {
                 item.id !== undefined && selectedIds.has(item.id);
 
             return (
-                <ScaleDecorator>
+                <View>
                     <Pressable
                         onPress={() => {
+                            if (isDraggingRef.current) return;
+
                             if (isSelectionMode && item.id) {
                                 toggleSelection(item.id);
                             } else if (!isReorderMode && item.id) {
@@ -221,13 +272,6 @@ export const CustomersScreen: React.FC = () => {
                         <Card
                             style={[
                                 styles.customerCard,
-                                ...(isActive
-                                    ? [
-                                          {
-                                              backgroundColor: `${colors.primary}30`,
-                                          },
-                                      ]
-                                    : []),
                                 ...(isSelected
                                     ? [
                                           {
@@ -297,11 +341,11 @@ export const CustomersScreen: React.FC = () => {
                                         style={[
                                             styles.customerImage,
                                             isRTL
-                                                ? { marginLeft: Spacing.md }
-                                                : { marginRight: Spacing.md },
+                                                ? { marginLeft: Spacing.sm }
+                                                : { marginRight: Spacing.sm },
                                         ]}
                                         contentFit="cover"
-                                        transition={200}
+                                        transition={isReorderMode ? 0 : 200}
                                         priority="high"
                                         cachePolicy="memory-disk"
                                     />
@@ -313,8 +357,8 @@ export const CustomersScreen: React.FC = () => {
                                                 backgroundColor: `${colors.primary}15`,
                                             },
                                             isRTL
-                                                ? { marginLeft: Spacing.md }
-                                                : { marginRight: Spacing.md },
+                                                ? { marginLeft: Spacing.sm }
+                                                : { marginRight: Spacing.sm },
                                         ]}
                                     >
                                         <Ionicons
@@ -371,82 +415,23 @@ export const CustomersScreen: React.FC = () => {
                                         />
                                     </View>
                                     <Typography
-                                        variant="subheading-small"
-                                        color="secondary"
-                                        style={[
-                                            styles.text,
-                                            ...(isRTL
-                                                ? [
-                                                      {
-                                                          textAlign: "right",
-                                                      } as const,
-                                                  ]
-                                                : []),
-                                        ]}
-                                    >
-                                        {item.phone}
-                                    </Typography>
-                                    <Typography
                                         variant="body-small"
                                         color="muted"
-                                        style={[
-                                            styles.text,
-                                            ...(isRTL
-                                                ? [
-                                                      {
-                                                          textAlign: "right",
-                                                      } as const,
-                                                  ]
-                                                : []),
-                                        ]}
+                                        style={
+                                            isRTL
+                                                ? { textAlign: "right" }
+                                                : undefined
+                                        }
                                     >
                                         {t("customers.account", {
                                             number: accountNumber,
                                         })}
                                     </Typography>
-                                    {item.email && (
-                                        <Typography
-                                            variant="body-small"
-                                            color="muted"
-                                            style={[
-                                                styles.text,
-                                                ...(isRTL
-                                                    ? [
-                                                          {
-                                                              textAlign:
-                                                                  "right",
-                                                          } as const,
-                                                      ]
-                                                    : []),
-                                            ]}
-                                        >
-                                            {item.email}
-                                        </Typography>
-                                    )}
-                                    {item.address && (
-                                        <Typography
-                                            variant="body-small"
-                                            color="muted"
-                                            style={[
-                                                styles.text,
-                                                ...(isRTL
-                                                    ? [
-                                                          {
-                                                              textAlign:
-                                                                  "right",
-                                                          } as const,
-                                                      ]
-                                                    : []),
-                                            ]}
-                                        >
-                                            {item.address}
-                                        </Typography>
-                                    )}
                                 </View>
                             </View>
                         </Card>
                     </Pressable>
-                </ScaleDecorator>
+                </View>
             );
         },
         [
@@ -605,7 +590,7 @@ export const CustomersScreen: React.FC = () => {
                                     ]}
                                 >
                                     <Pressable
-                                        onPress={exitSelectionMode}
+                                        onPress={cancelSelectionMode}
                                         style={styles.closeButton}
                                     >
                                         <Ionicons
@@ -638,7 +623,7 @@ export const CustomersScreen: React.FC = () => {
                                 </View>
                             )}
                         </View>
-                        {!isSelectionMode && (
+                        {!isSelectionMode ? (
                             <View style={styles.headerActions}>
                                 <Pressable
                                     onPress={() => {
@@ -676,6 +661,26 @@ export const CustomersScreen: React.FC = () => {
                                     />
                                 </Pressable>
                             </View>
+                        ) : (
+                            <View style={styles.headerActions}>
+                                <Pressable
+                                    onPress={() =>
+                                        setIsSelectionMenuVisible(true)
+                                    }
+                                    style={[
+                                        styles.actionButton,
+                                        {
+                                            backgroundColor: `${colors.primary}15`,
+                                        },
+                                    ]}
+                                >
+                                    <Ionicons
+                                        name="ellipsis-vertical"
+                                        size={22}
+                                        color={colors.primary}
+                                    />
+                                </Pressable>
+                            </View>
                         )}
                     </View>
                 </View>
@@ -685,10 +690,45 @@ export const CustomersScreen: React.FC = () => {
                         data={orderedCustomers}
                         renderItem={renderCustomer}
                         keyExtractor={(item) => item.id?.toString() || ""}
+                        containerStyle={styles.listContainer}
                         contentContainerStyle={[
                             styles.list,
                             { paddingBottom: 100 },
                         ]}
+                        ListEmptyComponent={
+                            !loading ? (
+                                <View style={styles.emptyState}>
+                                    <Ionicons
+                                        name={
+                                            searchText
+                                                ? "search-outline"
+                                                : "people-outline"
+                                        }
+                                        size={48}
+                                        color={colors.text.muted}
+                                    />
+                                    <Typography
+                                        variant="heading-small"
+                                        color="secondary"
+                                    >
+                                        {searchText
+                                            ? t("customers.noResults")
+                                            : t("customers.emptyTitle")}
+                                    </Typography>
+                                    <Typography
+                                        variant="body-small"
+                                        color="muted"
+                                        style={styles.emptyStateMessage}
+                                    >
+                                        {searchText
+                                            ? t("customers.noResultsMessage")
+                                            : t("customers.emptyMessage")}
+                                    </Typography>
+                                </View>
+                            ) : null
+                        }
+                        alwaysBounceVertical
+                        overScrollMode="always"
                         refreshing={loading}
                         onRefresh={refresh}
                         refreshControl={
@@ -700,99 +740,52 @@ export const CustomersScreen: React.FC = () => {
                             />
                         }
                         onDragEnd={handleDragEnd}
+                        onDragBegin={() => {
+                            isDraggingRef.current = true;
+                        }}
                         activationDistance={isReorderMode ? 0 : 20}
                         initialNumToRender={10}
                         maxToRenderPerBatch={10}
                         windowSize={10}
-                        removeClippedSubviews={Platform.OS === "android"}
-                        getItemLayout={(_, index) => ({
-                            length: 120,
-                            offset: 120 * index,
-                            index,
-                        })}
+                        removeClippedSubviews={
+                            Platform.OS === "android" && !isReorderMode
+                        }
                     />
                 </GestureHandlerRootView>
 
-                {isSelectionMode && (
-                    <View
-                        style={[
-                            styles.bottomActionBar,
-                            {
-                                backgroundColor: colors.surface,
-                                borderTopColor: colors.border,
-                            },
-                        ]}
+                <Modal
+                    visible={isSelectionMenuVisible}
+                    transparent
+                    animationType="fade"
+                    statusBarTranslucent
+                    onRequestClose={() => setIsSelectionMenuVisible(false)}
+                >
+                    <Pressable
+                        style={styles.menuBackdrop}
+                        onPress={() => setIsSelectionMenuVisible(false)}
                     >
                         <View
                             style={[
-                                styles.actionBarContent,
-                                ...(isRTL
-                                    ? [
-                                          {
-                                              flexDirection: "row-reverse",
-                                          } as const,
-                                      ]
-                                    : []),
+                                styles.selectionMenu,
+                                {
+                                    top: insets.top + 64,
+                                    backgroundColor: colors.surface,
+                                    borderColor: colors.border,
+                                    [isRTL ? "left" : "right"]: Spacing.lg,
+                                },
                             ]}
                         >
                             <Pressable
-                                onPress={exitSelectionMode}
-                                style={styles.actionBarButton}
-                            >
-                                <Ionicons
-                                    name="close"
-                                    size={24}
-                                    color={colors.text.primary}
-                                />
-                                <Typography
-                                    variant="body-small"
-                                    color="primary"
-                                >
-                                    {t("customers.cancel")}
-                                </Typography>
-                            </Pressable>
-                            <Pressable
-                                onPress={() => setIsReorderMode(!isReorderMode)}
-                                style={[
-                                    styles.actionBarButton,
-                                    isReorderMode && {
-                                        backgroundColor: `${colors.primary}20`,
-                                        borderRadius: 8,
-                                    },
-                                ]}
-                            >
-                                <Ionicons
-                                    name={
-                                        isReorderMode
-                                            ? "checkmark"
-                                            : "reorder-three"
-                                    }
-                                    size={24}
-                                    color={
-                                        isReorderMode
-                                            ? colors.primary
-                                            : colors.text.primary
-                                    }
-                                />
-                                <Typography
-                                    variant="body-small"
-                                    color={
-                                        isReorderMode ? "primary" : "secondary"
-                                    }
-                                >
-                                    {isReorderMode
-                                        ? t("customers.done")
-                                        : t("customers.reorder")}
-                                </Typography>
-                            </Pressable>
-                            <Pressable
                                 onPress={handleBulkDelete}
-                                style={styles.actionBarButton}
+                                style={[
+                                    styles.selectionMenuItem,
+                                    isRTL && styles.selectionMenuItemRTL,
+                                ]}
                                 disabled={selectedIds.size === 0}
                             >
                                 <Ionicons
                                     name="trash"
-                                    size={24}
+                                    size={22}
                                     color={
                                         selectedIds.size > 0
                                             ? colors.danger
@@ -800,7 +793,7 @@ export const CustomersScreen: React.FC = () => {
                                     }
                                 />
                                 <Typography
-                                    variant="body-small"
+                                    variant="body-medium"
                                     color={
                                         selectedIds.size > 0
                                             ? "danger"
@@ -811,6 +804,53 @@ export const CustomersScreen: React.FC = () => {
                                 </Typography>
                             </Pressable>
                         </View>
+                    </Pressable>
+                </Modal>
+
+                {isSelectionMode && (
+                    <View
+                        style={[
+                            styles.selectionFabContainer,
+                            isRTL && styles.selectionFabContainerRTL,
+                            {
+                                [isRTL ? "left" : "right"]: Spacing.lg,
+                            },
+                        ]}
+                    >
+                        <Pressable
+                            accessibilityLabel={t("customers.cancel")}
+                            onPress={cancelSelectionMode}
+                            style={[
+                                styles.selectionFab,
+                                {
+                                    backgroundColor: colors.danger,
+                                    shadowColor: colors.danger,
+                                },
+                            ]}
+                        >
+                            <Ionicons
+                                name="close"
+                                size={28}
+                                color={colors.text.primary}
+                            />
+                        </Pressable>
+                        <Pressable
+                            accessibilityLabel={t("customers.done")}
+                            onPress={confirmSelectionMode}
+                            style={[
+                                styles.selectionFab,
+                                {
+                                    backgroundColor: colors.success,
+                                    shadowColor: colors.success,
+                                },
+                            ]}
+                        >
+                            <Ionicons
+                                name="checkmark"
+                                size={28}
+                                color={colors.text.primary}
+                            />
+                        </Pressable>
                     </View>
                 )}
 
@@ -923,11 +963,22 @@ const styles = StyleSheet.create({
         minWidth: 100,
     },
     list: {
+        flexGrow: 1,
         padding: Spacing.md,
-        gap: Spacing.md,
+    },
+    emptyState: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: Spacing.sm,
+        paddingHorizontal: Spacing.xxl,
+    },
+    emptyStateMessage: {
+        textAlign: "center",
     },
     customerCard: {
-        marginBottom: Spacing.md,
+        marginBottom: Spacing.sm,
+        padding: Spacing.md,
     },
     selectedCustomerCard: {
         backgroundColor: `${Colors.primary}15`,
@@ -978,38 +1029,57 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 8,
     },
-    bottomActionBar: {
+    selectionFabContainer: {
         position: "absolute",
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: Colors.surface,
-        borderTopWidth: 1,
-        borderTopColor: Colors.border,
-        paddingVertical: Spacing.sm,
-        paddingHorizontal: Spacing.lg,
-        paddingBottom: Spacing.lg,
-    },
-    actionBarContent: {
+        bottom: 20,
         flexDirection: "row",
-        justifyContent: "space-around",
-        alignItems: "center",
+        gap: Spacing.md,
     },
-    actionBarButton: {
+    selectionFabContainerRTL: {
+        flexDirection: "row-reverse",
+    },
+    selectionFab: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: "center",
         alignItems: "center",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    menuBackdrop: {
+        flex: 1,
+    },
+    selectionMenu: {
+        position: "absolute",
+        minWidth: 180,
+        borderWidth: 1,
+        borderRadius: 12,
         paddingVertical: Spacing.xs,
-        paddingHorizontal: Spacing.md,
-        minWidth: 80,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 8,
+        overflow: "hidden",
     },
-    actionBarButtonActive: {
-        backgroundColor: `${Colors.primary}20`,
-        borderRadius: 8,
+    selectionMenuItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.md,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.md,
+    },
+    selectionMenuItemRTL: {
+        flexDirection: "row-reverse",
     },
     customerHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: Spacing.xs,
+        marginBottom: 2,
         gap: Spacing.sm,
     },
     customerName: {
@@ -1025,14 +1095,14 @@ const styles = StyleSheet.create({
         alignItems: "flex-start",
     },
     customerImage: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
     },
     customerImagePlaceholder: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         backgroundColor: Colors.surface,
         justifyContent: "center",
         alignItems: "center",

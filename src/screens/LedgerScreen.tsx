@@ -411,6 +411,40 @@ export const LedgerScreen: React.FC = () => {
                     renderItem={renderEntry}
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.list}
+                    ListEmptyComponent={
+                        !isRefreshing ? (
+                            <View style={styles.emptyState}>
+                                <Ionicons
+                                    name={
+                                        searchText
+                                            ? "search-outline"
+                                            : "receipt-outline"
+                                    }
+                                    size={48}
+                                    color={colors.text.muted}
+                                />
+                                <Typography
+                                    variant="heading-small"
+                                    color="secondary"
+                                >
+                                    {searchText
+                                        ? t("ledger.noResults")
+                                        : t("ledger.emptyTitle")}
+                                </Typography>
+                                <Typography
+                                    variant="body-small"
+                                    color="muted"
+                                    style={styles.emptyStateMessage}
+                                >
+                                    {searchText
+                                        ? t("ledger.noResultsMessage")
+                                        : t("ledger.emptyMessage")}
+                                </Typography>
+                            </View>
+                        ) : null
+                    }
+                    alwaysBounceVertical
+                    overScrollMode="always"
                     refreshControl={
                         <RefreshControl
                             refreshing={isRefreshing}
@@ -483,8 +517,19 @@ const styles = StyleSheet.create({
         padding: Spacing.md,
     },
     list: {
+        flexGrow: 1,
         padding: Spacing.md,
         gap: Spacing.md,
+    },
+    emptyState: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: Spacing.sm,
+        paddingHorizontal: Spacing.xxl,
+    },
+    emptyStateMessage: {
+        textAlign: "center",
     },
     entryCard: {
         marginBottom: Spacing.md,

@@ -5,6 +5,7 @@ export interface Customer {
     id?: CustomerId;
     name: string;
     phone: string;
+    cnic?: string;
     email?: string;
     address?: string;
     image_uri?: string;

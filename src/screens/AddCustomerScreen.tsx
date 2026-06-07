@@ -57,6 +57,7 @@ export const AddCustomerScreen: React.FC = () => {
     const [customerInfo, setCustomerInfo] = useState({
         name: "",
         phone: "",
+        cnic: "",
         email: "",
         address: "",
         notes: "",
@@ -92,6 +93,7 @@ export const AddCustomerScreen: React.FC = () => {
             setCustomerInfo({
                 name: customer.name || "",
                 phone: customer.phone || "",
+                cnic: customer.cnic || "",
                 email: customer.email || "",
                 address: customer.address || "",
                 notes: customer.notes || "",
@@ -123,8 +125,13 @@ export const AddCustomerScreen: React.FC = () => {
         if (!customerInfo.name.trim()) {
             newErrors.name = t("addCustomer.nameRequired");
         }
-        if (!customerInfo.phone.trim()) {
-            newErrors.phone = t("addCustomer.phoneRequired");
+        const phoneDigits = customerInfo.phone.replace(/\D/g, "");
+        if (customerInfo.phone.trim() && phoneDigits.length < 11) {
+            newErrors.phone = t("addCustomer.phoneInvalid");
+        }
+        const cnicDigits = customerInfo.cnic.replace(/\D/g, "");
+        if (customerInfo.cnic.trim() && cnicDigits.length !== 13) {
+            newErrors.cnic = t("addCustomer.cnicInvalid");
         }
         if (
             customerInfo.email &&
@@ -152,6 +159,7 @@ export const AddCustomerScreen: React.FC = () => {
                     {
                         name: customerInfo.name.trim(),
                         phone: customerInfo.phone.trim(),
+                        cnic: customerInfo.cnic.trim(),
                         email: customerInfo.email.trim() || undefined,
                         address: customerInfo.address.trim() || undefined,
                         notes: customerInfo.notes.trim() || undefined,
@@ -180,6 +188,7 @@ export const AddCustomerScreen: React.FC = () => {
                     {
                         name: customerInfo.name.trim(),
                         phone: customerInfo.phone.trim(),
+                        cnic: customerInfo.cnic.trim() || undefined,
                         email: customerInfo.email.trim() || undefined,
                         address: customerInfo.address.trim() || undefined,
                         notes: customerInfo.notes.trim() || undefined,
@@ -220,6 +229,7 @@ export const AddCustomerScreen: React.FC = () => {
         if (
             customerInfo.name ||
             customerInfo.phone ||
+            customerInfo.cnic ||
             customerInfo.email ||
             customerInfo.address
         ) {
@@ -496,6 +506,51 @@ export const AddCustomerScreen: React.FC = () => {
                                     style={styles.errorText}
                                 >
                                     {errors.phone}
+                                </Typography>
+                            )}
+                        </View>
+
+                        <View style={styles.inputContainer}>
+                            <View
+                                style={[
+                                    styles.inputLabelRow,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="id-card"
+                                    size={18}
+                                    color={colors.text.muted}
+                                />
+                                <Typography
+                                    variant="body-small"
+                                    color="secondary"
+                                >
+                                    {t("addCustomer.cnic")}
+                                </Typography>
+                            </View>
+                            <Input
+                                placeholder={t("addCustomer.cnicPlaceholder")}
+                                value={customerInfo.cnic}
+                                onChangeText={(text) => {
+                                    setCustomerInfo({
+                                        ...customerInfo,
+                                        cnic: text,
+                                    });
+                                    if (errors.cnic)
+                                        setErrors({ ...errors, cnic: "" });
+                                }}
+                                error={!!errors.cnic}
+                                keyboardType="phone-pad"
+                                maxLength={15}
+                            />
+                            {errors.cnic && (
+                                <Typography
+                                    variant="small-small"
+                                    color="danger"
+                                    style={styles.errorText}
+                                >
+                                    {errors.cnic}
                                 </Typography>
                             )}
                         </View>
