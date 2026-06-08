@@ -22,10 +22,9 @@ import { DateFilterType, DateRange } from "../components/DateFilter";
 import { Colors, Spacing } from "../constants";
 import {
     DateRange as HookDateRange,
-    useCustomersWithAccounts,
-    useTransactions,
+    LedgerFundingSource,
+    useLedgerEntries,
 } from "../hooks";
-import { TransactionType } from "../models";
 import { useDatabaseContext, useLanguage, useTheme } from "../store";
 import { formatDateTime } from "../utils";
 
@@ -35,7 +34,7 @@ interface LedgerEntry {
     amount: number;
     description: string;
     date: number;
-    isCredit: boolean;
+    fundingSource: LedgerFundingSource;
     customerName: string;
     accountNumber: string;
 }
@@ -93,20 +92,14 @@ export const LedgerScreen: React.FC = () => {
     }, [selectedFilter, customRange]);
 
     const {
-        transactions,
-        loading: loadingTransactions,
-        refresh: refreshTransactions,
-    } = useTransactions(db, dateRange);
-    const {
-        customers,
-        loading: loadingCustomers,
-        refresh: refreshCustomers,
-    } = useCustomersWithAccounts(db);
-
-    const isRefreshing = loadingTransactions || loadingCustomers;
+        entries: transactionEntries,
+        loading: loadingEntries,
+        refresh: refreshEntries,
+    } = useLedgerEntries(db);
+    const isRefreshing = loadingEntries;
 
     const handleRefresh = async () => {
-        await Promise.all([refreshTransactions(), refreshCustomers()]);
+        await refreshEntries();
     };
     const [searchText, setSearchText] = useState("");
     const [isSearchActive, setIsSearchActive] = useState(false);
@@ -135,50 +128,38 @@ export const LedgerScreen: React.FC = () => {
         [],
     );
 
-    // Create a lookup map for account_id -> { customerName, accountNumber }
-    const accountLookup = useMemo(() => {
-        const lookup: Record<
-            string,
-            { customerName: string; accountNumber: string }
-        > = {};
-        customers.forEach((customer) => {
-            customer.accounts?.forEach((account) => {
-                if (account.id) {
-                    lookup[account.id.toString()] = {
-                        customerName: customer.name,
-                        accountNumber: account.account_number,
-                    };
-                }
-            });
-        });
-        return lookup;
-    }, [customers]);
-
     const ledgerEntries: LedgerEntry[] = useMemo(() => {
-        return [
-            ...transactions.map((transaction) => {
-                const accountData = transaction.account_id
-                    ? accountLookup[transaction.account_id.toString()]
-                    : null;
-                return {
-                    id: `t-${transaction.id}`,
-                    type: "transaction" as const,
-                    amount: transaction.amount,
-                    description:
-                        transaction.description ||
-                        (transaction.type === TransactionType.CREDIT
-                            ? t("ledger.credit")
-                            : t("ledger.debit")),
-                    date: transaction.created_at || 0,
-                    isCredit: transaction.type === TransactionType.CREDIT,
-                    customerName:
-                        accountData?.customerName || t("ledger.unknown"),
-                    accountNumber:
-                        accountData?.accountNumber || t("ledger.notAvailable"),
-                };
-            }),
-        ].sort((a, b) => b.date - a.date);
-    }, [transactions, accountLookup, t]);
+        const startTimestamp = dateRange
+            ? Math.floor(dateRange.startDate.getTime() / 1000)
+            : null;
+        const endTimestamp = dateRange
+            ? Math.floor(dateRange.endDate.getTime() / 1000) + 86399
+            : null;
+
+        return transactionEntries
+            .filter(
+                (entry) =>
+                    startTimestamp === null ||
+                    endTimestamp === null ||
+                    (entry.created_at >= startTimestamp &&
+                        entry.created_at <= endTimestamp),
+            )
+            .map((entry) => ({
+                id: `t-${entry.id}`,
+                type: "transaction" as const,
+                amount: entry.amount,
+                description:
+                    entry.description ||
+                    (entry.funding_source === "received"
+                        ? t("ledger.credit")
+                        : t("ledger.debit")),
+                date: entry.created_at,
+                fundingSource: entry.funding_source,
+                customerName: entry.customer_name || t("ledger.unknown"),
+                accountNumber:
+                    entry.account_number || t("ledger.notAvailable"),
+            }));
+    }, [transactionEntries, dateRange, t]);
 
     const filteredEntries = useMemo(() => {
         const lowerSearch = searchText.toLowerCase();
@@ -191,7 +172,24 @@ export const LedgerScreen: React.FC = () => {
     }, [ledgerEntries, searchText]);
 
     const renderEntry = useCallback(
-        ({ item }: { item: LedgerEntry }) => (
+        ({ item }: { item: LedgerEntry }) => {
+            const isReceived = item.fundingSource === "received";
+            const isBalanceFunded = item.fundingSource === "balance";
+            const label = isReceived
+                ? t("ledger.receivedFrom")
+                : isBalanceFunded
+                  ? t("ledger.paidFromBalance")
+                  : t("ledger.paidFromPocket");
+            const semanticColor: "success" | "primary" | "warning" = isReceived
+                ? "success"
+                : isBalanceFunded
+                  ? "primary"
+                  : "warning";
+            const balanceFundedStyle = isBalanceFunded
+                ? { color: colors.info }
+                : undefined;
+
+            return (
             <Card style={styles.entryCard}>
                 <View
                     style={[
@@ -215,13 +213,11 @@ export const LedgerScreen: React.FC = () => {
                     <View style={styles.entryContent}>
                         <Typography
                             variant="heading-small"
-                            color="primary"
-                            style={styles.description}
+                            color={semanticColor}
+                            style={[styles.description, balanceFundedStyle]}
                             numberOfLines={1}
                         >
-                            {item.isCredit
-                                ? t("ledger.receivedFrom")
-                                : t("ledger.paidTo")}
+                            {label}
                         </Typography>
                         <Typography
                             variant="heading-small"
@@ -243,14 +239,18 @@ export const LedgerScreen: React.FC = () => {
                         <TouchableAmount
                             amount={item.amount}
                             variant="heading-large"
-                            color={item.isCredit ? "success" : "danger"}
-                            style={styles.amount}
+                            color={semanticColor}
+                            style={{
+                                ...styles.amount,
+                                ...(balanceFundedStyle || {}),
+                            }}
                         />
                     </View>
                 </View>
             </Card>
-        ),
-        [isRTL, t],
+            );
+        },
+        [colors.info, isRTL, t],
     );
 
     if (!db) {

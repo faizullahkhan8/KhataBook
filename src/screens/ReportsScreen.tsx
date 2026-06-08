@@ -128,6 +128,21 @@ export const ReportsScreen: React.FC = () => {
     const {
         totalCreditLimit,
         totalCurrentBalance,
+        receivableBalance,
+        payableBalance,
+        availableCredit,
+        creditUtilizationRate,
+        collectionRate,
+        averageTransactionAmount,
+        netBalanceMovement,
+        highUtilizationAccounts,
+        dormantCustomers,
+        topReceivableCustomerName,
+        topReceivableAmount,
+        topPayableCustomerName,
+        topPayableAmount,
+        mostActiveCustomerName,
+        mostActiveCustomerTransactions,
         totalCredits,
         totalDebits,
         activeAccounts,
@@ -372,6 +387,393 @@ export const ReportsScreen: React.FC = () => {
                             >
                                 {totalTransactions}
                             </Typography>
+                        </View>
+                    </Card>
+
+                    <Card style={styles.card}>
+                        <Typography
+                            variant="heading-medium"
+                            color="primary"
+                            style={
+                                isRTL
+                                    ? {
+                                          marginBottom: Spacing.md,
+                                          textAlign: "right",
+                                      }
+                                    : styles.cardTitle
+                            }
+                        >
+                            {t("reports.decisionInsights")}
+                        </Typography>
+                        <View style={styles.insightGrid}>
+                            <Card
+                                style={[
+                                    styles.insightTile,
+                                    { backgroundColor: `${colors.primary}10` },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="trending-up-outline"
+                                    size={22}
+                                    color={
+                                        netBalanceMovement > 0
+                                            ? colors.danger
+                                            : colors.success
+                                    }
+                                />
+                                <Typography variant="body-small" color="muted">
+                                    {t("reports.netMovement")}
+                                </Typography>
+                                <TouchableAmount
+                                    amount={Math.abs(netBalanceMovement)}
+                                    variant="heading-small"
+                                    color={
+                                        netBalanceMovement > 0
+                                            ? "danger"
+                                            : "success"
+                                    }
+                                />
+                                <Typography variant="small-small" color="muted">
+                                    {netBalanceMovement > 0
+                                        ? t("reports.balanceIncreased")
+                                        : t("reports.balanceReduced")}
+                                </Typography>
+                            </Card>
+                            <Card
+                                style={[
+                                    styles.insightTile,
+                                    { backgroundColor: `${colors.success}10` },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="cash-outline"
+                                    size={22}
+                                    color={colors.success}
+                                />
+                                <Typography variant="body-small" color="muted">
+                                    {t("reports.collectionRate")}
+                                </Typography>
+                                <Typography
+                                    variant="heading-small"
+                                    color={
+                                        collectionRate >= 80
+                                            ? "success"
+                                            : "warning"
+                                    }
+                                >
+                                    {collectionRate}%
+                                </Typography>
+                                <Typography variant="small-small" color="muted">
+                                    {t("reports.collectionRateHint")}
+                                </Typography>
+                            </Card>
+                            <Card
+                                style={[
+                                    styles.insightTile,
+                                    { backgroundColor: `${colors.warning}12` },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="speedometer-outline"
+                                    size={22}
+                                    color={
+                                        creditUtilizationRate >= 80
+                                            ? colors.danger
+                                            : colors.warning
+                                    }
+                                />
+                                <Typography variant="body-small" color="muted">
+                                    {t("reports.creditUtilization")}
+                                </Typography>
+                                <Typography
+                                    variant="heading-small"
+                                    color={
+                                        creditUtilizationRate >= 80
+                                            ? "danger"
+                                            : "warning"
+                                    }
+                                >
+                                    {creditUtilizationRate}%
+                                </Typography>
+                                <Typography variant="small-small" color="muted">
+                                    {t("reports.creditUtilizationHint")}
+                                </Typography>
+                            </Card>
+                            <Card
+                                style={[
+                                    styles.insightTile,
+                                    { backgroundColor: `${colors.primary}10` },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="receipt-outline"
+                                    size={22}
+                                    color={colors.primary}
+                                />
+                                <Typography variant="body-small" color="muted">
+                                    {t("reports.avgTransaction")}
+                                </Typography>
+                                <TouchableAmount
+                                    amount={averageTransactionAmount}
+                                    variant="heading-small"
+                                    color="primary"
+                                />
+                                <Typography variant="small-small" color="muted">
+                                    {t("reports.avgTransactionHint")}
+                                </Typography>
+                            </Card>
+                        </View>
+                    </Card>
+
+                    <Card style={styles.card}>
+                        <Typography
+                            variant="heading-medium"
+                            color="primary"
+                            style={
+                                isRTL
+                                    ? {
+                                          marginBottom: Spacing.md,
+                                          textAlign: "right",
+                                      }
+                                    : styles.cardTitle
+                            }
+                        >
+                            {t("reports.creditExposure")}
+                        </Typography>
+                        <View
+                            style={[
+                                styles.statRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
+                            <Typography
+                                variant="subheading-small"
+                                color="secondary"
+                                style={styles.statLabel}
+                            >
+                                {t("reports.receivableBalance")}
+                            </Typography>
+                            <TouchableAmount
+                                amount={receivableBalance}
+                                variant="heading-medium"
+                                color="danger"
+                                style={styles.statValue}
+                            />
+                        </View>
+                        <View
+                            style={[
+                                styles.statRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
+                            <Typography
+                                variant="subheading-small"
+                                color="secondary"
+                                style={styles.statLabel}
+                            >
+                                {t("reports.payableBalance")}
+                            </Typography>
+                            <TouchableAmount
+                                amount={payableBalance}
+                                variant="heading-medium"
+                                color="success"
+                                style={styles.statValue}
+                            />
+                        </View>
+                        <View
+                            style={[
+                                styles.statRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
+                            <Typography
+                                variant="subheading-small"
+                                color="secondary"
+                                style={styles.statLabel}
+                            >
+                                {t("reports.availableCredit")}
+                            </Typography>
+                            <TouchableAmount
+                                amount={availableCredit}
+                                variant="heading-medium"
+                                color="primary"
+                                style={styles.statValue}
+                            />
+                        </View>
+                        <View
+                            style={[
+                                styles.statRow,
+                                isRTL && { flexDirection: "row-reverse" },
+                            ]}
+                        >
+                            <Typography
+                                variant="subheading-small"
+                                color="secondary"
+                                style={styles.statLabel}
+                            >
+                                {t("reports.highUtilizationAccounts")}
+                            </Typography>
+                            <Typography
+                                variant="heading-medium"
+                                color={
+                                    highUtilizationAccounts > 0
+                                        ? "warning"
+                                        : "success"
+                                }
+                            >
+                                {highUtilizationAccounts}
+                            </Typography>
+                        </View>
+                    </Card>
+
+                    <Card style={styles.card}>
+                        <Typography
+                            variant="heading-medium"
+                            color="primary"
+                            style={
+                                isRTL
+                                    ? {
+                                          marginBottom: Spacing.md,
+                                          textAlign: "right",
+                                      }
+                                    : styles.cardTitle
+                            }
+                        >
+                            {t("reports.customerFocus")}
+                        </Typography>
+                        <View style={styles.focusList}>
+                            <View
+                                style={[
+                                    styles.focusItem,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="alert-circle-outline"
+                                    size={22}
+                                    color={colors.danger}
+                                />
+                                <View style={styles.focusText}>
+                                    <Typography
+                                        variant="body-medium"
+                                        color="primary"
+                                    >
+                                        {t("reports.topReceivable")}
+                                    </Typography>
+                                    <Typography
+                                        variant="body-small"
+                                        color="muted"
+                                    >
+                                        {topReceivableCustomerName ||
+                                            t("reports.noCustomerInsight")}
+                                    </Typography>
+                                </View>
+                                <TouchableAmount
+                                    amount={topReceivableAmount}
+                                    variant="body-medium"
+                                    color="danger"
+                                />
+                            </View>
+                            <View
+                                style={[
+                                    styles.focusItem,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="checkmark-circle-outline"
+                                    size={22}
+                                    color={colors.success}
+                                />
+                                <View style={styles.focusText}>
+                                    <Typography
+                                        variant="body-medium"
+                                        color="primary"
+                                    >
+                                        {t("reports.topPayable")}
+                                    </Typography>
+                                    <Typography
+                                        variant="body-small"
+                                        color="muted"
+                                    >
+                                        {topPayableCustomerName ||
+                                            t("reports.noCustomerInsight")}
+                                    </Typography>
+                                </View>
+                                <TouchableAmount
+                                    amount={topPayableAmount}
+                                    variant="body-medium"
+                                    color="success"
+                                />
+                            </View>
+                            <View
+                                style={[
+                                    styles.focusItem,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="pulse-outline"
+                                    size={22}
+                                    color={colors.primary}
+                                />
+                                <View style={styles.focusText}>
+                                    <Typography
+                                        variant="body-medium"
+                                        color="primary"
+                                    >
+                                        {t("reports.mostActiveCustomer")}
+                                    </Typography>
+                                    <Typography
+                                        variant="body-small"
+                                        color="muted"
+                                    >
+                                        {mostActiveCustomerName ||
+                                            t("reports.noCustomerInsight")}
+                                    </Typography>
+                                </View>
+                                <Typography variant="body-medium" color="primary">
+                                    {t("reports.transactionCountShort", {
+                                        count: mostActiveCustomerTransactions,
+                                    })}
+                                </Typography>
+                            </View>
+                            <View
+                                style={[
+                                    styles.focusItem,
+                                    isRTL && { flexDirection: "row-reverse" },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="time-outline"
+                                    size={22}
+                                    color={colors.warning}
+                                />
+                                <View style={styles.focusText}>
+                                    <Typography
+                                        variant="body-medium"
+                                        color="primary"
+                                    >
+                                        {t("reports.dormantCustomers")}
+                                    </Typography>
+                                    <Typography
+                                        variant="body-small"
+                                        color="muted"
+                                    >
+                                        {t("reports.dormantCustomersHint")}
+                                    </Typography>
+                                </View>
+                                <Typography
+                                    variant="body-medium"
+                                    color={
+                                        dormantCustomers > 0
+                                            ? "warning"
+                                            : "success"
+                                    }
+                                >
+                                    {dormantCustomers}
+                                </Typography>
+                            </View>
                         </View>
                     </Card>
 
@@ -674,6 +1076,30 @@ const styles = StyleSheet.create({
     statValue: {
         flexShrink: 0,
         marginLeft: Spacing.sm,
+    },
+    insightGrid: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: Spacing.sm,
+    },
+    insightTile: {
+        width: "48%",
+        padding: Spacing.md,
+        gap: Spacing.xs,
+    },
+    focusList: {
+        gap: Spacing.sm,
+    },
+    focusItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.md,
+        paddingVertical: Spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: `${Colors.primary}15`,
+    },
+    focusText: {
+        flex: 1,
     },
     center: {
         flex: 1,

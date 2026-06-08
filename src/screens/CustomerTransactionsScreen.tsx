@@ -1,18 +1,19 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Alert,
     FlatList,
     KeyboardAvoidingView,
+    Modal,
     Platform,
     Pressable,
-    RefreshControl,
     StyleSheet,
     View,
 } from "react-native";
 import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useTranslation } from "react-i18next";
 import {
     Button,
     Card,
@@ -24,30 +25,41 @@ import { Colors, Spacing } from "../constants";
 import { useCustomerById } from "../hooks";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useTransactions } from "../hooks/useTransactions";
-import { useDatabaseContext, useTheme } from "../store";
+import { AccountService } from "../services/AccountService";
+import { useDatabaseContext, useLanguage, useTheme } from "../store";
 import { formatCurrency, formatDateTime } from "../utils";
-import { TransactionType, CustomerId, TransactionId, AccountId } from "../models";
-import { toInteger, fromInteger } from "../utils/currencyUtils";
+import {
+    AccountStatus,
+    TransactionType,
+    CustomerId,
+    TransactionId,
+} from "../models";
+import { toInteger } from "../utils/currencyUtils";
 
 export const CustomerTransactionsScreen: React.FC = () => {
     const { customerId } = useLocalSearchParams<{ customerId: string }>();
-    const { db } = useDatabaseContext();
+    const { db, invalidate } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
+    const { isRTL } = useLanguage();
+    const { t } = useTranslation();
     const { customer, refresh: refreshCustomer } = useCustomerById(
         db,
         parseInt(customerId || "0") as CustomerId,
     );
+    const accountService = useMemo(
+        () => (db ? new AccountService(db) : null),
+        [db],
+    );
 
-    const { deleteCustomer } = useCustomersWithAccounts(db);
+    const { deleteCustomer, loading: deleteLoading } = useCustomersWithAccounts(db);
     const {
         transactions,
         fetchTransactionsByAccount,
         createTransaction,
         deleteTransaction,
         loading: loadingTransactions,
-        refresh: refreshTransactions,
     } = useTransactions(db);
 
     const handleRefresh = useCallback(async () => {
@@ -63,8 +75,12 @@ export const CustomerTransactionsScreen: React.FC = () => {
     );
     const [amount, setAmount] = useState("");
     const [description, setDescription] = useState("");
+    const [isMenuVisible, setIsMenuVisible] = useState(false);
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
     const accountId = customer?.accounts?.[0]?.id;
+    const account = customer?.accounts?.[0];
+    const isAccountActive = account?.status === AccountStatus.ACTIVE;
 
     useEffect(() => {
         if (accountId) {
@@ -141,6 +157,71 @@ export const CustomerTransactionsScreen: React.FC = () => {
     const openAddModal = (type: TransactionType) => {
         setTransactionType(type);
         setShowAddModal(true);
+    };
+
+    const handleViewProfile = () => {
+        if (!customer?.id) return;
+        setIsMenuVisible(false);
+        router.push(`/customer-profile?customerId=${customer.id}` as any);
+    };
+
+    const handleEditCustomer = () => {
+        if (!customer?.id) return;
+        setIsMenuVisible(false);
+        router.push(`/add-customer?customerId=${customer.id}` as any);
+    };
+
+    const handleToggleAccountStatus = async () => {
+        if (!accountService || !account?.id) return;
+
+        setIsMenuVisible(false);
+        setIsUpdatingStatus(true);
+        try {
+            await accountService.updateAccountStatus(
+                account.id,
+                isAccountActive
+                    ? AccountStatus.INACTIVE
+                    : AccountStatus.ACTIVE,
+            );
+            invalidate("accounts");
+            invalidate("customers");
+            await refreshCustomer();
+        } catch {
+            Alert.alert(
+                t("customerProfile.statusUpdateError"),
+                t("customerProfile.statusUpdateErrorMessage"),
+            );
+        } finally {
+            setIsUpdatingStatus(false);
+        }
+    };
+
+    const handleDeleteCustomer = () => {
+        if (!customer?.id) return;
+
+        setIsMenuVisible(false);
+        Alert.alert(
+            t("customerProfile.deleteTitle"),
+            t("customerProfile.deleteMessage", { name: customer.name }),
+            [
+                { text: t("customerProfile.cancel"), style: "cancel" },
+                {
+                    text: t("customerProfile.delete"),
+                    style: "destructive",
+                    onPress: async () => {
+                        try {
+                            await deleteCustomer(customer.id!);
+                            router.replace("/" as any);
+                        } catch {
+                            Alert.alert(
+                                t("customerProfile.deleteError"),
+                                t("customerProfile.deleteErrorMessage"),
+                            );
+                        }
+                    },
+                },
+            ],
+        );
     };
 
     const handleDeleteTransaction = (transaction: any) => {
@@ -255,14 +336,16 @@ export const CustomerTransactionsScreen: React.FC = () => {
                             </View>
                         )}
                         <View style={styles.headerTextContainer}>
-                            <Typography
-                                variant="heading-large"
-                                color="primary"
-                                numberOfLines={1}
-                                style={styles.customerName}
-                            >
-                                {customer?.name || "Customer"}
-                            </Typography>
+                            <View style={styles.customerNameRow}>
+                                <Typography
+                                    variant="heading-large"
+                                    color="primary"
+                                    numberOfLines={1}
+                                    style={styles.customerName}
+                                >
+                                    {customer?.name || "Customer"}
+                                </Typography>
+                            </View>
                             <Typography
                                 variant="body-small"
                                 color="muted"
@@ -273,54 +356,17 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         </View>
                     </View>
                 </View>
-                <View style={styles.headerActions}>
-                    <Pressable
-                        onPress={() => {
-                            if (customer?.id) {
-                                router.push(
-                                    `/add-customer?customerId=${customer.id}` as any,
-                                );
-                            }
-                        }}
-                        style={styles.headerActionButton}
-                    >
-                        <Ionicons
-                            name="create-outline"
-                            size={24}
-                            color={colors.primary}
-                        />
-                    </Pressable>
-                    <Pressable
-                        onPress={() => {
-                            if (customer?.id) {
-                                Alert.alert(
-                                    "Delete Customer",
-                                    `Are you sure you want to delete ${customer.name}? This will also delete their account and all transactions.`,
-                                    [
-                                        { text: "Cancel", style: "cancel" },
-                                        {
-                                            text: "Delete",
-                                            style: "destructive",
-                                            onPress: async () => {
-                                                await deleteCustomer(
-                                                    customer.id!,
-                                                );
-                                                router.back();
-                                            },
-                                        },
-                                    ],
-                                );
-                            }
-                        }}
-                        style={styles.headerActionButton}
-                    >
-                        <Ionicons
-                            name="trash-outline"
-                            size={24}
-                            color={colors.danger}
-                        />
-                    </Pressable>
-                </View>
+                <Pressable
+                    onPress={() => setIsMenuVisible(true)}
+                    style={styles.menuButton}
+                    disabled={!customer}
+                >
+                    <Ionicons
+                        name="ellipsis-vertical"
+                        size={24}
+                        color={customer ? colors.text.primary : colors.text.muted}
+                    />
+                </Pressable>
             </View>
 
             {/* Stats Row */}
@@ -375,9 +421,13 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <Ionicons
                         name="arrow-down"
                         size={20}
-                        color={colors.text.primary}
+                        color="#FFFFFF"
                     />
-                    <Typography variant="body-medium" color="primary">
+                    <Typography
+                        variant="body-medium"
+                        color="primary"
+                        style={styles.filledActionText}
+                    >
                         Receive
                     </Typography>
                 </Pressable>
@@ -391,9 +441,13 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <Ionicons
                         name="arrow-up"
                         size={20}
-                        color={colors.text.primary}
+                        color="#FFFFFF"
                     />
-                    <Typography variant="body-medium" color="primary">
+                    <Typography
+                        variant="body-medium"
+                        color="primary"
+                        style={styles.filledActionText}
+                    >
                         Pay
                     </Typography>
                 </Pressable>
@@ -487,6 +541,119 @@ export const CustomerTransactionsScreen: React.FC = () => {
             >
                 <Ionicons name="add" size={28} color={Colors.text.primary} />
             </Pressable> */}
+
+            <Modal
+                visible={isMenuVisible}
+                transparent
+                animationType="fade"
+                statusBarTranslucent
+                onRequestClose={() => setIsMenuVisible(false)}
+            >
+                <Pressable
+                    style={styles.menuBackdrop}
+                    onPress={() => setIsMenuVisible(false)}
+                >
+                    <View
+                        style={[
+                            styles.menu,
+                            {
+                                top: insets.top + 64,
+                                backgroundColor: colors.surface,
+                                borderColor: colors.border,
+                                [isRTL ? "left" : "right"]: Spacing.lg,
+                            },
+                        ]}
+                    >
+                        <Pressable
+                            onPress={handleViewProfile}
+                            disabled={!customer?.id}
+                            style={[styles.menuItem, isRTL && styles.rowRTL]}
+                        >
+                            <Ionicons
+                                name="person-circle-outline"
+                                size={22}
+                                color={
+                                    customer?.id
+                                        ? colors.primary
+                                        : colors.text.muted
+                                }
+                            />
+                            <Typography
+                                variant="body-medium"
+                                color={customer?.id ? "primary" : "muted"}
+                            >
+                                {t("customerProfile.viewProfile")}
+                            </Typography>
+                        </Pressable>
+                        <Pressable
+                            onPress={handleToggleAccountStatus}
+                            disabled={!account?.id || isUpdatingStatus}
+                            style={[styles.menuItem, isRTL && styles.rowRTL]}
+                        >
+                            <Ionicons
+                                name={
+                                    isAccountActive
+                                        ? "pause-circle-outline"
+                                        : "checkmark-circle-outline"
+                                }
+                                size={22}
+                                color={
+                                    account?.id && !isUpdatingStatus
+                                        ? colors.primary
+                                        : colors.text.muted
+                                }
+                            />
+                            <Typography
+                                variant="body-medium"
+                                color={
+                                    account?.id && !isUpdatingStatus
+                                        ? "primary"
+                                        : "muted"
+                                }
+                            >
+                                {isAccountActive
+                                    ? t("customerProfile.deactivateAccount")
+                                    : t("customerProfile.activateAccount")}
+                            </Typography>
+                        </Pressable>
+                        <Pressable
+                            onPress={handleEditCustomer}
+                            style={[styles.menuItem, isRTL && styles.rowRTL]}
+                        >
+                            <Ionicons
+                                name="create-outline"
+                                size={22}
+                                color={colors.primary}
+                            />
+                            <Typography variant="body-medium" color="primary">
+                                {t("customerProfile.edit")}
+                            </Typography>
+                        </Pressable>
+                        <Pressable
+                            onPress={handleDeleteCustomer}
+                            disabled={deleteLoading}
+                            style={[styles.menuItem, isRTL && styles.rowRTL]}
+                        >
+                            <Ionicons
+                                name="trash-outline"
+                                size={22}
+                                color={
+                                    deleteLoading
+                                        ? colors.text.muted
+                                        : colors.danger
+                                }
+                            />
+                            <Typography
+                                variant="body-medium"
+                                color={deleteLoading ? "muted" : "danger"}
+                            >
+                                {t("customerProfile.delete")}
+                            </Typography>
+                        </Pressable>
+                    </View>
+                </Pressable>
+            </Modal>
+
         </View>
     );
 };
@@ -505,6 +672,9 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "space-between",
     },
+    rowRTL: {
+        flexDirection: "row-reverse",
+    },
     backButton: {
         marginBottom: Spacing.xs,
     },
@@ -522,8 +692,16 @@ const styles = StyleSheet.create({
         flexShrink: 1,
         marginRight: Spacing.sm,
     },
+    customerNameRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.xs,
+    },
     customerName: {
         flex: 1,
+    },
+    menuButton: {
+        padding: Spacing.sm,
     },
     headerImage: {
         width: 40,
@@ -539,13 +717,6 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         marginRight: Spacing.sm,
-    },
-    headerActions: {
-        flexDirection: "row",
-        gap: Spacing.sm,
-    },
-    headerActionButton: {
-        padding: Spacing.sm,
     },
     accountInfo: {
         padding: Spacing.md,
@@ -634,6 +805,9 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         gap: Spacing.sm,
     },
+    filledActionText: {
+        color: "#FFFFFF",
+    },
     modalOverlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: "rgba(0, 0, 0, 0.7)",
@@ -678,5 +852,28 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
         elevation: 8,
+    },
+    menuBackdrop: {
+        flex: 1,
+        backgroundColor: "transparent",
+    },
+    menu: {
+        position: "absolute",
+        minWidth: 230,
+        borderWidth: 1,
+        borderRadius: 14,
+        paddingVertical: Spacing.xs,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.18,
+        shadowRadius: 10,
+        elevation: 6,
+    },
+    menuItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.md,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.md,
     },
 });

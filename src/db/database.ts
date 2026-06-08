@@ -1,6 +1,32 @@
 import * as SQLite from "expo-sqlite";
 
 const DB_NAME = "credit_management.db";
+const DEFAULT_MESSAGE_TEMPLATES_SEED_KEY = "default_message_templates_seeded";
+
+const DEFAULT_MESSAGE_TEMPLATES = [
+    {
+        name: "Payment Reminder",
+        body: "Dear {{name}}, this is a reminder that your current balance is {{balance}} for account {{accountNumber}}. Please make your payment at your earliest convenience. Thank you.",
+    },
+    {
+        name: "Payment Received",
+        body: "Dear {{name}}, we have received your payment. Your updated balance is {{balance}} for account {{accountNumber}}. Thank you.",
+    },
+    {
+        name: "Balance Update",
+        body: "Dear {{name}}, your current account balance is {{balance}} for account {{accountNumber}}.",
+    },
+    {
+        name: "Payment Due Soon",
+        body: "Dear {{name}}, your payment for account {{accountNumber}} is due soon. Current balance: {{balance}}. Please arrange payment to avoid delay.",
+    },
+    {
+        name: "Thank You",
+        body: "Dear {{name}}, thank you for your business. For any questions, please contact us.",
+    },
+];
+
+const sqlString = (value: string): string => `'${value.replace(/'/g, "''")}'`;
 
 export const getDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
     try {
@@ -96,6 +122,19 @@ export const initializeDatabase = async (
                 sort_order INTEGER NOT NULL,
                 FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
             );
+
+            CREATE TABLE IF NOT EXISTS app_metadata (
+                "key" TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS message_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                body TEXT NOT NULL,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+            );
         `);
 
         const customerColumns = await db.getAllAsync<{ name: string }>(
@@ -107,6 +146,26 @@ export const initializeDatabase = async (
         await db.execAsync(
             "CREATE INDEX IF NOT EXISTS idx_customers_cnic ON customers(cnic);",
         );
+
+        await db.execAsync(`
+            ${DEFAULT_MESSAGE_TEMPLATES.map(
+                (template) => `
+                    INSERT INTO message_templates (name, body)
+                    SELECT ${sqlString(template.name)}, ${sqlString(template.body)}
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM app_metadata
+                        WHERE "key" = ${sqlString(DEFAULT_MESSAGE_TEMPLATES_SEED_KEY)}
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM message_templates
+                        WHERE name = ${sqlString(template.name)}
+                    );
+                `,
+            ).join("\n")}
+
+            INSERT OR IGNORE INTO app_metadata ("key", value)
+            VALUES (${sqlString(DEFAULT_MESSAGE_TEMPLATES_SEED_KEY)}, '1');
+        `);
 
         // 2. Data Migration (Handle existing string enums and float amounts)
         // Check if we need to migrate (simple check: if 'ACTIVE' still exists in accounts)

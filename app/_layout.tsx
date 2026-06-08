@@ -13,6 +13,10 @@ export default function RootLayout() {
                             options={{ headerShown: false }}
                         />
                         <Stack.Screen
+                            name="customer-profile"
+                            options={{ headerShown: false }}
+                        />
+                        <Stack.Screen
                             name="about"
                             options={{ headerShown: false }}
                         />

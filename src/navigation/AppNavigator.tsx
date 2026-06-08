@@ -3,10 +3,11 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Colors, Spacing } from "../constants";
+import { Spacing } from "../constants";
 import {
     CustomersScreen,
     LedgerScreen,
+    MessagesScreen,
     ReportsScreen,
     SettingsScreen,
 } from "../screens";
@@ -53,6 +54,20 @@ export const AppNavigator: React.FC = () => {
                     tabBarLabel: t("navigation.reports"),
                     tabBarIcon: ({ color, size }) => (
                         <Ionicons name="bar-chart" size={size} color={color} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="Messages"
+                component={MessagesScreen}
+                options={{
+                    tabBarLabel: t("navigation.messages"),
+                    tabBarIcon: ({ color, size }) => (
+                        <Ionicons
+                            name="chatbubble-ellipses"
+                            size={size}
+                            color={color}
+                        />
                     ),
                 }}
             />

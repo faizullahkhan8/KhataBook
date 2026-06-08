@@ -52,7 +52,7 @@ export const Button: React.FC<ButtonProps> = React.memo(({
     const textColor = useMemo(() => {
         if (disabled) return colors.text.muted;
         if (variant === "secondary") return colors.primary;
-        return colors.text.primary;
+        return "#FFFFFF";
     }, [variant, disabled, colors]);
 
     return (
@@ -83,6 +83,8 @@ export const Button: React.FC<ButtonProps> = React.memo(({
         </Pressable>
     );
 });
+
+Button.displayName = "Button";
 
 const styles = StyleSheet.create({
     button: {

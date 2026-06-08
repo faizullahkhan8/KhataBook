@@ -199,6 +199,19 @@ export const CustomersScreen: React.FC = () => {
         setSelectedIds(new Set(allIds));
     }, [orderedCustomers]);
 
+    const deselectAll = useCallback(() => {
+        setSelectedIds(new Set());
+    }, []);
+
+    const handleSelectionToggleAll = useCallback(() => {
+        setIsSelectionMenuVisible(false);
+        if (selectedIds.size > 0) {
+            deselectAll();
+        } else {
+            selectAll();
+        }
+    }, [deselectAll, selectAll, selectedIds.size]);
+
     const handleBulkDelete = useCallback(() => {
         if (selectedIds.size === 0) return;
 
@@ -608,17 +621,6 @@ export const CustomersScreen: React.FC = () => {
                                                 count: selectedIds.size,
                                             })}
                                         </Typography>
-                                        <Pressable onPress={selectAll}>
-                                            <Typography
-                                                variant="body-small"
-                                                color="primary"
-                                            >
-                                                {selectedIds.size ===
-                                                orderedCustomers.length
-                                                    ? t("customers.deselectAll")
-                                                    : t("customers.selectAll")}
-                                            </Typography>
-                                        </Pressable>
                                     </View>
                                 </View>
                             )}
@@ -776,6 +778,45 @@ export const CustomersScreen: React.FC = () => {
                             ]}
                         >
                             <Pressable
+                                onPress={handleSelectionToggleAll}
+                                style={[
+                                    styles.selectionMenuItem,
+                                    isRTL && styles.selectionMenuItemRTL,
+                                ]}
+                                disabled={
+                                    selectedIds.size === 0 &&
+                                    orderedCustomers.length === 0
+                                }
+                            >
+                                <Ionicons
+                                    name={
+                                        selectedIds.size > 0
+                                            ? "close-circle-outline"
+                                            : "checkbox-outline"
+                                    }
+                                    size={22}
+                                    color={
+                                        selectedIds.size > 0 ||
+                                        orderedCustomers.length > 0
+                                            ? colors.primary
+                                            : colors.text.muted
+                                    }
+                                />
+                                <Typography
+                                    variant="body-medium"
+                                    color={
+                                        selectedIds.size > 0 ||
+                                        orderedCustomers.length > 0
+                                            ? "primary"
+                                            : "muted"
+                                    }
+                                >
+                                    {selectedIds.size > 0
+                                        ? t("customers.deselectAll")
+                                        : t("customers.selectAll")}
+                                </Typography>
+                            </Pressable>
+                            <Pressable
                                 onPress={handleBulkDelete}
                                 style={[
                                     styles.selectionMenuItem,
@@ -831,7 +872,7 @@ export const CustomersScreen: React.FC = () => {
                             <Ionicons
                                 name="close"
                                 size={28}
-                                color={colors.text.primary}
+                                color="#FFFFFF"
                             />
                         </Pressable>
                         <Pressable
@@ -848,7 +889,7 @@ export const CustomersScreen: React.FC = () => {
                             <Ionicons
                                 name="checkmark"
                                 size={28}
-                                color={colors.text.primary}
+                                color="#FFFFFF"
                             />
                         </Pressable>
                     </View>
@@ -870,7 +911,7 @@ export const CustomersScreen: React.FC = () => {
                         <Ionicons
                             name="add"
                             size={28}
-                            color={colors.text.primary}
+                            color="#FFFFFF"
                         />
                     </Pressable>
                 )}
