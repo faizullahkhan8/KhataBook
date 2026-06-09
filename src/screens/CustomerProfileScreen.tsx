@@ -9,7 +9,7 @@ import { Card, TouchableAmount, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomerById } from "../hooks";
 import { AccountStatus, AccountType, CustomerId } from "../models";
-import { useDatabaseContext, useLanguage, useTheme } from "../store";
+import { useDatabaseContext, useTheme } from "../store";
 import { formatDateTime } from "../utils";
 
 export const CustomerProfileScreen: React.FC = () => {
@@ -17,9 +17,7 @@ export const CustomerProfileScreen: React.FC = () => {
     const { db } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { colors } = useTheme();
-    const { isRTL } = useLanguage();
-    const { t } = useTranslation();
+    const { colors } = useTheme();    const { t } = useTranslation();
     const parsedCustomerId = parseInt(customerId || "0") as CustomerId;
     const { customer, loading, error } = useCustomerById(db, parsedCustomerId);
     const account = customer?.accounts?.[0];
@@ -58,14 +56,14 @@ export const CustomerProfileScreen: React.FC = () => {
     );
 
     const renderInfoRow = (label: string, value: string) => (
-        <View style={[styles.infoRow, isRTL && styles.rowRTL]}>
+        <View style={[styles.infoRow, false && styles.rowRTL]}>
             <Typography variant="body-small" color="muted">
                 {label}
             </Typography>
             <Typography
                 variant="body-medium"
                 color="primary"
-                style={[styles.infoValue, isRTL && styles.textRTL]}
+                style={[styles.infoValue, false && styles.textRTL]}
             >
                 {value}
             </Typography>
@@ -92,12 +90,12 @@ export const CustomerProfileScreen: React.FC = () => {
                         backgroundColor: colors.surface,
                         borderBottomColor: colors.border,
                     },
-                    isRTL && styles.rowRTL,
+                    false && styles.rowRTL,
                 ]}
             >
                 <Pressable onPress={() => router.back()} style={styles.backButton}>
                     <Ionicons
-                        name={isRTL ? "arrow-forward" : "arrow-back"}
+                        name={false ? "arrow-forward" : "arrow-back"}
                         size={24}
                         color={colors.text.primary}
                     />
@@ -206,7 +204,7 @@ export const CustomerProfileScreen: React.FC = () => {
                                         t("customerProfile.accountStatus"),
                                         getAccountStatusLabel(account.status),
                                     )}
-                                    <View style={[styles.infoRow, isRTL && styles.rowRTL]}>
+                                    <View style={[styles.infoRow, false && styles.rowRTL]}>
                                         <Typography variant="body-small" color="muted">
                                             {t("customerProfile.currentBalance")}
                                         </Typography>
@@ -221,7 +219,7 @@ export const CustomerProfileScreen: React.FC = () => {
                                             style={styles.infoValue}
                                         />
                                     </View>
-                                    <View style={[styles.infoRow, isRTL && styles.rowRTL]}>
+                                    <View style={[styles.infoRow, false && styles.rowRTL]}>
                                         <Typography variant="body-small" color="muted">
                                             {t("customerProfile.creditLimit")}
                                         </Typography>

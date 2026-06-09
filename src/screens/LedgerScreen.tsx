@@ -25,7 +25,7 @@ import {
     LedgerFundingSource,
     useLedgerEntries,
 } from "../hooks";
-import { useDatabaseContext, useLanguage, useTheme } from "../store";
+import { useDatabaseContext, useTheme } from "../store";
 import { formatDateTime } from "../utils";
 
 interface LedgerEntry {
@@ -43,9 +43,7 @@ export const LedgerScreen: React.FC = () => {
     const { db, error: dbError, initDatabase } = useDatabaseContext();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { t } = useTranslation();
-    const { isRTL } = useLanguage();
-    const [selectedFilter, setSelectedFilter] = useState<DateFilterType>("all");
+    const { t } = useTranslation();    const [selectedFilter, setSelectedFilter] = useState<DateFilterType>("all");
     const [customRange, setCustomRange] = useState<DateRange | undefined>(
         undefined,
     );
@@ -194,7 +192,7 @@ export const LedgerScreen: React.FC = () => {
                 <View
                     style={[
                         styles.entryHeader,
-                        isRTL && { flexDirection: "row-reverse" },
+                        false && { flexDirection: "row-reverse" },
                     ]}
                 >
                     <Typography variant="body-medium" color="secondary">
@@ -250,7 +248,7 @@ export const LedgerScreen: React.FC = () => {
             </Card>
             );
         },
-        [colors.info, isRTL, t],
+        [colors.info, false, t],
     );
 
     if (!db) {
@@ -291,13 +289,13 @@ export const LedgerScreen: React.FC = () => {
                     <View
                         style={[
                             styles.headerTopRow,
-                            isRTL && { flexDirection: "row-reverse" },
+                            false && { flexDirection: "row-reverse" },
                         ]}
                     >
                         <View
                             style={[
                                 styles.headerTitleRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <View

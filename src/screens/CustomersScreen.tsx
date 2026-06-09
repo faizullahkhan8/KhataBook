@@ -22,16 +22,14 @@ import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useDebounce } from "../hooks/useDebounce";
 import { CustomerId, CustomerWithAccounts } from "../models";
 
-import { useDatabaseContext, useLanguage, useTheme } from "../store";
+import { useDatabaseContext, useTheme } from "../store";
 
 export const CustomersScreen: React.FC = () => {
     const { db } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { t } = useTranslation();
-    const { isRTL } = useLanguage();
-    const {
+    const { t } = useTranslation();    const {
         customers,
         loading,
         error,
@@ -299,7 +297,7 @@ export const CustomersScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.customerRow,
-                                    ...(isRTL
+                                    ...(false
                                         ? [
                                               {
                                                   flexDirection: "row-reverse",
@@ -312,7 +310,7 @@ export const CustomersScreen: React.FC = () => {
                                     <View
                                         style={[
                                             styles.checkbox,
-                                            isRTL
+                                            false
                                                 ? { marginLeft: Spacing.sm }
                                                 : { marginRight: Spacing.sm },
                                         ]}
@@ -336,7 +334,7 @@ export const CustomersScreen: React.FC = () => {
                                     <View
                                         style={[
                                             styles.dragHandle,
-                                            isRTL
+                                            false
                                                 ? { marginLeft: Spacing.sm }
                                                 : { marginRight: Spacing.sm },
                                         ]}
@@ -353,7 +351,7 @@ export const CustomersScreen: React.FC = () => {
                                         source={{ uri: item.image_uri }}
                                         style={[
                                             styles.customerImage,
-                                            isRTL
+                                            false
                                                 ? { marginLeft: Spacing.sm }
                                                 : { marginRight: Spacing.sm },
                                         ]}
@@ -369,7 +367,7 @@ export const CustomersScreen: React.FC = () => {
                                             {
                                                 backgroundColor: `${colors.primary}15`,
                                             },
-                                            isRTL
+                                            false
                                                 ? { marginLeft: Spacing.sm }
                                                 : { marginRight: Spacing.sm },
                                         ]}
@@ -385,7 +383,7 @@ export const CustomersScreen: React.FC = () => {
                                     <View
                                         style={[
                                             styles.customerHeader,
-                                            ...(isRTL
+                                            ...(false
                                                 ? [
                                                       {
                                                           flexDirection:
@@ -401,7 +399,7 @@ export const CustomersScreen: React.FC = () => {
                                             numberOfLines={1}
                                             style={[
                                                 styles.customerName,
-                                                ...(isRTL
+                                                ...(false
                                                     ? [
                                                           {
                                                               textAlign:
@@ -431,7 +429,7 @@ export const CustomersScreen: React.FC = () => {
                                         variant="body-small"
                                         color="muted"
                                         style={
-                                            isRTL
+                                            false
                                                 ? { textAlign: "right" }
                                                 : undefined
                                         }
@@ -455,7 +453,7 @@ export const CustomersScreen: React.FC = () => {
             activateSelectionMode,
             router,
             t,
-            isRTL,
+            false,
             colors.primary,
             colors.text.muted,
         ],
@@ -500,7 +498,7 @@ export const CustomersScreen: React.FC = () => {
                     <View
                         style={[
                             styles.headerTopRow,
-                            ...(isRTL
+                            ...(false
                                 ? [{ flexDirection: "row-reverse" } as const]
                                 : []),
                         ]}
@@ -508,7 +506,7 @@ export const CustomersScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.headerTitleRow,
-                                ...(isRTL
+                                ...(false
                                     ? [
                                           {
                                               flexDirection: "row-reverse",
@@ -564,7 +562,7 @@ export const CustomersScreen: React.FC = () => {
                                                             colors.background,
                                                         color: colors.text
                                                             .primary,
-                                                        textAlign: isRTL
+                                                        textAlign: false
                                                             ? "right"
                                                             : "left",
                                                     },
@@ -592,7 +590,7 @@ export const CustomersScreen: React.FC = () => {
                                 <View
                                     style={[
                                         styles.selectionHeader,
-                                        ...(isRTL
+                                        ...(false
                                             ? [
                                                   {
                                                       flexDirection:
@@ -773,7 +771,7 @@ export const CustomersScreen: React.FC = () => {
                                     top: insets.top + 64,
                                     backgroundColor: colors.surface,
                                     borderColor: colors.border,
-                                    [isRTL ? "left" : "right"]: Spacing.lg,
+                                    [false ? "left" : "right"]: Spacing.lg,
                                 },
                             ]}
                         >
@@ -781,7 +779,7 @@ export const CustomersScreen: React.FC = () => {
                                 onPress={handleSelectionToggleAll}
                                 style={[
                                     styles.selectionMenuItem,
-                                    isRTL && styles.selectionMenuItemRTL,
+                                    false && styles.selectionMenuItemRTL,
                                 ]}
                                 disabled={
                                     selectedIds.size === 0 &&
@@ -820,7 +818,7 @@ export const CustomersScreen: React.FC = () => {
                                 onPress={handleBulkDelete}
                                 style={[
                                     styles.selectionMenuItem,
-                                    isRTL && styles.selectionMenuItemRTL,
+                                    false && styles.selectionMenuItemRTL,
                                 ]}
                                 disabled={selectedIds.size === 0}
                             >
@@ -852,9 +850,9 @@ export const CustomersScreen: React.FC = () => {
                     <View
                         style={[
                             styles.selectionFabContainer,
-                            isRTL && styles.selectionFabContainerRTL,
+                            false && styles.selectionFabContainerRTL,
                             {
-                                [isRTL ? "left" : "right"]: Spacing.lg,
+                                [false ? "left" : "right"]: Spacing.lg,
                             },
                         ]}
                     >
@@ -903,7 +901,7 @@ export const CustomersScreen: React.FC = () => {
                                 bottom: 20,
                                 backgroundColor: colors.primary,
                                 shadowColor: colors.primary,
-                                [isRTL ? "left" : "right"]: Spacing.lg,
+                                [false ? "left" : "right"]: Spacing.lg,
                             },
                         ]}
                         onPress={() => router.push("/add-customer" as any)}

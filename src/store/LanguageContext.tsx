@@ -14,7 +14,6 @@ type LanguageType = "en" | "ur";
 interface LanguageContextType {
     language: LanguageType;
     setLanguage: (lang: LanguageType) => Promise<void>;
-    isRTL: boolean;
 }
 
 const LanguageContext = createContext<LanguageContextType | undefined>(
@@ -28,18 +27,15 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({
     const [isReady, setIsReady] = useState(false);
 
     useEffect(() => {
+        I18nManager.allowRTL(false);
+        I18nManager.forceRTL(false);
+
         const loadLanguage = async () => {
             try {
                 const savedLang = await AsyncStorage.getItem("appLanguage");
                 if (savedLang === "en" || savedLang === "ur") {
                     setLangState(savedLang);
                     i18n.changeLanguage(savedLang);
-                    const shouldBeRTL = savedLang === "ur";
-                    if (I18nManager.isRTL !== shouldBeRTL) {
-                        I18nManager.allowRTL(true);
-                        I18nManager.forceRTL(shouldBeRTL);
-                        // RTL change requires app restart - will apply on next launch
-                    }
                 }
             } catch (error) {
                 console.error("Failed to load language", error);
@@ -52,18 +48,9 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const setLanguage = async (lang: LanguageType) => {
         try {
-            const shouldBeRTL = lang === "ur";
-            const currentRTL = I18nManager.isRTL;
-
             await AsyncStorage.setItem("appLanguage", lang);
             setLangState(lang);
             i18n.changeLanguage(lang);
-
-            if (currentRTL !== shouldBeRTL) {
-                I18nManager.allowRTL(true);
-                I18nManager.forceRTL(shouldBeRTL);
-                // RTL change requires app restart - will apply on next launch
-            }
         } catch (error) {
             console.error("Failed to set language", error);
         }
@@ -73,7 +60,6 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({
         () => ({
             language,
             setLanguage,
-            isRTL: language === "ur",
         }),
         [language],
     );

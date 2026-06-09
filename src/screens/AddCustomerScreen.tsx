@@ -22,7 +22,7 @@ import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { CustomerId } from "../models";
 import { AccountService } from "../services/AccountService";
 import { CustomerService } from "../services/CustomerService";
-import { useDatabaseContext, useLanguage, useTheme } from "../store";
+import { useDatabaseContext, useTheme } from "../store";
 import { fromInteger, toInteger } from "../utils/currencyUtils";
 
 export const AddCustomerScreen: React.FC = () => {
@@ -35,9 +35,7 @@ export const AddCustomerScreen: React.FC = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { t } = useTranslation();
-    const { isRTL } = useLanguage();
-    const { customerId } = useLocalSearchParams<{ customerId?: string }>();
+    const { t } = useTranslation();    const { customerId } = useLocalSearchParams<{ customerId?: string }>();
     const { createCustomer } = useCustomersWithAccounts(db);
     const { customer } = useCustomerById(
         db,
@@ -331,12 +329,12 @@ export const AddCustomerScreen: React.FC = () => {
                     style={[
                         styles.header,
                         { borderBottomColor: colors.border },
-                        isRTL && { flexDirection: "row-reverse" },
+                        false && { flexDirection: "row-reverse" },
                     ]}
                 >
                     <Pressable onPress={handleCancel} style={styles.backButton}>
                         <Ionicons
-                            name={isRTL ? "arrow-forward" : "arrow-back"}
+                            name={false ? "arrow-forward" : "arrow-back"}
                             size={24}
                             color={colors.text.primary}
                         />
@@ -359,7 +357,7 @@ export const AddCustomerScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.sectionHeader,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Ionicons
@@ -425,7 +423,7 @@ export const AddCustomerScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.inputLabelRow,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -470,7 +468,7 @@ export const AddCustomerScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.inputLabelRow,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -514,7 +512,7 @@ export const AddCustomerScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.inputLabelRow,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -559,7 +557,7 @@ export const AddCustomerScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.inputLabelRow,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -604,7 +602,7 @@ export const AddCustomerScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.inputLabelRow,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -638,7 +636,7 @@ export const AddCustomerScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.inputLabelRow,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -672,7 +670,7 @@ export const AddCustomerScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.sectionHeader,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Ionicons
@@ -689,7 +687,7 @@ export const AddCustomerScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.inputLabelRow,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -737,7 +735,7 @@ export const AddCustomerScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.inputLabelRow,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -771,7 +769,7 @@ export const AddCustomerScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.inputLabelRow,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -805,7 +803,7 @@ export const AddCustomerScreen: React.FC = () => {
                             style={[
                                 styles.accountInfo,
                                 { backgroundColor: `${colors.primary}10` },
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Ionicons

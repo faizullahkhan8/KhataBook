@@ -22,15 +22,13 @@ import {
 import { DateFilterType, DateRange } from "../components/DateFilter";
 import { Colors, Spacing } from "../constants";
 import { DateRange as HookDateRange, useFinancialMetrics } from "../hooks";
-import { useDatabaseContext, useLanguage, useTheme } from "../store";
+import { useDatabaseContext, useTheme } from "../store";
 
 export const ReportsScreen: React.FC = () => {
     const { db, error: dbError, initDatabase } = useDatabaseContext();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { t } = useTranslation();
-    const { isRTL } = useLanguage();
-    const [isSearchActive, setIsSearchActive] = useState(false);
+    const { t } = useTranslation();    const [isSearchActive, setIsSearchActive] = useState(false);
     const [searchText, setSearchText] = useState("");
     const searchInputRef = useRef<TextInput>(null);
     const [selectedFilter, setSelectedFilter] = useState<DateFilterType>("all");
@@ -192,13 +190,13 @@ export const ReportsScreen: React.FC = () => {
                     <View
                         style={[
                             styles.headerTopRow,
-                            isRTL && { flexDirection: "row-reverse" },
+                            false && { flexDirection: "row-reverse" },
                         ]}
                     >
                         <View
                             style={[
                                 styles.headerTitleRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <View
@@ -321,7 +319,7 @@ export const ReportsScreen: React.FC = () => {
                             variant="heading-medium"
                             color="primary"
                             style={
-                                isRTL
+                                false
                                     ? {
                                           marginBottom: Spacing.md,
                                           textAlign: "right",
@@ -334,7 +332,7 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
@@ -353,7 +351,7 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
@@ -372,7 +370,7 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
@@ -395,7 +393,7 @@ export const ReportsScreen: React.FC = () => {
                             variant="heading-medium"
                             color="primary"
                             style={
-                                isRTL
+                                false
                                     ? {
                                           marginBottom: Spacing.md,
                                           textAlign: "right",
@@ -530,7 +528,7 @@ export const ReportsScreen: React.FC = () => {
                             variant="heading-medium"
                             color="primary"
                             style={
-                                isRTL
+                                false
                                     ? {
                                           marginBottom: Spacing.md,
                                           textAlign: "right",
@@ -543,7 +541,7 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
@@ -563,7 +561,7 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
@@ -583,7 +581,7 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
@@ -603,7 +601,7 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
@@ -631,7 +629,7 @@ export const ReportsScreen: React.FC = () => {
                             variant="heading-medium"
                             color="primary"
                             style={
-                                isRTL
+                                false
                                     ? {
                                           marginBottom: Spacing.md,
                                           textAlign: "right",
@@ -645,7 +643,7 @@ export const ReportsScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.focusItem,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -677,7 +675,7 @@ export const ReportsScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.focusItem,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -709,7 +707,7 @@ export const ReportsScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.focusItem,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -741,7 +739,7 @@ export const ReportsScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.focusItem,
-                                    isRTL && { flexDirection: "row-reverse" },
+                                    false && { flexDirection: "row-reverse" },
                                 ]}
                             >
                                 <Ionicons
@@ -782,7 +780,7 @@ export const ReportsScreen: React.FC = () => {
                             variant="heading-medium"
                             color="primary"
                             style={
-                                isRTL
+                                false
                                     ? {
                                           marginBottom: Spacing.md,
                                           textAlign: "right",
@@ -795,14 +793,14 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
                                 variant="subheading-small"
                                 color="secondary"
                                 style={
-                                    isRTL
+                                    false
                                         ? ({
                                               flexShrink: 1,
                                               textAlign: "right",
@@ -822,14 +820,14 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
                                 variant="subheading-small"
                                 color="secondary"
                                 style={
-                                    isRTL
+                                    false
                                         ? ({
                                               flexShrink: 1,
                                               textAlign: "right",
@@ -853,14 +851,14 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
                                 variant="subheading-small"
                                 color="secondary"
                                 style={
-                                    isRTL
+                                    false
                                         ? ({
                                               flexShrink: 1,
                                               textAlign: "right",
@@ -880,14 +878,14 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
                                 variant="subheading-small"
                                 color="secondary"
                                 style={
-                                    isRTL
+                                    false
                                         ? ({
                                               flexShrink: 1,
                                               textAlign: "right",
@@ -911,7 +909,7 @@ export const ReportsScreen: React.FC = () => {
                             variant="heading-medium"
                             color="primary"
                             style={
-                                isRTL
+                                false
                                     ? {
                                           marginBottom: Spacing.md,
                                           textAlign: "right",
@@ -924,7 +922,7 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
@@ -943,7 +941,7 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
@@ -959,7 +957,7 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography
@@ -978,7 +976,7 @@ export const ReportsScreen: React.FC = () => {
                         <View
                             style={[
                                 styles.statRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Typography

@@ -4,5 +4,8 @@ export { DateFilter, DateFilterType, DateRange } from "./DateFilter";
 export { DateRangePicker } from "./DateRangePicker";
 export { ErrorScreen } from "./ErrorScreen";
 export { Input } from "./Input";
+export { PasscodeGate } from "./PasscodeGate";
+export { PasscodePinInput } from "./PasscodePinInput";
+export { PasscodeLengthSelector } from "./PasscodeLengthSelector";
 export { TouchableAmount } from "./TouchableAmount";
 export { Typography } from "./Typography";

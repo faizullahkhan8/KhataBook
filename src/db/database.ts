@@ -29,21 +29,27 @@ const DEFAULT_MESSAGE_TEMPLATES = [
 const sqlString = (value: string): string => `'${value.replace(/'/g, "''")}'`;
 
 export const getDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
+    let db: SQLite.SQLiteDatabase | null = null;
     try {
-        const db = await SQLite.openDatabaseAsync(DB_NAME);
-        
-        // Performance Pragmas
-        await db.execAsync(`
-            PRAGMA journal_mode = WAL;
-            PRAGMA synchronous = NORMAL;
-            PRAGMA foreign_keys = ON;
-            PRAGMA cache_size = -2000;
-            PRAGMA mmap_size = 268435456;
-        `);
-        
+        db = await SQLite.openDatabaseAsync(DB_NAME);
+
+        // Apply pragmas individually so an unsupported optimization cannot
+        // invalidate the remaining database setup.
+        await db.execAsync("PRAGMA journal_mode = WAL;");
+        await db.execAsync("PRAGMA synchronous = NORMAL;");
+        await db.execAsync("PRAGMA foreign_keys = ON;");
+        await db.execAsync("PRAGMA cache_size = -2000;");
+
         return db;
     } catch (error) {
         console.error("Error opening database:", error);
+        if (db) {
+            try {
+                await db.closeAsync();
+            } catch (closeError) {
+                console.error("Failed to close database after open error:", closeError);
+            }
+        }
         throw error;
     }
 };

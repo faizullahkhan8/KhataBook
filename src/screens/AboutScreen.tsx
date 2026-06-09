@@ -6,15 +6,13 @@ import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
-import { useLanguage, useTheme } from "../store";
+import { useTheme } from "../store";
 
 export const AboutScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colors } = useTheme();
-    const { t } = useTranslation();
-    const { isRTL } = useLanguage();
-
+    const { t } = useTranslation();
     const handleCall = (phone: string) => {
         Linking.openURL(`tel:${phone.replace(/\s/g, "")}`);
     };
@@ -41,18 +39,18 @@ export const AboutScreen: React.FC = () => {
                         backgroundColor: colors.surface,
                         borderBottomColor: colors.border,
                     },
-                    isRTL && { flexDirection: "row-reverse" },
+                    false && { flexDirection: "row-reverse" },
                 ]}
             >
                 <Pressable
                     onPress={() => router.back()}
                     style={[
                         styles.backButton,
-                        isRTL && { marginRight: 0, marginLeft: Spacing.sm },
+                        false && { marginRight: 0, marginLeft: Spacing.sm },
                     ]}
                 >
                     <Ionicons
-                        name={isRTL ? "arrow-forward" : "arrow-back"}
+                        name={false ? "arrow-forward" : "arrow-back"}
                         size={24}
                         color={colors.primary}
                     />
@@ -86,7 +84,7 @@ export const AboutScreen: React.FC = () => {
                         variant="heading-medium"
                         color="primary"
                         style={
-                            isRTL ? { textAlign: "right" } : styles.centerText
+                            false ? { textAlign: "right" } : styles.centerText
                         }
                     >
                         KhataBook
@@ -95,7 +93,7 @@ export const AboutScreen: React.FC = () => {
                         variant="body-small"
                         color="muted"
                         style={
-                            isRTL ? { textAlign: "right" } : styles.centerText
+                            false ? { textAlign: "right" } : styles.centerText
                         }
                     >
                         {t("about.version")}
@@ -104,7 +102,7 @@ export const AboutScreen: React.FC = () => {
                         variant="body-medium"
                         color="secondary"
                         style={
-                            isRTL
+                            false
                                 ? {
                                       textAlign: "right",
                                       marginTop: Spacing.md,
@@ -123,7 +121,7 @@ export const AboutScreen: React.FC = () => {
                         variant="heading-medium"
                         color="primary"
                         style={
-                            isRTL
+                            false
                                 ? {
                                       marginBottom: Spacing.md,
                                       textAlign: "right",
@@ -137,7 +135,7 @@ export const AboutScreen: React.FC = () => {
                     <View
                         style={[
                             styles.developerHeader,
-                            isRTL && { flexDirection: "row-reverse" },
+                            false && { flexDirection: "row-reverse" },
                         ]}
                     >
                         <View
@@ -168,7 +166,7 @@ export const AboutScreen: React.FC = () => {
                             variant="body-small"
                             color="secondary"
                             style={
-                                isRTL
+                                false
                                     ? {
                                           marginBottom: Spacing.xs,
                                           textAlign: "right",
@@ -211,7 +209,7 @@ export const AboutScreen: React.FC = () => {
                             variant="body-small"
                             color="secondary"
                             style={
-                                isRTL
+                                false
                                     ? {
                                           marginBottom: Spacing.xs,
                                           textAlign: "right",
@@ -271,7 +269,7 @@ export const AboutScreen: React.FC = () => {
                         variant="heading-medium"
                         color="primary"
                         style={
-                            isRTL
+                            false
                                 ? {
                                       marginBottom: Spacing.md,
                                       textAlign: "right",
@@ -285,7 +283,7 @@ export const AboutScreen: React.FC = () => {
                     <View
                         style={[
                             styles.skillRow,
-                            isRTL && { flexDirection: "row-reverse" },
+                            false && { flexDirection: "row-reverse" },
                         ]}
                     >
                         <Ionicons
@@ -300,7 +298,7 @@ export const AboutScreen: React.FC = () => {
                     <View
                         style={[
                             styles.skillRow,
-                            isRTL && { flexDirection: "row-reverse" },
+                            false && { flexDirection: "row-reverse" },
                         ]}
                     >
                         <Ionicons
@@ -315,7 +313,7 @@ export const AboutScreen: React.FC = () => {
                     <View
                         style={[
                             styles.skillRow,
-                            isRTL && { flexDirection: "row-reverse" },
+                            false && { flexDirection: "row-reverse" },
                         ]}
                     >
                         <Ionicons
@@ -335,7 +333,7 @@ export const AboutScreen: React.FC = () => {
                         variant="heading-medium"
                         color="primary"
                         style={
-                            isRTL
+                            false
                                 ? {
                                       marginBottom: Spacing.md,
                                       textAlign: "right",
@@ -356,7 +354,7 @@ export const AboutScreen: React.FC = () => {
                             key={index}
                             style={[
                                 styles.companyRow,
-                                isRTL && { flexDirection: "row-reverse" },
+                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Ionicons
@@ -377,7 +375,7 @@ export const AboutScreen: React.FC = () => {
                         variant="heading-medium"
                         color="primary"
                         style={
-                            isRTL
+                            false
                                 ? {
                                       marginBottom: Spacing.md,
                                       textAlign: "right",
@@ -390,7 +388,7 @@ export const AboutScreen: React.FC = () => {
                     <View
                         style={[
                             styles.educationRow,
-                            isRTL && { flexDirection: "row-reverse" },
+                            false && { flexDirection: "row-reverse" },
                         ]}
                     >
                         <Ionicons
@@ -426,7 +424,7 @@ export const AboutScreen: React.FC = () => {
                         variant="heading-small"
                         color="primary"
                         style={
-                            isRTL ? { textAlign: "right" } : styles.centerText
+                            false ? { textAlign: "right" } : styles.centerText
                         }
                     >
                         {t("about.needSolutions")}
@@ -435,7 +433,7 @@ export const AboutScreen: React.FC = () => {
                         variant="body-medium"
                         color="secondary"
                         style={
-                            isRTL
+                            false
                                 ? {
                                       marginTop: Spacing.sm,
                                       lineHeight: 22,

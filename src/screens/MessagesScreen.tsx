@@ -17,7 +17,7 @@ import { Spacing } from "../constants";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { CustomerId, CustomerWithAccounts, MessageTemplate } from "../models";
 import { MessageTemplateService } from "../services/MessageTemplateService";
-import { useDatabaseContext, useLanguage, useTheme } from "../store";
+import { useDatabaseContext, useTheme } from "../store";
 import {
     getUnsupportedPlaceholders,
     hasValidSmsPhone,
@@ -34,9 +34,7 @@ const MESSAGE_PLACEHOLDER_PATTERN = /{{\s*[^{}]+?\s*}}/;
 
 export const MessagesScreen: React.FC = () => {
     const { db } = useDatabaseContext();
-    const { colors } = useTheme();
-    const { isRTL } = useLanguage();
-    const { t } = useTranslation();
+    const { colors } = useTheme();    const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const { customers, loading } = useCustomersWithAccounts(db);
     const service = useMemo(() => (db ? new MessageTemplateService(db) : null), [db]);
@@ -310,7 +308,7 @@ export const MessagesScreen: React.FC = () => {
         const activeIndex = steps.indexOf(sendStep);
 
         return (
-            <View style={[styles.stepIndicator, isRTL && styles.rowRTL]}>
+            <View style={[styles.stepIndicator, false && styles.rowRTL]}>
                 {steps.map((step, index) => {
                     const isActive = step === sendStep;
                     const isDone = index < activeIndex;
@@ -375,7 +373,7 @@ export const MessagesScreen: React.FC = () => {
 
     const renderRecipientsStep = () => (
         <>
-            <View style={[styles.sectionTitleRow, isRTL && styles.rowRTL]}>
+            <View style={[styles.sectionTitleRow, false && styles.rowRTL]}>
                 <Typography variant="heading-small" color="primary">
                     {t("customerMessages.recipients")}
                 </Typography>
@@ -416,7 +414,7 @@ export const MessagesScreen: React.FC = () => {
                                         : []),
                                 ]}
                             >
-                                <View style={[styles.customerRow, isRTL && styles.rowRTL]}>
+                                <View style={[styles.customerRow, false && styles.rowRTL]}>
                                     <Ionicons
                                         name={isSelected ? "checkbox" : "square-outline"}
                                         size={24}
@@ -476,7 +474,7 @@ export const MessagesScreen: React.FC = () => {
             <Typography variant="heading-small" color="primary">
                 {t("customerMessages.sendMode")}
             </Typography>
-            <View style={[styles.modeRow, isRTL && styles.rowRTL]}>
+            <View style={[styles.modeRow, false && styles.rowRTL]}>
                 {(["individual", "group"] as const).map((mode) => (
                     <Pressable
                         key={mode}
@@ -536,7 +534,7 @@ export const MessagesScreen: React.FC = () => {
                 {t("customerMessages.chooseTemplate")}
             </Typography>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                <View style={[styles.templateRow, isRTL && styles.rowRTL]}>
+                <View style={[styles.templateRow, false && styles.rowRTL]}>
                     <Pressable
                         onPress={chooseOwnMessage}
                         style={[
@@ -625,7 +623,7 @@ export const MessagesScreen: React.FC = () => {
                                     : []),
                             ]}
                         >
-                            <View style={[styles.customerRow, isRTL && styles.rowRTL]}>
+                            <View style={[styles.customerRow, false && styles.rowRTL]}>
                                 <Ionicons
                                     name={
                                         isOpened
@@ -693,7 +691,7 @@ export const MessagesScreen: React.FC = () => {
                     />
                 )}
                 {sendStep === "message" && (
-                    <View style={[styles.stepActions, isRTL && styles.rowRTL]}>
+                    <View style={[styles.stepActions, false && styles.rowRTL]}>
                         <Button
                             title={t("customerMessages.back")}
                             variant="secondary"
@@ -713,7 +711,7 @@ export const MessagesScreen: React.FC = () => {
                 {sendStep === "send" && (
                     <>
                         {!isSendComplete && (
-                            <View style={[styles.stepActions, isRTL && styles.rowRTL]}>
+                            <View style={[styles.stepActions, false && styles.rowRTL]}>
                                 <Button
                                     title={
                                         openedCount === 0
@@ -789,7 +787,7 @@ export const MessagesScreen: React.FC = () => {
             renderItem={({ item }) => (
                 <Pressable onPress={() => openTemplateEditor(item)}>
                     <Card style={styles.templateCard}>
-                        <View style={[styles.sectionTitleRow, isRTL && styles.rowRTL]}>
+                        <View style={[styles.sectionTitleRow, false && styles.rowRTL]}>
                             <Typography variant="heading-small" color="primary">
                                 {item.name}
                             </Typography>
@@ -835,13 +833,13 @@ export const MessagesScreen: React.FC = () => {
                 <View
                     style={[
                         styles.headerTopRow,
-                        isRTL && styles.rowRTL,
+                        false && styles.rowRTL,
                     ]}
                 >
                     <View
                         style={[
                             styles.headerTitleRow,
-                            isRTL && styles.rowRTL,
+                            false && styles.rowRTL,
                         ]}
                     >
                         <View
@@ -875,7 +873,7 @@ export const MessagesScreen: React.FC = () => {
                     },
                 ]}
             >
-                <View style={[styles.tabs, isRTL && styles.rowRTL]}>
+                <View style={[styles.tabs, false && styles.rowRTL]}>
                     {(["send", "templates"] as const).map((item) => (
                         <Pressable
                             key={item}
@@ -920,7 +918,7 @@ export const MessagesScreen: React.FC = () => {
                             })}
                         </Typography>
                         {!!templateError && <Typography variant="body-small" color="danger">{templateError}</Typography>}
-                        <View style={[styles.editorActions, isRTL && styles.rowRTL]}>
+                        <View style={[styles.editorActions, false && styles.rowRTL]}>
                             <Button title={t("messageTemplates.cancel")} variant="secondary" onPress={closeTemplateEditor} style={styles.actionButton} />
                             <Button title={t("messageTemplates.save")} onPress={saveTemplate} style={styles.actionButton} />
                         </View>

@@ -22,11 +22,11 @@ import {
     Typography,
 } from "../components";
 import { Colors, Spacing } from "../constants";
-import { useCustomerById } from "../hooks";
+import { LedgerFundingSource, useCustomerById, useLedgerEntries } from "../hooks";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useTransactions } from "../hooks/useTransactions";
 import { AccountService } from "../services/AccountService";
-import { useDatabaseContext, useLanguage, useTheme } from "../store";
+import { useDatabaseContext, useTheme } from "../store";
 import { formatCurrency, formatDateTime } from "../utils";
 import {
     AccountStatus,
@@ -41,9 +41,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
     const { db, invalidate } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { colors } = useTheme();
-    const { isRTL } = useLanguage();
-    const { t } = useTranslation();
+    const { colors } = useTheme();    const { t } = useTranslation();
     const { customer, refresh: refreshCustomer } = useCustomerById(
         db,
         parseInt(customerId || "0") as CustomerId,
@@ -61,6 +59,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
         deleteTransaction,
         loading: loadingTransactions,
     } = useTransactions(db);
+    const { entries: ledgerEntries } = useLedgerEntries(db);
 
     const handleRefresh = useCallback(async () => {
         await refreshCustomer();
@@ -93,6 +92,17 @@ export const CustomerTransactionsScreen: React.FC = () => {
         const accountIds = customer.accounts.map((a: any) => a.id);
         return transactions.filter((t) => accountIds.includes(t.account_id));
     }, [transactions, customer]);
+
+    const fundingSourcesByTransactionId = useMemo(
+        () =>
+            new Map(
+                ledgerEntries.map((entry) => [
+                    entry.id as number,
+                    entry.funding_source,
+                ]),
+            ),
+        [ledgerEntries],
+    );
 
     const stats = useMemo(() => {
         const totalReceived = customerTransactions
@@ -249,14 +259,35 @@ export const CustomerTransactionsScreen: React.FC = () => {
         );
     };
 
-    const renderTransaction = ({ item }: { item: any }) => (
+    const renderTransaction = ({ item }: { item: any }) => {
+        const fundingSource: LedgerFundingSource =
+            fundingSourcesByTransactionId.get(item.id as number) ??
+            (item.type === TransactionType.CREDIT ? "received" : "pocket");
+        const isReceived = fundingSource === "received";
+        const isBalanceFunded = fundingSource === "balance";
+        const label = isReceived
+            ? t("ledger.receivedFrom")
+            : isBalanceFunded
+              ? t("ledger.paidFromBalance")
+              : t("ledger.paidFromPocket");
+        const semanticColor: "success" | "primary" | "warning" = isReceived
+            ? "success"
+            : isBalanceFunded
+              ? "primary"
+              : "warning";
+        const balanceFundedStyle = isBalanceFunded
+            ? { color: colors.info }
+            : undefined;
+
+        return (
         <Card style={styles.transactionCard}>
             <View style={styles.transactionHeader}>
                 <Typography
                     variant="body-medium"
-                    color={item.type === TransactionType.CREDIT ? "success" : "danger"}
+                    color={semanticColor}
+                    style={balanceFundedStyle}
                 >
-                    {item.type === TransactionType.CREDIT ? "RECEIVED" : "PAID"}
+                    {label}
                 </Typography>
                 <View style={styles.transactionActions}>
                     <Typography variant="small-small" color="muted">
@@ -278,8 +309,8 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 <TouchableAmount
                     amount={item.amount}
                     variant="heading-medium"
-                    color={item.type === TransactionType.CREDIT ? "success" : "danger"}
-                    style={styles.amount}
+                    color={semanticColor}
+                    style={{ ...styles.amount, ...(balanceFundedStyle || {}) }}
                 />
             </View>
             {item.description && (
@@ -292,7 +323,8 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 </Typography>
             )}
         </Card>
-    );
+        );
+    };
 
     if (!db) {
         return (
@@ -560,14 +592,14 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                 top: insets.top + 64,
                                 backgroundColor: colors.surface,
                                 borderColor: colors.border,
-                                [isRTL ? "left" : "right"]: Spacing.lg,
+                                [false ? "left" : "right"]: Spacing.lg,
                             },
                         ]}
                     >
                         <Pressable
                             onPress={handleViewProfile}
                             disabled={!customer?.id}
-                            style={[styles.menuItem, isRTL && styles.rowRTL]}
+                            style={[styles.menuItem, false && styles.rowRTL]}
                         >
                             <Ionicons
                                 name="person-circle-outline"
@@ -588,7 +620,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         <Pressable
                             onPress={handleToggleAccountStatus}
                             disabled={!account?.id || isUpdatingStatus}
-                            style={[styles.menuItem, isRTL && styles.rowRTL]}
+                            style={[styles.menuItem, false && styles.rowRTL]}
                         >
                             <Ionicons
                                 name={
@@ -618,7 +650,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         </Pressable>
                         <Pressable
                             onPress={handleEditCustomer}
-                            style={[styles.menuItem, isRTL && styles.rowRTL]}
+                            style={[styles.menuItem, false && styles.rowRTL]}
                         >
                             <Ionicons
                                 name="create-outline"
@@ -632,7 +664,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         <Pressable
                             onPress={handleDeleteCustomer}
                             disabled={deleteLoading}
-                            style={[styles.menuItem, isRTL && styles.rowRTL]}
+                            style={[styles.menuItem, false && styles.rowRTL]}
                         >
                             <Ionicons
                                 name="trash-outline"
