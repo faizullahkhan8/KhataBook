@@ -6,7 +6,6 @@ import {
     Pressable,
     RefreshControl,
     ScrollView,
-    StyleProp,
     StyleSheet,
     TextInput,
     View,
@@ -27,10 +26,22 @@ import { DateRange as HookDateRange, useFinancialMetrics } from "../hooks";
 import { useDatabaseContext, useTheme } from "../store";
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
-type TypographyColor = React.ComponentProps<typeof Typography>["color"];
-type AmountColor = React.ComponentProps<typeof TouchableAmount>["color"];
+type TypographyColor = NonNullable<
+    React.ComponentProps<typeof Typography>["color"]
+>;
+type AmountColor = NonNullable<
+    React.ComponentProps<typeof TouchableAmount>["color"]
+>;
+type ThemeColors = typeof Colors;
+type SearchValue = string | number | null | undefined;
 
-type SearchableValue = string | number | null | undefined;
+type ReportSectionKey =
+    | "overview"
+    | "insights"
+    | "exposure"
+    | "customerFocus"
+    | "financialSummary"
+    | "accountStatus";
 
 const startOfDay = (date: Date) =>
     new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -43,39 +54,24 @@ const getDateRangeForFilter = (
 
     switch (selectedFilter) {
         case "today":
-            return {
-                startDate: today,
-                endDate: today,
-            };
+            return { startDate: today, endDate: today };
 
         case "yesterday": {
             const yesterday = new Date(today);
             yesterday.setDate(yesterday.getDate() - 1);
-
-            return {
-                startDate: yesterday,
-                endDate: yesterday,
-            };
+            return { startDate: yesterday, endDate: yesterday };
         }
 
         case "last7Days": {
             const startDate = new Date(today);
             startDate.setDate(startDate.getDate() - 6);
-
-            return {
-                startDate,
-                endDate: today,
-            };
+            return { startDate, endDate: today };
         }
 
         case "lastMonth": {
             const startDate = new Date(today);
             startDate.setDate(startDate.getDate() - 29);
-
-            return {
-                startDate,
-                endDate: today,
-            };
+            return { startDate, endDate: today };
         }
 
         case "custom":
@@ -85,7 +81,6 @@ const getDateRangeForFilter = (
                     endDate: startOfDay(customRange.endDate),
                 };
             }
-
             return null;
 
         default:
@@ -93,34 +88,35 @@ const getDateRangeForFilter = (
     }
 };
 
-const matchesSearch = (query: string, values: SearchableValue[]) => {
-    if (!query) return true;
+const sectionMatchesSearch = (searchQuery: string, values: SearchValue[]) => {
+    if (!searchQuery) return true;
 
     return values.some((value) =>
         String(value ?? "")
             .toLowerCase()
-            .includes(query),
+            .includes(searchQuery),
     );
 };
 
-interface ScreenHeaderProps {
+interface ReportsHeaderProps {
     title: string;
     subtitle: string;
-    searchPlaceholder: string;
+    placeholder: string;
     searchText: string;
     isSearchActive: boolean;
     isRTL: boolean;
-    colors: ReturnType<typeof useTheme>["colors"];
+    colors: ThemeColors;
     topInset: number;
-    searchInputRef: React.RefObject<TextInput | null>;
+    searchInputRef: React.RefObject<TextInput>;
     onSearchTextChange: (value: string) => void;
     onToggleSearch: () => void;
 }
 
-const ScreenHeader = memo(function ScreenHeader({
+const ReportsHeader = memo(
+    ({
         title,
         subtitle,
-        searchPlaceholder,
+        placeholder,
         searchText,
         isSearchActive,
         isRTL,
@@ -129,8 +125,7 @@ const ScreenHeader = memo(function ScreenHeader({
         searchInputRef,
         onSearchTextChange,
         onToggleSearch,
-    }: ScreenHeaderProps) {
-        return (
+    }: ReportsHeaderProps) => (
         <View
             style={[
                 styles.header,
@@ -142,7 +137,9 @@ const ScreenHeader = memo(function ScreenHeader({
             ]}
         >
             <View style={[styles.headerTopRow, isRTL && styles.rowReverse]}>
-                <View style={[styles.headerTitleRow, isRTL && styles.rowReverse]}>
+                <View
+                    style={[styles.headerTitleRow, isRTL && styles.rowReverse]}
+                >
                     <View
                         style={[
                             styles.headerIconContainer,
@@ -168,11 +165,12 @@ const ScreenHeader = memo(function ScreenHeader({
                                         color: colors.text.primary,
                                     },
                                 ]}
-                                placeholder={searchPlaceholder}
+                                placeholder={placeholder}
                                 placeholderTextColor={colors.text.muted}
                                 value={searchText}
                                 onChangeText={onSearchTextChange}
                                 autoFocus
+                                autoCorrect={false}
                                 returnKeyType="search"
                             />
                         </View>
@@ -181,14 +179,14 @@ const ScreenHeader = memo(function ScreenHeader({
                             <Typography
                                 variant="heading-large"
                                 color="primary"
-                                style={isRTL && styles.textRight}
+                                style={isRTL ? styles.textRight : undefined}
                             >
                                 {title}
                             </Typography>
                             <Typography
                                 variant="body-small"
                                 color="muted"
-                                style={isRTL && styles.textRight}
+                                style={isRTL ? styles.textRight : undefined}
                             >
                                 {subtitle}
                             </Typography>
@@ -200,6 +198,9 @@ const ScreenHeader = memo(function ScreenHeader({
                     onPress={onToggleSearch}
                     hitSlop={8}
                     accessibilityRole="button"
+                    accessibilityLabel={
+                        isSearchActive ? "Close search" : "Search reports"
+                    }
                     style={[
                         styles.searchIconButton,
                         { backgroundColor: `${colors.primary}15` },
@@ -213,35 +214,29 @@ const ScreenHeader = memo(function ScreenHeader({
                 </Pressable>
             </View>
         </View>
-        );
-    });
+    ),
+);
+ReportsHeader.displayName = "ReportsHeader";
 
 interface SectionCardProps {
     title: string;
     isRTL: boolean;
     children: React.ReactNode;
-    style?: StyleProp<ViewStyle>;
 }
 
-const SectionCard = memo(function SectionCard({
-    title,
-    isRTL,
-    children,
-    style,
-}: SectionCardProps) {
-    return (
-        <Card style={StyleSheet.flatten([styles.card, style])}>
-            <Typography
-                variant="heading-medium"
-                color="primary"
-                style={[styles.cardTitle, isRTL && styles.textRight]}
-            >
-                {title}
-            </Typography>
-            {children}
-        </Card>
-    );
-});
+const SectionCard = memo(({ title, isRTL, children }: SectionCardProps) => (
+    <Card style={styles.card}>
+        <Typography
+            variant="heading-medium"
+            color="primary"
+            style={[styles.cardTitle, isRTL && styles.textRight]}
+        >
+            {title}
+        </Typography>
+        {children}
+    </Card>
+));
+SectionCard.displayName = "SectionCard";
 
 interface StatRowProps {
     label: string;
@@ -253,7 +248,8 @@ interface StatRowProps {
     isLast?: boolean;
 }
 
-const StatRow = memo(function StatRow({
+const StatRow = memo(
+    ({
         label,
         isRTL,
         amount,
@@ -261,8 +257,7 @@ const StatRow = memo(function StatRow({
         amountColor = "primary",
         valueColor = "primary",
         isLast = false,
-    }: StatRowProps) {
-        return (
+    }: StatRowProps) => (
         <View
             style={[
                 styles.statRow,
@@ -291,8 +286,9 @@ const StatRow = memo(function StatRow({
                 </Typography>
             )}
         </View>
-        );
-    });
+    ),
+);
+StatRow.displayName = "StatRow";
 
 interface InsightTileProps {
     icon: IconName;
@@ -306,7 +302,8 @@ interface InsightTileProps {
     valueColor?: TypographyColor;
 }
 
-const InsightTile = memo(function InsightTile({
+const InsightTile = memo(
+    ({
         icon,
         iconColor,
         backgroundColor,
@@ -316,11 +313,9 @@ const InsightTile = memo(function InsightTile({
         value,
         amountColor = "primary",
         valueColor = "primary",
-    }: InsightTileProps) {
-        return (
+    }: InsightTileProps) => (
         <Card style={[styles.insightTile, { backgroundColor }]}>
             <Ionicons name={icon} size={22} color={iconColor} />
-
             <Typography variant="body-small" color="muted">
                 {label}
             </Typography>
@@ -341,8 +336,9 @@ const InsightTile = memo(function InsightTile({
                 {hint}
             </Typography>
         </Card>
-        );
-    });
+    ),
+);
+InsightTile.displayName = "InsightTile";
 
 interface FocusRowProps {
     icon: IconName;
@@ -357,7 +353,8 @@ interface FocusRowProps {
     isLast?: boolean;
 }
 
-const FocusRow = memo(function FocusRow({
+const FocusRow = memo(
+    ({
         icon,
         iconColor,
         title,
@@ -368,8 +365,7 @@ const FocusRow = memo(function FocusRow({
         amountColor = "primary",
         valueColor = "primary",
         isLast = false,
-    }: FocusRowProps) {
-        return (
+    }: FocusRowProps) => (
         <View
             style={[
                 styles.focusItem,
@@ -383,14 +379,14 @@ const FocusRow = memo(function FocusRow({
                 <Typography
                     variant="body-medium"
                     color="primary"
-                    style={isRTL && styles.textRight}
+                    style={isRTL ? styles.textRight : undefined}
                 >
                     {title}
                 </Typography>
                 <Typography
                     variant="body-small"
                     color="muted"
-                    style={isRTL && styles.textRight}
+                    style={isRTL ? styles.textRight : undefined}
                 >
                     {subtitle}
                 </Typography>
@@ -408,20 +404,17 @@ const FocusRow = memo(function FocusRow({
                 </Typography>
             )}
         </View>
-        );
-    });
+    ),
+);
+FocusRow.displayName = "FocusRow";
 
 interface EmptySearchStateProps {
     message: string;
-    colors: ReturnType<typeof useTheme>["colors"];
+    colors: ThemeColors;
 }
 
-const EmptySearchState = memo(function EmptySearchState({
-    message,
-    colors,
-}: EmptySearchStateProps) {
-    return (
-        <Card style={styles.card}>
+const EmptySearchState = memo(({ message, colors }: EmptySearchStateProps) => (
+    <Card style={styles.card}>
         <View style={styles.emptyState}>
             <View
                 style={[
@@ -435,45 +428,44 @@ const EmptySearchState = memo(function EmptySearchState({
                     color={colors.primary}
                 />
             </View>
-            <Typography variant="body-medium" color="muted">
+            <Typography
+                variant="body-medium"
+                color="muted"
+                style={styles.textCenter}
+            >
                 {message}
             </Typography>
         </View>
-        </Card>
-    );
-});
+    </Card>
+));
+EmptySearchState.displayName = "EmptySearchState";
 
 interface LoadingStateProps {
     message: string;
     backgroundColor: string;
 }
 
-const LoadingState = memo(function LoadingState({
-    message,
-    backgroundColor,
-}: LoadingStateProps) {
-    return (
-        <View style={[styles.center, { backgroundColor }]}>
+const LoadingState = memo(({ message, backgroundColor }: LoadingStateProps) => (
+    <View style={[styles.center, { backgroundColor }]}>
         <Typography variant="body-medium" color="muted">
             {message}
         </Typography>
-        </View>
-    );
-});
+    </View>
+));
+LoadingState.displayName = "LoadingState";
 
 export const ReportsScreen: React.FC = () => {
     const { db, error: dbError, initDatabase } = useDatabaseContext();
+    const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { t } = useTranslation();
-    const insets = useSafeAreaInsets();
     const isRTL = I18nManager.isRTL;
 
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [searchText, setSearchText] = useState("");
     const searchInputRef = useRef<TextInput>(null);
 
-    const [selectedFilter, setSelectedFilter] =
-        useState<DateFilterType>("all");
+    const [selectedFilter, setSelectedFilter] = useState<DateFilterType>("all");
     const [customRange, setCustomRange] = useState<DateRange>();
     const [showDatePicker, setShowDatePicker] = useState(false);
 
@@ -487,48 +479,6 @@ export const ReportsScreen: React.FC = () => {
         loading: loadingMetrics,
         refresh: refreshMetrics,
     } = useFinancialMetrics(db, dateRange);
-
-    const normalizedSearch = searchText.trim().toLowerCase();
-
-    const handleToggleSearch = useCallback(() => {
-        if (isSearchActive) {
-            setSearchText("");
-            setIsSearchActive(false);
-            return;
-        }
-
-        setIsSearchActive(true);
-        setTimeout(() => searchInputRef.current?.focus(), 80);
-    }, [isSearchActive]);
-
-    const handleFilterChange = useCallback((filter: DateFilterType) => {
-        if (filter === "custom") {
-            setShowDatePicker(true);
-            return;
-        }
-
-        setSelectedFilter(filter);
-        setCustomRange(undefined);
-    }, []);
-
-    const handleDateRangeApply = useCallback(
-        (range: { startDate: Date | null; endDate: Date | null }) => {
-            if (range.startDate && range.endDate) {
-                setCustomRange({
-                    startDate: range.startDate,
-                    endDate: range.endDate,
-                });
-                setSelectedFilter("custom");
-            }
-
-            setShowDatePicker(false);
-        },
-        [],
-    );
-
-    const handleRefresh = useCallback(async () => {
-        await refreshMetrics();
-    }, [refreshMetrics]);
 
     const {
         totalCreditLimit,
@@ -568,9 +518,6 @@ export const ReportsScreen: React.FC = () => {
             avgTransactionHint: t("reports.avgTransactionHint"),
             balanceIncreased: t("reports.balanceIncreased"),
             balanceReduced: t("reports.balanceReduced"),
-            clearSearch: t("reports.clearSearch", {
-                defaultValue: "Clear search",
-            }),
             closedAccounts: t("reports.closedAccounts"),
             collectionRate: t("reports.collectionRate"),
             collectionRateHint: t("reports.collectionRateHint"),
@@ -614,9 +561,11 @@ export const ReportsScreen: React.FC = () => {
         [mostActiveCustomerTransactions, t],
     );
 
-    const visibleSections = useMemo(
+    const normalizedSearch = searchText.trim().toLowerCase();
+
+    const visibleSections = useMemo<Record<ReportSectionKey, boolean>>(
         () => ({
-            overview: matchesSearch(normalizedSearch, [
+            overview: sectionMatchesSearch(normalizedSearch, [
                 labels.overview,
                 labels.totalCustomers,
                 labels.totalAccounts,
@@ -625,7 +574,7 @@ export const ReportsScreen: React.FC = () => {
                 totalAccounts,
                 totalTransactions,
             ]),
-            insights: matchesSearch(normalizedSearch, [
+            insights: sectionMatchesSearch(normalizedSearch, [
                 labels.decisionInsights,
                 labels.netMovement,
                 labels.collectionRate,
@@ -636,7 +585,7 @@ export const ReportsScreen: React.FC = () => {
                 creditUtilizationRate,
                 averageTransactionAmount,
             ]),
-            exposure: matchesSearch(normalizedSearch, [
+            exposure: sectionMatchesSearch(normalizedSearch, [
                 labels.creditExposure,
                 labels.receivableBalance,
                 labels.payableBalance,
@@ -647,7 +596,7 @@ export const ReportsScreen: React.FC = () => {
                 availableCredit,
                 highUtilizationAccounts,
             ]),
-            customerFocus: matchesSearch(normalizedSearch, [
+            customerFocus: sectionMatchesSearch(normalizedSearch, [
                 labels.customerFocus,
                 labels.topReceivable,
                 labels.topPayable,
@@ -658,7 +607,7 @@ export const ReportsScreen: React.FC = () => {
                 mostActiveCustomerName,
                 dormantCustomers,
             ]),
-            financialSummary: matchesSearch(normalizedSearch, [
+            financialSummary: sectionMatchesSearch(normalizedSearch, [
                 labels.financialSummary,
                 labels.totalCreditLimit,
                 labels.totalCurrentBalance,
@@ -669,7 +618,7 @@ export const ReportsScreen: React.FC = () => {
                 totalCredits,
                 totalDebits,
             ]),
-            accountStatus: matchesSearch(normalizedSearch, [
+            accountStatus: sectionMatchesSearch(normalizedSearch, [
                 labels.accountStatus,
                 labels.activeAccounts,
                 labels.inactiveAccounts,
@@ -682,41 +631,81 @@ export const ReportsScreen: React.FC = () => {
             ]),
         }),
         [
-            normalizedSearch,
-            labels,
-            totalCustomers,
-            totalAccounts,
-            totalTransactions,
-            netBalanceMovement,
+            activeAccounts,
+            availableCredit,
+            averageTransactionAmount,
+            closedAccounts,
             collectionRate,
             creditUtilizationRate,
-            averageTransactionAmount,
-            receivableBalance,
-            payableBalance,
-            availableCredit,
-            highUtilizationAccounts,
-            topReceivableCustomerName,
-            topPayableCustomerName,
-            mostActiveCustomerName,
             dormantCustomers,
-            totalCreditLimit,
-            totalCurrentBalance,
-            totalCredits,
-            totalDebits,
-            activeAccounts,
+            highUtilizationAccounts,
             inactiveAccounts,
+            labels,
+            mostActiveCustomerName,
+            netBalanceMovement,
+            normalizedSearch,
+            payableBalance,
+            receivableBalance,
             suspendedAccounts,
-            closedAccounts,
+            topPayableCustomerName,
+            topReceivableCustomerName,
+            totalAccounts,
+            totalCreditLimit,
+            totalCredits,
+            totalCurrentBalance,
+            totalCustomers,
+            totalDebits,
+            totalTransactions,
         ],
     );
 
     const hasVisibleSection = Object.values(visibleSections).some(Boolean);
     const netMovementColor: AmountColor =
         netBalanceMovement > 0 ? "danger" : "success";
-    const utilizationColor: TypographyColor =
-        creditUtilizationRate >= 80 ? "danger" : "warning";
     const collectionColor: TypographyColor =
         collectionRate >= 80 ? "success" : "warning";
+    const utilizationColor: TypographyColor =
+        creditUtilizationRate >= 80 ? "danger" : "warning";
+
+    const handleToggleSearch = useCallback(() => {
+        if (isSearchActive) {
+            setSearchText("");
+            setIsSearchActive(false);
+            return;
+        }
+
+        setIsSearchActive(true);
+        setTimeout(() => searchInputRef.current?.focus(), 80);
+    }, [isSearchActive]);
+
+    const handleFilterChange = useCallback((filter: DateFilterType) => {
+        if (filter === "custom") {
+            setShowDatePicker(true);
+            return;
+        }
+
+        setSelectedFilter(filter);
+        setCustomRange(undefined);
+    }, []);
+
+    const handleDateRangeApply = useCallback(
+        (range: { startDate: Date | null; endDate: Date | null }) => {
+            if (range.startDate && range.endDate) {
+                setCustomRange({
+                    startDate: range.startDate,
+                    endDate: range.endDate,
+                });
+                setSelectedFilter("custom");
+            }
+
+            setShowDatePicker(false);
+        },
+        [],
+    );
+
+    const handleRefresh = useCallback(async () => {
+        await refreshMetrics();
+    }, [refreshMetrics]);
 
     return (
         <ErrorScreen
@@ -737,10 +726,10 @@ export const ReportsScreen: React.FC = () => {
                         { backgroundColor: colors.background },
                     ]}
                 >
-                    <ScreenHeader
+                    <ReportsHeader
                         title={labels.reportsTitle}
                         subtitle={labels.reportsSubtitle}
-                        searchPlaceholder={labels.searchPlaceholder}
+                        placeholder={labels.searchPlaceholder}
                         searchText={searchText}
                         isSearchActive={isSearchActive}
                         isRTL={isRTL}
@@ -777,6 +766,7 @@ export const ReportsScreen: React.FC = () => {
                             styles.contentContainer,
                             { paddingBottom: insets.bottom + Spacing.xl },
                         ]}
+                        keyboardShouldPersistTaps="handled"
                         refreshControl={
                             <RefreshControl
                                 refreshing={loadingMetrics}
@@ -785,7 +775,6 @@ export const ReportsScreen: React.FC = () => {
                                 tintColor={colors.primary}
                             />
                         }
-                        keyboardShouldPersistTaps="handled"
                     >
                         {!hasVisibleSection && (
                             <EmptySearchState
@@ -795,10 +784,7 @@ export const ReportsScreen: React.FC = () => {
                         )}
 
                         {visibleSections.overview && (
-                            <SectionCard
-                                title={labels.overview}
-                                isRTL={isRTL}
-                            >
+                            <SectionCard title={labels.overview} isRTL={isRTL}>
                                 <StatRow
                                     label={labels.totalCustomers}
                                     value={totalCustomers}
@@ -841,7 +827,6 @@ export const ReportsScreen: React.FC = () => {
                                                 : labels.balanceReduced
                                         }
                                     />
-
                                     <InsightTile
                                         icon="cash-outline"
                                         iconColor={colors.success}
@@ -851,7 +836,6 @@ export const ReportsScreen: React.FC = () => {
                                         valueColor={collectionColor}
                                         hint={labels.collectionRateHint}
                                     />
-
                                     <InsightTile
                                         icon="speedometer-outline"
                                         iconColor={
@@ -865,7 +849,6 @@ export const ReportsScreen: React.FC = () => {
                                         valueColor={utilizationColor}
                                         hint={labels.creditUtilizationHint}
                                     />
-
                                     <InsightTile
                                         icon="receipt-outline"
                                         iconColor={colors.primary}
@@ -934,7 +917,6 @@ export const ReportsScreen: React.FC = () => {
                                         amountColor="danger"
                                         isRTL={isRTL}
                                     />
-
                                     <FocusRow
                                         icon="checkmark-circle-outline"
                                         iconColor={colors.success}
@@ -947,7 +929,6 @@ export const ReportsScreen: React.FC = () => {
                                         amountColor="success"
                                         isRTL={isRTL}
                                     />
-
                                     <FocusRow
                                         icon="pulse-outline"
                                         iconColor={colors.primary}
@@ -960,7 +941,6 @@ export const ReportsScreen: React.FC = () => {
                                         valueColor="primary"
                                         isRTL={isRTL}
                                     />
-
                                     <FocusRow
                                         icon="time-outline"
                                         iconColor={colors.warning}
@@ -1190,8 +1170,11 @@ const styles = StyleSheet.create({
     },
     textRight: {
         textAlign: "right",
-    },
+    } as TextStyle,
+    textCenter: {
+        textAlign: "center",
+    } as TextStyle,
     noBorder: {
         borderBottomWidth: 0,
-    },
+    } as ViewStyle,
 });
