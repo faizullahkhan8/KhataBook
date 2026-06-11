@@ -1,7 +1,9 @@
 import { AccountId, CurrencyAmount, Timestamp, TransactionId } from "./types";
 
 export enum TransactionType {
+    // DEBIT (0): Customer takes/borrows on credit - increases their balance owed to us
     DEBIT = 0,
+    // CREDIT (1): Customer pays back - decreases their balance owed to us
     CREDIT = 1,
 }
 

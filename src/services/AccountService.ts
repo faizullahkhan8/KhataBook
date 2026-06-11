@@ -34,6 +34,69 @@ export class AccountService {
         }
     }
 
+    /**
+     * Create account with opening balance transaction
+     * If initialBalance > 0, creates a DEBIT "Opening Balance" transaction
+     * Wrapped in a SQLite transaction for data consistency
+     */
+    async createAccountWithOpeningBalance(
+        account: Omit<Account, "id" | "created_at" | "updated_at">,
+        initialBalance: number = 0,
+    ): Promise<AccountId> {
+        if (!this.db) {
+            throw new Error("Database is not initialized");
+        }
+        try {
+            // Always create account with 0 balance initially
+            const accountWithZeroBalance = { ...account, current_balance: 0 };
+
+            // If no initial balance, just create account normally
+            if (!initialBalance || initialBalance === 0) {
+                return this.createAccount(accountWithZeroBalance);
+            }
+
+            // Use transaction to ensure atomicity
+            let accountId: AccountId | undefined;
+            await this.db.transactionAsync(async (tx) => {
+                // 1. Create account with current_balance = 0
+                const result = await tx.runAsync(
+                    `INSERT INTO accounts (customer_id, account_number, account_type, credit_limit, current_balance, status) VALUES (?, ?, ?, ?, ?, ?)`,
+                    [
+                        accountWithZeroBalance.customer_id,
+                        accountWithZeroBalance.account_number,
+                        accountWithZeroBalance.account_type,
+                        accountWithZeroBalance.credit_limit,
+                        0, // Force 0 balance
+                        accountWithZeroBalance.status,
+                    ],
+                );
+                accountId = result.lastInsertRowId as AccountId;
+
+                // 2. Insert opening balance transaction (DEBIT type = 0)
+                // This triggers the balance update via trig_trans_insert_balance
+                await tx.runAsync(
+                    `INSERT INTO transactions (account_id, type, amount, description, reference, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+                    [
+                        accountId,
+                        0, // DEBIT type
+                        initialBalance,
+                        "Opening Balance",
+                        "INIT",
+                        Math.floor(Date.now() / 1000),
+                    ],
+                );
+            });
+
+            return accountId as AccountId;
+        } catch (error) {
+            console.error(
+                "Error creating account with opening balance:",
+                error,
+            );
+            throw error;
+        }
+    }
+
     async getAccountById(id: AccountId): Promise<Account | null> {
         if (!this.db) {
             throw new Error("Database is not initialized");

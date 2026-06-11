@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     KeyboardAvoidingView,
     Platform,
@@ -9,7 +10,6 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTranslation } from "react-i18next";
 import { Spacing } from "../constants";
 import { PasscodeLength, usePasscode, useTheme } from "../store";
 import { Button } from "./Button";
@@ -241,7 +241,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                             <PasscodePinInput
                                 length={
                                     step === "pin"
-                                        ? pinLength ?? 8
+                                        ? (pinLength ?? 8)
                                         : selectedLength
                                 }
                                 value={value}
@@ -251,9 +251,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                                 placeholder={t("passcode.pinPlaceholder")}
                                 autoFocus
                                 error={step === "pin" && pinHasError}
-                                shakeTrigger={
-                                    step === "pin" ? shakeTrigger : 0
-                                }
+                                shakeTrigger={step === "pin" ? shakeTrigger : 0}
                             />
                         </>
                     ) : (
@@ -290,9 +288,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                         biometricAvailable && (
                             <Pressable
                                 accessibilityRole="button"
-                                accessibilityLabel={t(
-                                    "passcode.useBiometric",
-                                )}
+                                accessibilityLabel={t("passcode.useBiometric")}
                                 disabled={isBiometricAuthenticating}
                                 onPress={unlockWithBiometrics}
                                 style={[

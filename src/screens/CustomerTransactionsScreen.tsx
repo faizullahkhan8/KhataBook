@@ -128,6 +128,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
             .reduce((sum, t) => sum + t.amount, 0);
 
         // Return values remain as integers for stats; TouchableAmount will handle formatting
+        // Fixed: DEBIT increases balance (customer owes more), CREDIT decreases (customer pays back)
         const balance = totalPaid - totalReceived;
         return { totalReceived, totalPaid, balance };
     }, [customerTransactions]);
@@ -403,9 +404,12 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         {customer?.image_uri ? (
                             <ViewPhoto
                                 source={{ uri: customer.image_uri }}
-                                accessibilityLabel={t("photoViewer.openCustomer", {
-                                    name: customer.name,
-                                })}
+                                accessibilityLabel={t(
+                                    "photoViewer.openCustomer",
+                                    {
+                                        name: customer.name,
+                                    },
+                                )}
                                 closeAccessibilityLabel={t("photoViewer.close")}
                             >
                                 <Image
@@ -450,7 +454,10 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                         <View
                                             style={[
                                                 styles.inactiveDot,
-                                                { backgroundColor: colors.warning },
+                                                {
+                                                    backgroundColor:
+                                                        colors.warning,
+                                                },
                                             ]}
                                         />
                                         <Typography

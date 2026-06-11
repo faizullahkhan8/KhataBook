@@ -51,7 +51,7 @@ export const useLedgerEntries = (db: SQLite.SQLiteDatabase | null) => {
                     a.current_balance - COALESCE((
                         SELECT SUM(
                             CASE
-                                WHEN later.type = 1 THEN later.amount
+                                WHEN later.type = 0 THEN later.amount
                                 ELSE -later.amount
                             END
                         )

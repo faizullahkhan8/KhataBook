@@ -1,14 +1,16 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+    I18nManager,
     Pressable,
     RefreshControl,
     ScrollView,
+    StyleProp,
     StyleSheet,
     TextInput,
-    TextStyle,
     View,
+    ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -24,85 +26,489 @@ import { Colors, Spacing } from "../constants";
 import { DateRange as HookDateRange, useFinancialMetrics } from "../hooks";
 import { useDatabaseContext, useTheme } from "../store";
 
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
+type TypographyColor = React.ComponentProps<typeof Typography>["color"];
+type AmountColor = React.ComponentProps<typeof TouchableAmount>["color"];
+
+type SearchableValue = string | number | null | undefined;
+
+const startOfDay = (date: Date) =>
+    new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+const getDateRangeForFilter = (
+    selectedFilter: DateFilterType,
+    customRange?: DateRange,
+): HookDateRange | null => {
+    const today = startOfDay(new Date());
+
+    switch (selectedFilter) {
+        case "today":
+            return {
+                startDate: today,
+                endDate: today,
+            };
+
+        case "yesterday": {
+            const yesterday = new Date(today);
+            yesterday.setDate(yesterday.getDate() - 1);
+
+            return {
+                startDate: yesterday,
+                endDate: yesterday,
+            };
+        }
+
+        case "last7Days": {
+            const startDate = new Date(today);
+            startDate.setDate(startDate.getDate() - 6);
+
+            return {
+                startDate,
+                endDate: today,
+            };
+        }
+
+        case "lastMonth": {
+            const startDate = new Date(today);
+            startDate.setDate(startDate.getDate() - 29);
+
+            return {
+                startDate,
+                endDate: today,
+            };
+        }
+
+        case "custom":
+            if (customRange?.startDate && customRange?.endDate) {
+                return {
+                    startDate: startOfDay(customRange.startDate),
+                    endDate: startOfDay(customRange.endDate),
+                };
+            }
+
+            return null;
+
+        default:
+            return null;
+    }
+};
+
+const matchesSearch = (query: string, values: SearchableValue[]) => {
+    if (!query) return true;
+
+    return values.some((value) =>
+        String(value ?? "")
+            .toLowerCase()
+            .includes(query),
+    );
+};
+
+interface ScreenHeaderProps {
+    title: string;
+    subtitle: string;
+    searchPlaceholder: string;
+    searchText: string;
+    isSearchActive: boolean;
+    isRTL: boolean;
+    colors: ReturnType<typeof useTheme>["colors"];
+    topInset: number;
+    searchInputRef: React.RefObject<TextInput | null>;
+    onSearchTextChange: (value: string) => void;
+    onToggleSearch: () => void;
+}
+
+const ScreenHeader = memo(function ScreenHeader({
+        title,
+        subtitle,
+        searchPlaceholder,
+        searchText,
+        isSearchActive,
+        isRTL,
+        colors,
+        topInset,
+        searchInputRef,
+        onSearchTextChange,
+        onToggleSearch,
+    }: ScreenHeaderProps) {
+        return (
+        <View
+            style={[
+                styles.header,
+                {
+                    paddingTop: topInset + Spacing.md,
+                    backgroundColor: colors.surface,
+                    borderBottomColor: colors.border,
+                },
+            ]}
+        >
+            <View style={[styles.headerTopRow, isRTL && styles.rowReverse]}>
+                <View style={[styles.headerTitleRow, isRTL && styles.rowReverse]}>
+                    <View
+                        style={[
+                            styles.headerIconContainer,
+                            { backgroundColor: `${colors.primary}20` },
+                        ]}
+                    >
+                        <Ionicons
+                            name="bar-chart"
+                            size={28}
+                            color={colors.primary}
+                        />
+                    </View>
+
+                    {isSearchActive ? (
+                        <View style={styles.searchInputContainer}>
+                            <TextInput
+                                ref={searchInputRef}
+                                style={[
+                                    styles.headerSearchInput,
+                                    isRTL && styles.textRight,
+                                    {
+                                        backgroundColor: colors.background,
+                                        color: colors.text.primary,
+                                    },
+                                ]}
+                                placeholder={searchPlaceholder}
+                                placeholderTextColor={colors.text.muted}
+                                value={searchText}
+                                onChangeText={onSearchTextChange}
+                                autoFocus
+                                returnKeyType="search"
+                            />
+                        </View>
+                    ) : (
+                        <View style={styles.titleBlock}>
+                            <Typography
+                                variant="heading-large"
+                                color="primary"
+                                style={isRTL && styles.textRight}
+                            >
+                                {title}
+                            </Typography>
+                            <Typography
+                                variant="body-small"
+                                color="muted"
+                                style={isRTL && styles.textRight}
+                            >
+                                {subtitle}
+                            </Typography>
+                        </View>
+                    )}
+                </View>
+
+                <Pressable
+                    onPress={onToggleSearch}
+                    hitSlop={8}
+                    accessibilityRole="button"
+                    style={[
+                        styles.searchIconButton,
+                        { backgroundColor: `${colors.primary}15` },
+                    ]}
+                >
+                    <Ionicons
+                        name={isSearchActive ? "close" : "search"}
+                        size={24}
+                        color={colors.primary}
+                    />
+                </Pressable>
+            </View>
+        </View>
+        );
+    });
+
+interface SectionCardProps {
+    title: string;
+    isRTL: boolean;
+    children: React.ReactNode;
+    style?: StyleProp<ViewStyle>;
+}
+
+const SectionCard = memo(function SectionCard({
+    title,
+    isRTL,
+    children,
+    style,
+}: SectionCardProps) {
+    return (
+        <Card style={StyleSheet.flatten([styles.card, style])}>
+            <Typography
+                variant="heading-medium"
+                color="primary"
+                style={[styles.cardTitle, isRTL && styles.textRight]}
+            >
+                {title}
+            </Typography>
+            {children}
+        </Card>
+    );
+});
+
+interface StatRowProps {
+    label: string;
+    isRTL: boolean;
+    amount?: number;
+    value?: string | number;
+    amountColor?: AmountColor;
+    valueColor?: TypographyColor;
+    isLast?: boolean;
+}
+
+const StatRow = memo(function StatRow({
+        label,
+        isRTL,
+        amount,
+        value,
+        amountColor = "primary",
+        valueColor = "primary",
+        isLast = false,
+    }: StatRowProps) {
+        return (
+        <View
+            style={[
+                styles.statRow,
+                isRTL && styles.rowReverse,
+                isLast && styles.noBorder,
+            ]}
+        >
+            <Typography
+                variant="subheading-small"
+                color="secondary"
+                style={[styles.statLabel, isRTL && styles.textRight]}
+            >
+                {label}
+            </Typography>
+
+            {typeof amount === "number" ? (
+                <TouchableAmount
+                    amount={amount}
+                    variant="heading-medium"
+                    color={amountColor}
+                    style={styles.statValue}
+                />
+            ) : (
+                <Typography variant="heading-medium" color={valueColor}>
+                    {value ?? 0}
+                </Typography>
+            )}
+        </View>
+        );
+    });
+
+interface InsightTileProps {
+    icon: IconName;
+    iconColor: string;
+    backgroundColor: string;
+    label: string;
+    hint: string;
+    amount?: number;
+    value?: string | number;
+    amountColor?: AmountColor;
+    valueColor?: TypographyColor;
+}
+
+const InsightTile = memo(function InsightTile({
+        icon,
+        iconColor,
+        backgroundColor,
+        label,
+        hint,
+        amount,
+        value,
+        amountColor = "primary",
+        valueColor = "primary",
+    }: InsightTileProps) {
+        return (
+        <Card style={[styles.insightTile, { backgroundColor }]}>
+            <Ionicons name={icon} size={22} color={iconColor} />
+
+            <Typography variant="body-small" color="muted">
+                {label}
+            </Typography>
+
+            {typeof amount === "number" ? (
+                <TouchableAmount
+                    amount={amount}
+                    variant="heading-small"
+                    color={amountColor}
+                />
+            ) : (
+                <Typography variant="heading-small" color={valueColor}>
+                    {value ?? 0}
+                </Typography>
+            )}
+
+            <Typography variant="small-small" color="muted">
+                {hint}
+            </Typography>
+        </Card>
+        );
+    });
+
+interface FocusRowProps {
+    icon: IconName;
+    iconColor: string;
+    title: string;
+    subtitle: string;
+    isRTL: boolean;
+    amount?: number;
+    value?: string | number;
+    amountColor?: AmountColor;
+    valueColor?: TypographyColor;
+    isLast?: boolean;
+}
+
+const FocusRow = memo(function FocusRow({
+        icon,
+        iconColor,
+        title,
+        subtitle,
+        isRTL,
+        amount,
+        value,
+        amountColor = "primary",
+        valueColor = "primary",
+        isLast = false,
+    }: FocusRowProps) {
+        return (
+        <View
+            style={[
+                styles.focusItem,
+                isRTL && styles.rowReverse,
+                isLast && styles.noBorder,
+            ]}
+        >
+            <Ionicons name={icon} size={22} color={iconColor} />
+
+            <View style={styles.focusText}>
+                <Typography
+                    variant="body-medium"
+                    color="primary"
+                    style={isRTL && styles.textRight}
+                >
+                    {title}
+                </Typography>
+                <Typography
+                    variant="body-small"
+                    color="muted"
+                    style={isRTL && styles.textRight}
+                >
+                    {subtitle}
+                </Typography>
+            </View>
+
+            {typeof amount === "number" ? (
+                <TouchableAmount
+                    amount={amount}
+                    variant="body-medium"
+                    color={amountColor}
+                />
+            ) : (
+                <Typography variant="body-medium" color={valueColor}>
+                    {value ?? 0}
+                </Typography>
+            )}
+        </View>
+        );
+    });
+
+interface EmptySearchStateProps {
+    message: string;
+    colors: ReturnType<typeof useTheme>["colors"];
+}
+
+const EmptySearchState = memo(function EmptySearchState({
+    message,
+    colors,
+}: EmptySearchStateProps) {
+    return (
+        <Card style={styles.card}>
+        <View style={styles.emptyState}>
+            <View
+                style={[
+                    styles.emptyIcon,
+                    { backgroundColor: `${colors.primary}12` },
+                ]}
+            >
+                <Ionicons
+                    name="search-outline"
+                    size={28}
+                    color={colors.primary}
+                />
+            </View>
+            <Typography variant="body-medium" color="muted">
+                {message}
+            </Typography>
+        </View>
+        </Card>
+    );
+});
+
+interface LoadingStateProps {
+    message: string;
+    backgroundColor: string;
+}
+
+const LoadingState = memo(function LoadingState({
+    message,
+    backgroundColor,
+}: LoadingStateProps) {
+    return (
+        <View style={[styles.center, { backgroundColor }]}>
+        <Typography variant="body-medium" color="muted">
+            {message}
+        </Typography>
+        </View>
+    );
+});
+
 export const ReportsScreen: React.FC = () => {
     const { db, error: dbError, initDatabase } = useDatabaseContext();
-    const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { t } = useTranslation();    const [isSearchActive, setIsSearchActive] = useState(false);
+    const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
+    const isRTL = I18nManager.isRTL;
+
+    const [isSearchActive, setIsSearchActive] = useState(false);
     const [searchText, setSearchText] = useState("");
     const searchInputRef = useRef<TextInput>(null);
-    const [selectedFilter, setSelectedFilter] = useState<DateFilterType>("all");
-    const [customRange, setCustomRange] = useState<DateRange | undefined>(
-        undefined,
-    );
+
+    const [selectedFilter, setSelectedFilter] =
+        useState<DateFilterType>("all");
+    const [customRange, setCustomRange] = useState<DateRange>();
     const [showDatePicker, setShowDatePicker] = useState(false);
 
-    // Calculate date range based on selected filter
-    const dateRange = useMemo<HookDateRange | null>(() => {
-        const now = new Date();
-        const today = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate(),
-        );
-
-        switch (selectedFilter) {
-            case "today":
-                return {
-                    startDate: today,
-                    endDate: today,
-                };
-            case "yesterday": {
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
-                return {
-                    startDate: yesterday,
-                    endDate: yesterday,
-                };
-            }
-            case "last7Days": {
-                const last7Days = new Date(today);
-                last7Days.setDate(last7Days.getDate() - 6);
-                return {
-                    startDate: last7Days,
-                    endDate: today,
-                };
-            }
-            case "lastMonth": {
-                const lastMonth = new Date(today);
-                lastMonth.setDate(lastMonth.getDate() - 29);
-                return {
-                    startDate: lastMonth,
-                    endDate: today,
-                };
-            }
-            case "custom":
-                if (customRange?.startDate && customRange?.endDate) {
-                    return {
-                        startDate: customRange.startDate,
-                        endDate: customRange.endDate,
-                    };
-                }
-                return null;
-            default:
-                return null;
-        }
-    }, [selectedFilter, customRange]);
+    const dateRange = useMemo(
+        () => getDateRangeForFilter(selectedFilter, customRange),
+        [selectedFilter, customRange],
+    );
 
     const {
         metrics,
         loading: loadingMetrics,
         refresh: refreshMetrics,
     } = useFinancialMetrics(db, dateRange);
-    const isRefreshing = loadingMetrics;
+
+    const normalizedSearch = searchText.trim().toLowerCase();
+
+    const handleToggleSearch = useCallback(() => {
+        if (isSearchActive) {
+            setSearchText("");
+            setIsSearchActive(false);
+            return;
+        }
+
+        setIsSearchActive(true);
+        setTimeout(() => searchInputRef.current?.focus(), 80);
+    }, [isSearchActive]);
 
     const handleFilterChange = useCallback((filter: DateFilterType) => {
         if (filter === "custom") {
             setShowDatePicker(true);
-        } else {
-            setSelectedFilter(filter);
-            setCustomRange(undefined);
+            return;
         }
+
+        setSelectedFilter(filter);
+        setCustomRange(undefined);
     }, []);
 
     const handleDateRangeApply = useCallback(
@@ -114,14 +520,15 @@ export const ReportsScreen: React.FC = () => {
                 });
                 setSelectedFilter("custom");
             }
+
             setShowDatePicker(false);
         },
         [],
     );
 
-    const handleRefresh = async () => {
+    const handleRefresh = useCallback(async () => {
         await refreshMetrics();
-    };
+    }, [refreshMetrics]);
 
     const {
         totalCreditLimit,
@@ -152,17 +559,164 @@ export const ReportsScreen: React.FC = () => {
         totalTransactions,
     } = metrics;
 
-    if (!db) {
-        return (
-            <View
-                style={[styles.center, { backgroundColor: colors.background }]}
-            >
-                <Typography variant="body-medium" color="muted">
-                    {t("reports.loading")}
-                </Typography>
-            </View>
-        );
-    }
+    const labels = useMemo(
+        () => ({
+            accountStatus: t("reports.accountStatus"),
+            activeAccounts: t("reports.activeAccounts"),
+            availableCredit: t("reports.availableCredit"),
+            avgTransaction: t("reports.avgTransaction"),
+            avgTransactionHint: t("reports.avgTransactionHint"),
+            balanceIncreased: t("reports.balanceIncreased"),
+            balanceReduced: t("reports.balanceReduced"),
+            clearSearch: t("reports.clearSearch", {
+                defaultValue: "Clear search",
+            }),
+            closedAccounts: t("reports.closedAccounts"),
+            collectionRate: t("reports.collectionRate"),
+            collectionRateHint: t("reports.collectionRateHint"),
+            creditExposure: t("reports.creditExposure"),
+            creditUtilization: t("reports.creditUtilization"),
+            creditUtilizationHint: t("reports.creditUtilizationHint"),
+            customerFocus: t("reports.customerFocus"),
+            decisionInsights: t("reports.decisionInsights"),
+            dormantCustomers: t("reports.dormantCustomers"),
+            dormantCustomersHint: t("reports.dormantCustomersHint"),
+            financialSummary: t("reports.financialSummary"),
+            highUtilizationAccounts: t("reports.highUtilizationAccounts"),
+            inactiveAccounts: t("reports.inactiveAccounts"),
+            loading: t("reports.loading"),
+            mostActiveCustomer: t("reports.mostActiveCustomer"),
+            netMovement: t("reports.netMovement"),
+            noCustomerInsight: t("reports.noCustomerInsight"),
+            noSearchResults: t("reports.noSearchResults", {
+                defaultValue: "No matching report section found.",
+            }),
+            overview: t("reports.overview"),
+            payableBalance: t("reports.payableBalance"),
+            receivableBalance: t("reports.receivableBalance"),
+            reportsSubtitle: t("reports.subtitle"),
+            reportsTitle: t("reports.title"),
+            searchPlaceholder: t("reports.searchPlaceholder"),
+            suspendedAccounts: t("reports.suspendedAccounts"),
+            topPayable: t("reports.topPayable"),
+            topReceivable: t("reports.topReceivable"),
+            totalAccounts: t("reports.totalAccounts"),
+            totalCreditLimit: t("reports.totalCreditLimit"),
+            totalCredits: t("reports.totalCredits"),
+            totalCurrentBalance: t("reports.totalCurrentBalance"),
+            totalCustomers: t("reports.totalCustomers"),
+            totalDebits: t("reports.totalDebits"),
+            totalTransactions: t("reports.totalTransactions"),
+            transactionCountShort: t("reports.transactionCountShort", {
+                count: mostActiveCustomerTransactions,
+            }),
+        }),
+        [mostActiveCustomerTransactions, t],
+    );
+
+    const visibleSections = useMemo(
+        () => ({
+            overview: matchesSearch(normalizedSearch, [
+                labels.overview,
+                labels.totalCustomers,
+                labels.totalAccounts,
+                labels.totalTransactions,
+                totalCustomers,
+                totalAccounts,
+                totalTransactions,
+            ]),
+            insights: matchesSearch(normalizedSearch, [
+                labels.decisionInsights,
+                labels.netMovement,
+                labels.collectionRate,
+                labels.creditUtilization,
+                labels.avgTransaction,
+                netBalanceMovement,
+                collectionRate,
+                creditUtilizationRate,
+                averageTransactionAmount,
+            ]),
+            exposure: matchesSearch(normalizedSearch, [
+                labels.creditExposure,
+                labels.receivableBalance,
+                labels.payableBalance,
+                labels.availableCredit,
+                labels.highUtilizationAccounts,
+                receivableBalance,
+                payableBalance,
+                availableCredit,
+                highUtilizationAccounts,
+            ]),
+            customerFocus: matchesSearch(normalizedSearch, [
+                labels.customerFocus,
+                labels.topReceivable,
+                labels.topPayable,
+                labels.mostActiveCustomer,
+                labels.dormantCustomers,
+                topReceivableCustomerName,
+                topPayableCustomerName,
+                mostActiveCustomerName,
+                dormantCustomers,
+            ]),
+            financialSummary: matchesSearch(normalizedSearch, [
+                labels.financialSummary,
+                labels.totalCreditLimit,
+                labels.totalCurrentBalance,
+                labels.totalCredits,
+                labels.totalDebits,
+                totalCreditLimit,
+                totalCurrentBalance,
+                totalCredits,
+                totalDebits,
+            ]),
+            accountStatus: matchesSearch(normalizedSearch, [
+                labels.accountStatus,
+                labels.activeAccounts,
+                labels.inactiveAccounts,
+                labels.suspendedAccounts,
+                labels.closedAccounts,
+                activeAccounts,
+                inactiveAccounts,
+                suspendedAccounts,
+                closedAccounts,
+            ]),
+        }),
+        [
+            normalizedSearch,
+            labels,
+            totalCustomers,
+            totalAccounts,
+            totalTransactions,
+            netBalanceMovement,
+            collectionRate,
+            creditUtilizationRate,
+            averageTransactionAmount,
+            receivableBalance,
+            payableBalance,
+            availableCredit,
+            highUtilizationAccounts,
+            topReceivableCustomerName,
+            topPayableCustomerName,
+            mostActiveCustomerName,
+            dormantCustomers,
+            totalCreditLimit,
+            totalCurrentBalance,
+            totalCredits,
+            totalDebits,
+            activeAccounts,
+            inactiveAccounts,
+            suspendedAccounts,
+            closedAccounts,
+        ],
+    );
+
+    const hasVisibleSection = Object.values(visibleSections).some(Boolean);
+    const netMovementColor: AmountColor =
+        netBalanceMovement > 0 ? "danger" : "success";
+    const utilizationColor: TypographyColor =
+        creditUtilizationRate >= 80 ? "danger" : "warning";
+    const collectionColor: TypographyColor =
+        collectionRate >= 80 ? "success" : "warning";
 
     return (
         <ErrorScreen
@@ -171,827 +725,332 @@ export const ReportsScreen: React.FC = () => {
             isLoading={!db && !dbError}
             onRetry={initDatabase}
         >
-            <View
-                style={[
-                    styles.container,
-                    { backgroundColor: colors.background },
-                ]}
-            >
+            {!db ? (
+                <LoadingState
+                    message={labels.loading}
+                    backgroundColor={colors.background}
+                />
+            ) : (
                 <View
                     style={[
-                        styles.header,
-                        {
-                            paddingTop: insets.top + Spacing.md,
-                            backgroundColor: colors.surface,
-                            borderBottomColor: colors.border,
-                        },
+                        styles.container,
+                        { backgroundColor: colors.background },
                     ]}
                 >
-                    <View
-                        style={[
-                            styles.headerTopRow,
-                            false && { flexDirection: "row-reverse" },
+                    <ScreenHeader
+                        title={labels.reportsTitle}
+                        subtitle={labels.reportsSubtitle}
+                        searchPlaceholder={labels.searchPlaceholder}
+                        searchText={searchText}
+                        isSearchActive={isSearchActive}
+                        isRTL={isRTL}
+                        colors={colors}
+                        topInset={insets.top}
+                        searchInputRef={searchInputRef}
+                        onSearchTextChange={setSearchText}
+                        onToggleSearch={handleToggleSearch}
+                    />
+
+                    <DateFilter
+                        selectedFilter={selectedFilter}
+                        onFilterChange={handleFilterChange}
+                        customRange={customRange}
+                    />
+
+                    <DateRangePicker
+                        visible={showDatePicker}
+                        onClose={() => setShowDatePicker(false)}
+                        onApply={handleDateRangeApply}
+                        initialRange={
+                            customRange?.startDate && customRange?.endDate
+                                ? {
+                                      startDate: customRange.startDate,
+                                      endDate: customRange.endDate,
+                                  }
+                                : undefined
+                        }
+                    />
+
+                    <ScrollView
+                        style={styles.content}
+                        contentContainerStyle={[
+                            styles.contentContainer,
+                            { paddingBottom: insets.bottom + Spacing.xl },
                         ]}
+                        refreshControl={
+                            <RefreshControl
+                                refreshing={loadingMetrics}
+                                onRefresh={handleRefresh}
+                                colors={[colors.primary]}
+                                tintColor={colors.primary}
+                            />
+                        }
+                        keyboardShouldPersistTaps="handled"
                     >
-                        <View
-                            style={[
-                                styles.headerTitleRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <View
-                                style={[
-                                    styles.headerIconContainer,
-                                    { backgroundColor: `${colors.primary}20` },
-                                ]}
+                        {!hasVisibleSection && (
+                            <EmptySearchState
+                                message={labels.noSearchResults}
+                                colors={colors}
+                            />
+                        )}
+
+                        {visibleSections.overview && (
+                            <SectionCard
+                                title={labels.overview}
+                                isRTL={isRTL}
                             >
-                                <Ionicons
-                                    name="bar-chart"
-                                    size={28}
-                                    color={colors.primary}
+                                <StatRow
+                                    label={labels.totalCustomers}
+                                    value={totalCustomers}
+                                    isRTL={isRTL}
                                 />
-                            </View>
-                            {!isSearchActive && (
-                                <View>
-                                    <Typography
-                                        variant="heading-large"
-                                        color="primary"
-                                    >
-                                        {t("reports.title")}
-                                    </Typography>
-                                    <Typography
-                                        variant="body-small"
-                                        color="muted"
-                                    >
-                                        {t("reports.subtitle")}
-                                    </Typography>
-                                </View>
-                            )}
-                            {isSearchActive && (
-                                <View style={styles.searchInputContainer}>
-                                    <TextInput
-                                        ref={searchInputRef}
-                                        style={[
-                                            styles.headerSearchInput,
-                                            {
-                                                backgroundColor:
-                                                    colors.background,
-                                                color: colors.text.primary,
-                                            },
-                                        ]}
-                                        placeholder={t(
-                                            "reports.searchPlaceholder",
-                                        )}
-                                        placeholderTextColor={colors.text.muted}
-                                        value={searchText}
-                                        onChangeText={setSearchText}
-                                        autoFocus
-                                        onBlur={() => {
-                                            if (!searchText)
-                                                setIsSearchActive(false);
-                                        }}
+                                <StatRow
+                                    label={labels.totalAccounts}
+                                    value={totalAccounts}
+                                    isRTL={isRTL}
+                                />
+                                <StatRow
+                                    label={labels.totalTransactions}
+                                    value={totalTransactions}
+                                    isRTL={isRTL}
+                                    isLast
+                                />
+                            </SectionCard>
+                        )}
+
+                        {visibleSections.insights && (
+                            <SectionCard
+                                title={labels.decisionInsights}
+                                isRTL={isRTL}
+                            >
+                                <View style={styles.insightGrid}>
+                                    <InsightTile
+                                        icon="trending-up-outline"
+                                        iconColor={
+                                            netBalanceMovement > 0
+                                                ? colors.danger
+                                                : colors.success
+                                        }
+                                        backgroundColor={`${colors.primary}10`}
+                                        label={labels.netMovement}
+                                        amount={Math.abs(netBalanceMovement)}
+                                        amountColor={netMovementColor}
+                                        hint={
+                                            netBalanceMovement > 0
+                                                ? labels.balanceIncreased
+                                                : labels.balanceReduced
+                                        }
+                                    />
+
+                                    <InsightTile
+                                        icon="cash-outline"
+                                        iconColor={colors.success}
+                                        backgroundColor={`${colors.success}10`}
+                                        label={labels.collectionRate}
+                                        value={`${collectionRate}%`}
+                                        valueColor={collectionColor}
+                                        hint={labels.collectionRateHint}
+                                    />
+
+                                    <InsightTile
+                                        icon="speedometer-outline"
+                                        iconColor={
+                                            creditUtilizationRate >= 80
+                                                ? colors.danger
+                                                : colors.warning
+                                        }
+                                        backgroundColor={`${colors.warning}12`}
+                                        label={labels.creditUtilization}
+                                        value={`${creditUtilizationRate}%`}
+                                        valueColor={utilizationColor}
+                                        hint={labels.creditUtilizationHint}
+                                    />
+
+                                    <InsightTile
+                                        icon="receipt-outline"
+                                        iconColor={colors.primary}
+                                        backgroundColor={`${colors.primary}10`}
+                                        label={labels.avgTransaction}
+                                        amount={averageTransactionAmount}
+                                        amountColor="primary"
+                                        hint={labels.avgTransactionHint}
                                     />
                                 </View>
-                            )}
-                        </View>
-                        <Pressable
-                            onPress={() => {
-                                if (isSearchActive) {
-                                    setSearchText("");
-                                    setIsSearchActive(false);
-                                } else {
-                                    setIsSearchActive(true);
-                                    setTimeout(
-                                        () => searchInputRef.current?.focus(),
-                                        100,
-                                    );
-                                }
-                            }}
-                            style={[
-                                styles.searchIconButton,
-                                { backgroundColor: `${colors.primary}15` },
-                            ]}
-                        >
-                            <Ionicons
-                                name={isSearchActive ? "close" : "search"}
-                                size={24}
-                                color={colors.primary}
-                            />
-                        </Pressable>
-                    </View>
-                </View>
+                            </SectionCard>
+                        )}
 
-                {/* Date Filter */}
-                <DateFilter
-                    selectedFilter={selectedFilter}
-                    onFilterChange={handleFilterChange}
-                    customRange={customRange}
-                />
-
-                {/* Date Range Picker Modal */}
-                <DateRangePicker
-                    visible={showDatePicker}
-                    onClose={() => setShowDatePicker(false)}
-                    onApply={handleDateRangeApply}
-                    initialRange={
-                        customRange?.startDate && customRange?.endDate
-                            ? {
-                                  startDate: customRange.startDate,
-                                  endDate: customRange.endDate,
-                              }
-                            : undefined
-                    }
-                />
-
-                <ScrollView
-                    style={styles.content}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={isRefreshing}
-                            onRefresh={handleRefresh}
-                            colors={[colors.primary]}
-                            tintColor={colors.primary}
-                        />
-                    }
-                >
-                    <Card style={styles.card}>
-                        <Typography
-                            variant="heading-medium"
-                            color="primary"
-                            style={
-                                false
-                                    ? {
-                                          marginBottom: Spacing.md,
-                                          textAlign: "right",
-                                      }
-                                    : styles.cardTitle
-                            }
-                        >
-                            {t("reports.overview")}
-                        </Typography>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
+                        {visibleSections.exposure && (
+                            <SectionCard
+                                title={labels.creditExposure}
+                                isRTL={isRTL}
                             >
-                                {t("reports.totalCustomers")}
-                            </Typography>
-                            <Typography
-                                variant="heading-medium"
-                                color="primary"
-                            >
-                                {totalCustomers}
-                            </Typography>
-                        </View>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                            >
-                                {t("reports.totalAccounts")}
-                            </Typography>
-                            <Typography
-                                variant="heading-medium"
-                                color="primary"
-                            >
-                                {totalAccounts}
-                            </Typography>
-                        </View>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                            >
-                                {t("reports.totalTransactions")}
-                            </Typography>
-                            <Typography
-                                variant="heading-medium"
-                                color="primary"
-                            >
-                                {totalTransactions}
-                            </Typography>
-                        </View>
-                    </Card>
-
-                    <Card style={styles.card}>
-                        <Typography
-                            variant="heading-medium"
-                            color="primary"
-                            style={
-                                false
-                                    ? {
-                                          marginBottom: Spacing.md,
-                                          textAlign: "right",
-                                      }
-                                    : styles.cardTitle
-                            }
-                        >
-                            {t("reports.decisionInsights")}
-                        </Typography>
-                        <View style={styles.insightGrid}>
-                            <Card
-                                style={[
-                                    styles.insightTile,
-                                    { backgroundColor: `${colors.primary}10` },
-                                ]}
-                            >
-                                <Ionicons
-                                    name="trending-up-outline"
-                                    size={22}
-                                    color={
-                                        netBalanceMovement > 0
-                                            ? colors.danger
-                                            : colors.success
-                                    }
+                                <StatRow
+                                    label={labels.receivableBalance}
+                                    amount={receivableBalance}
+                                    amountColor="danger"
+                                    isRTL={isRTL}
                                 />
-                                <Typography variant="body-small" color="muted">
-                                    {t("reports.netMovement")}
-                                </Typography>
-                                <TouchableAmount
-                                    amount={Math.abs(netBalanceMovement)}
-                                    variant="heading-small"
-                                    color={
-                                        netBalanceMovement > 0
-                                            ? "danger"
-                                            : "success"
-                                    }
+                                <StatRow
+                                    label={labels.payableBalance}
+                                    amount={payableBalance}
+                                    amountColor="success"
+                                    isRTL={isRTL}
                                 />
-                                <Typography variant="small-small" color="muted">
-                                    {netBalanceMovement > 0
-                                        ? t("reports.balanceIncreased")
-                                        : t("reports.balanceReduced")}
-                                </Typography>
-                            </Card>
-                            <Card
-                                style={[
-                                    styles.insightTile,
-                                    { backgroundColor: `${colors.success}10` },
-                                ]}
-                            >
-                                <Ionicons
-                                    name="cash-outline"
-                                    size={22}
-                                    color={colors.success}
+                                <StatRow
+                                    label={labels.availableCredit}
+                                    amount={availableCredit}
+                                    amountColor="primary"
+                                    isRTL={isRTL}
                                 />
-                                <Typography variant="body-small" color="muted">
-                                    {t("reports.collectionRate")}
-                                </Typography>
-                                <Typography
-                                    variant="heading-small"
-                                    color={
-                                        collectionRate >= 80
-                                            ? "success"
-                                            : "warning"
-                                    }
-                                >
-                                    {collectionRate}%
-                                </Typography>
-                                <Typography variant="small-small" color="muted">
-                                    {t("reports.collectionRateHint")}
-                                </Typography>
-                            </Card>
-                            <Card
-                                style={[
-                                    styles.insightTile,
-                                    { backgroundColor: `${colors.warning}12` },
-                                ]}
-                            >
-                                <Ionicons
-                                    name="speedometer-outline"
-                                    size={22}
-                                    color={
-                                        creditUtilizationRate >= 80
-                                            ? colors.danger
-                                            : colors.warning
-                                    }
-                                />
-                                <Typography variant="body-small" color="muted">
-                                    {t("reports.creditUtilization")}
-                                </Typography>
-                                <Typography
-                                    variant="heading-small"
-                                    color={
-                                        creditUtilizationRate >= 80
-                                            ? "danger"
-                                            : "warning"
-                                    }
-                                >
-                                    {creditUtilizationRate}%
-                                </Typography>
-                                <Typography variant="small-small" color="muted">
-                                    {t("reports.creditUtilizationHint")}
-                                </Typography>
-                            </Card>
-                            <Card
-                                style={[
-                                    styles.insightTile,
-                                    { backgroundColor: `${colors.primary}10` },
-                                ]}
-                            >
-                                <Ionicons
-                                    name="receipt-outline"
-                                    size={22}
-                                    color={colors.primary}
-                                />
-                                <Typography variant="body-small" color="muted">
-                                    {t("reports.avgTransaction")}
-                                </Typography>
-                                <TouchableAmount
-                                    amount={averageTransactionAmount}
-                                    variant="heading-small"
-                                    color="primary"
-                                />
-                                <Typography variant="small-small" color="muted">
-                                    {t("reports.avgTransactionHint")}
-                                </Typography>
-                            </Card>
-                        </View>
-                    </Card>
-
-                    <Card style={styles.card}>
-                        <Typography
-                            variant="heading-medium"
-                            color="primary"
-                            style={
-                                false
-                                    ? {
-                                          marginBottom: Spacing.md,
-                                          textAlign: "right",
-                                      }
-                                    : styles.cardTitle
-                            }
-                        >
-                            {t("reports.creditExposure")}
-                        </Typography>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                                style={styles.statLabel}
-                            >
-                                {t("reports.receivableBalance")}
-                            </Typography>
-                            <TouchableAmount
-                                amount={receivableBalance}
-                                variant="heading-medium"
-                                color="danger"
-                                style={styles.statValue}
-                            />
-                        </View>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                                style={styles.statLabel}
-                            >
-                                {t("reports.payableBalance")}
-                            </Typography>
-                            <TouchableAmount
-                                amount={payableBalance}
-                                variant="heading-medium"
-                                color="success"
-                                style={styles.statValue}
-                            />
-                        </View>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                                style={styles.statLabel}
-                            >
-                                {t("reports.availableCredit")}
-                            </Typography>
-                            <TouchableAmount
-                                amount={availableCredit}
-                                variant="heading-medium"
-                                color="primary"
-                                style={styles.statValue}
-                            />
-                        </View>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                                style={styles.statLabel}
-                            >
-                                {t("reports.highUtilizationAccounts")}
-                            </Typography>
-                            <Typography
-                                variant="heading-medium"
-                                color={
-                                    highUtilizationAccounts > 0
-                                        ? "warning"
-                                        : "success"
-                                }
-                            >
-                                {highUtilizationAccounts}
-                            </Typography>
-                        </View>
-                    </Card>
-
-                    <Card style={styles.card}>
-                        <Typography
-                            variant="heading-medium"
-                            color="primary"
-                            style={
-                                false
-                                    ? {
-                                          marginBottom: Spacing.md,
-                                          textAlign: "right",
-                                      }
-                                    : styles.cardTitle
-                            }
-                        >
-                            {t("reports.customerFocus")}
-                        </Typography>
-                        <View style={styles.focusList}>
-                            <View
-                                style={[
-                                    styles.focusItem,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
-                                <Ionicons
-                                    name="alert-circle-outline"
-                                    size={22}
-                                    color={colors.danger}
-                                />
-                                <View style={styles.focusText}>
-                                    <Typography
-                                        variant="body-medium"
-                                        color="primary"
-                                    >
-                                        {t("reports.topReceivable")}
-                                    </Typography>
-                                    <Typography
-                                        variant="body-small"
-                                        color="muted"
-                                    >
-                                        {topReceivableCustomerName ||
-                                            t("reports.noCustomerInsight")}
-                                    </Typography>
-                                </View>
-                                <TouchableAmount
-                                    amount={topReceivableAmount}
-                                    variant="body-medium"
-                                    color="danger"
-                                />
-                            </View>
-                            <View
-                                style={[
-                                    styles.focusItem,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
-                                <Ionicons
-                                    name="checkmark-circle-outline"
-                                    size={22}
-                                    color={colors.success}
-                                />
-                                <View style={styles.focusText}>
-                                    <Typography
-                                        variant="body-medium"
-                                        color="primary"
-                                    >
-                                        {t("reports.topPayable")}
-                                    </Typography>
-                                    <Typography
-                                        variant="body-small"
-                                        color="muted"
-                                    >
-                                        {topPayableCustomerName ||
-                                            t("reports.noCustomerInsight")}
-                                    </Typography>
-                                </View>
-                                <TouchableAmount
-                                    amount={topPayableAmount}
-                                    variant="body-medium"
-                                    color="success"
-                                />
-                            </View>
-                            <View
-                                style={[
-                                    styles.focusItem,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
-                                <Ionicons
-                                    name="pulse-outline"
-                                    size={22}
-                                    color={colors.primary}
-                                />
-                                <View style={styles.focusText}>
-                                    <Typography
-                                        variant="body-medium"
-                                        color="primary"
-                                    >
-                                        {t("reports.mostActiveCustomer")}
-                                    </Typography>
-                                    <Typography
-                                        variant="body-small"
-                                        color="muted"
-                                    >
-                                        {mostActiveCustomerName ||
-                                            t("reports.noCustomerInsight")}
-                                    </Typography>
-                                </View>
-                                <Typography variant="body-medium" color="primary">
-                                    {t("reports.transactionCountShort", {
-                                        count: mostActiveCustomerTransactions,
-                                    })}
-                                </Typography>
-                            </View>
-                            <View
-                                style={[
-                                    styles.focusItem,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
-                                <Ionicons
-                                    name="time-outline"
-                                    size={22}
-                                    color={colors.warning}
-                                />
-                                <View style={styles.focusText}>
-                                    <Typography
-                                        variant="body-medium"
-                                        color="primary"
-                                    >
-                                        {t("reports.dormantCustomers")}
-                                    </Typography>
-                                    <Typography
-                                        variant="body-small"
-                                        color="muted"
-                                    >
-                                        {t("reports.dormantCustomersHint")}
-                                    </Typography>
-                                </View>
-                                <Typography
-                                    variant="body-medium"
-                                    color={
-                                        dormantCustomers > 0
+                                <StatRow
+                                    label={labels.highUtilizationAccounts}
+                                    value={highUtilizationAccounts}
+                                    valueColor={
+                                        highUtilizationAccounts > 0
                                             ? "warning"
                                             : "success"
                                     }
-                                >
-                                    {dormantCustomers}
-                                </Typography>
-                            </View>
-                        </View>
-                    </Card>
+                                    isRTL={isRTL}
+                                    isLast
+                                />
+                            </SectionCard>
+                        )}
 
-                    <Card style={styles.card}>
-                        <Typography
-                            variant="heading-medium"
-                            color="primary"
-                            style={
-                                false
-                                    ? {
-                                          marginBottom: Spacing.md,
-                                          textAlign: "right",
-                                      }
-                                    : styles.cardTitle
-                            }
-                        >
-                            {t("reports.financialSummary")}
-                        </Typography>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                                style={
-                                    false
-                                        ? ({
-                                              flexShrink: 1,
-                                              textAlign: "right",
-                                          } as TextStyle)
-                                        : styles.statLabel
-                                }
+                        {visibleSections.customerFocus && (
+                            <SectionCard
+                                title={labels.customerFocus}
+                                isRTL={isRTL}
                             >
-                                {t("reports.totalCreditLimit")}
-                            </Typography>
-                            <TouchableAmount
-                                amount={totalCreditLimit}
-                                variant="heading-medium"
-                                color="primary"
-                                style={styles.statValue}
-                            />
-                        </View>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                                style={
-                                    false
-                                        ? ({
-                                              flexShrink: 1,
-                                              textAlign: "right",
-                                          } as TextStyle)
-                                        : styles.statLabel
-                                }
-                            >
-                                {t("reports.totalCurrentBalance")}
-                            </Typography>
-                            <TouchableAmount
-                                amount={totalCurrentBalance}
-                                variant="heading-medium"
-                                color={
-                                    totalCurrentBalance > 0
-                                        ? "danger"
-                                        : "primary"
-                                }
-                                style={styles.statValue}
-                            />
-                        </View>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                                style={
-                                    false
-                                        ? ({
-                                              flexShrink: 1,
-                                              textAlign: "right",
-                                          } as TextStyle)
-                                        : styles.statLabel
-                                }
-                            >
-                                {t("reports.totalCredits")}
-                            </Typography>
-                            <TouchableAmount
-                                amount={totalCredits}
-                                variant="heading-medium"
-                                color="success"
-                                style={styles.statValue}
-                            />
-                        </View>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                                style={
-                                    false
-                                        ? ({
-                                              flexShrink: 1,
-                                              textAlign: "right",
-                                          } as TextStyle)
-                                        : styles.statLabel
-                                }
-                            >
-                                {t("reports.totalDebits")}
-                            </Typography>
-                            <TouchableAmount
-                                amount={totalDebits}
-                                variant="heading-medium"
-                                color="danger"
-                                style={styles.statValue}
-                            />
-                        </View>
-                    </Card>
+                                <View style={styles.focusList}>
+                                    <FocusRow
+                                        icon="alert-circle-outline"
+                                        iconColor={colors.danger}
+                                        title={labels.topReceivable}
+                                        subtitle={
+                                            topReceivableCustomerName ||
+                                            labels.noCustomerInsight
+                                        }
+                                        amount={topReceivableAmount}
+                                        amountColor="danger"
+                                        isRTL={isRTL}
+                                    />
 
-                    <Card style={styles.card}>
-                        <Typography
-                            variant="heading-medium"
-                            color="primary"
-                            style={
-                                false
-                                    ? {
-                                          marginBottom: Spacing.md,
-                                          textAlign: "right",
-                                      }
-                                    : styles.cardTitle
-                            }
-                        >
-                            {t("reports.accountStatus")}
-                        </Typography>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
+                                    <FocusRow
+                                        icon="checkmark-circle-outline"
+                                        iconColor={colors.success}
+                                        title={labels.topPayable}
+                                        subtitle={
+                                            topPayableCustomerName ||
+                                            labels.noCustomerInsight
+                                        }
+                                        amount={topPayableAmount}
+                                        amountColor="success"
+                                        isRTL={isRTL}
+                                    />
+
+                                    <FocusRow
+                                        icon="pulse-outline"
+                                        iconColor={colors.primary}
+                                        title={labels.mostActiveCustomer}
+                                        subtitle={
+                                            mostActiveCustomerName ||
+                                            labels.noCustomerInsight
+                                        }
+                                        value={labels.transactionCountShort}
+                                        valueColor="primary"
+                                        isRTL={isRTL}
+                                    />
+
+                                    <FocusRow
+                                        icon="time-outline"
+                                        iconColor={colors.warning}
+                                        title={labels.dormantCustomers}
+                                        subtitle={labels.dormantCustomersHint}
+                                        value={dormantCustomers}
+                                        valueColor={
+                                            dormantCustomers > 0
+                                                ? "warning"
+                                                : "success"
+                                        }
+                                        isRTL={isRTL}
+                                        isLast
+                                    />
+                                </View>
+                            </SectionCard>
+                        )}
+
+                        {visibleSections.financialSummary && (
+                            <SectionCard
+                                title={labels.financialSummary}
+                                isRTL={isRTL}
                             >
-                                {t("reports.activeAccounts")}
-                            </Typography>
-                            <Typography
-                                variant="heading-medium"
-                                color="success"
+                                <StatRow
+                                    label={labels.totalCreditLimit}
+                                    amount={totalCreditLimit}
+                                    amountColor="primary"
+                                    isRTL={isRTL}
+                                />
+                                <StatRow
+                                    label={labels.totalCurrentBalance}
+                                    amount={totalCurrentBalance}
+                                    amountColor={
+                                        totalCurrentBalance > 0
+                                            ? "danger"
+                                            : "primary"
+                                    }
+                                    isRTL={isRTL}
+                                />
+                                <StatRow
+                                    label={labels.totalCredits}
+                                    amount={totalCredits}
+                                    amountColor="success"
+                                    isRTL={isRTL}
+                                />
+                                <StatRow
+                                    label={labels.totalDebits}
+                                    amount={totalDebits}
+                                    amountColor="danger"
+                                    isRTL={isRTL}
+                                    isLast
+                                />
+                            </SectionCard>
+                        )}
+
+                        {visibleSections.accountStatus && (
+                            <SectionCard
+                                title={labels.accountStatus}
+                                isRTL={isRTL}
                             >
-                                {activeAccounts}
-                            </Typography>
-                        </View>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                            >
-                                {t("reports.inactiveAccounts")}
-                            </Typography>
-                            <Typography variant="heading-medium" color="muted">
-                                {inactiveAccounts}
-                            </Typography>
-                        </View>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                            >
-                                {t("reports.suspendedAccounts")}
-                            </Typography>
-                            <Typography
-                                variant="heading-medium"
-                                color="warning"
-                            >
-                                {suspendedAccounts}
-                            </Typography>
-                        </View>
-                        <View
-                            style={[
-                                styles.statRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Typography
-                                variant="subheading-small"
-                                color="secondary"
-                            >
-                                {t("reports.closedAccounts")}
-                            </Typography>
-                            <Typography variant="heading-medium" color="danger">
-                                {closedAccounts}
-                            </Typography>
-                        </View>
-                    </Card>
-                </ScrollView>
-            </View>
+                                <StatRow
+                                    label={labels.activeAccounts}
+                                    value={activeAccounts}
+                                    valueColor="success"
+                                    isRTL={isRTL}
+                                />
+                                <StatRow
+                                    label={labels.inactiveAccounts}
+                                    value={inactiveAccounts}
+                                    valueColor="muted"
+                                    isRTL={isRTL}
+                                />
+                                <StatRow
+                                    label={labels.suspendedAccounts}
+                                    value={suspendedAccounts}
+                                    valueColor="warning"
+                                    isRTL={isRTL}
+                                />
+                                <StatRow
+                                    label={labels.closedAccounts}
+                                    value={closedAccounts}
+                                    valueColor="danger"
+                                    isRTL={isRTL}
+                                    isLast
+                                />
+                            </SectionCard>
+                        )}
+                    </ScrollView>
+                </View>
+            )}
         </ErrorScreen>
     );
 };
@@ -1012,17 +1071,23 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
+        gap: Spacing.sm,
     },
     headerTitleRow: {
+        flex: 1,
+        minWidth: 0,
         flexDirection: "row",
         alignItems: "center",
         gap: Spacing.md,
+    },
+    titleBlock: {
         flex: 1,
+        minWidth: 0,
     },
     headerIconContainer: {
         width: 48,
         height: 48,
-        borderRadius: 12,
+        borderRadius: 14,
         backgroundColor: `${Colors.primary}20`,
         justifyContent: "center",
         alignItems: "center",
@@ -1034,9 +1099,9 @@ const styles = StyleSheet.create({
     },
     headerSearchInput: {
         flex: 1,
-        height: 40,
+        minHeight: 44,
         backgroundColor: Colors.background,
-        borderRadius: 8,
+        borderRadius: 12,
         paddingHorizontal: Spacing.md,
         color: Colors.text.primary,
         fontSize: 16,
@@ -1048,10 +1113,11 @@ const styles = StyleSheet.create({
         backgroundColor: `${Colors.primary}15`,
         justifyContent: "center",
         alignItems: "center",
-        marginLeft: Spacing.sm,
     },
     content: {
         flex: 1,
+    },
+    contentContainer: {
         padding: Spacing.md,
     },
     card: {
@@ -1064,16 +1130,17 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
+        gap: Spacing.sm,
         paddingVertical: Spacing.sm,
         borderBottomWidth: 1,
         borderBottomColor: `${Colors.primary}15`,
     },
     statLabel: {
+        flex: 1,
         flexShrink: 1,
     },
     statValue: {
         flexShrink: 0,
-        marginLeft: Spacing.sm,
     },
     insightGrid: {
         flexDirection: "row",
@@ -1098,10 +1165,33 @@ const styles = StyleSheet.create({
     },
     focusText: {
         flex: 1,
+        minWidth: 0,
+    },
+    emptyState: {
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: Spacing.xl,
+        gap: Spacing.md,
+    },
+    emptyIcon: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        justifyContent: "center",
+        alignItems: "center",
     },
     center: {
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
+    },
+    rowReverse: {
+        flexDirection: "row-reverse",
+    },
+    textRight: {
+        textAlign: "right",
+    },
+    noBorder: {
+        borderBottomWidth: 0,
     },
 });

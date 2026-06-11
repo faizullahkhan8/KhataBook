@@ -57,10 +57,18 @@ interface PasscodeContextType {
     biometricTypes: LocalAuthentication.AuthenticationType[];
     isBiometricAuthenticating: boolean;
     autoLockDelay: AutoLockDelay;
-    setupPasscode: (pin: string, pinLength: PasscodeLength, question: string, answer: string) => Promise<void>;
+    setupPasscode: (
+        pin: string,
+        pinLength: PasscodeLength,
+        question: string,
+        answer: string,
+    ) => Promise<void>;
     verifyPin: (pin: string) => Promise<OperationResult>;
     verifyRecoveryAnswer: (answer: string) => Promise<OperationResult>;
-    resetPinAfterRecovery: (pin: string, pinLength: PasscodeLength) => Promise<void>;
+    resetPinAfterRecovery: (
+        pin: string,
+        pinLength: PasscodeLength,
+    ) => Promise<void>;
     changePin: (
         currentPin: string,
         newPin: string,
@@ -81,11 +89,15 @@ interface PasscodeContextType {
     setAutoLockDelay: (delay: AutoLockDelay) => Promise<void>;
 }
 
-const PasscodeContext = createContext<PasscodeContextType | undefined>(undefined);
+const PasscodeContext = createContext<PasscodeContextType | undefined>(
+    undefined,
+);
 
 const createSalt = async () => {
     const bytes = await Crypto.getRandomBytesAsync(16);
-    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join(
+        "",
+    );
 };
 
 const hashValue = (value: string, salt: string) =>
@@ -104,10 +116,14 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
     const [isReady, setIsReady] = useState(false);
     const [isLocked, setIsLocked] = useState(false);
     const [biometricAvailable, setBiometricAvailable] = useState(false);
-    const [biometricHardwareAvailable, setBiometricHardwareAvailable] = useState(false);
+    const [biometricHardwareAvailable, setBiometricHardwareAvailable] =
+        useState(false);
     const [biometricEnrolled, setBiometricEnrolled] = useState(false);
-    const [biometricTypes, setBiometricTypes] = useState<LocalAuthentication.AuthenticationType[]>([]);
-    const [isBiometricAuthenticating, setIsBiometricAuthenticating] = useState(false);
+    const [biometricTypes, setBiometricTypes] = useState<
+        LocalAuthentication.AuthenticationType[]
+    >([]);
+    const [isBiometricAuthenticating, setIsBiometricAuthenticating] =
+        useState(false);
     const autoLockSuspended = useRef(false);
     const biometricPromptActive = useRef(false);
     const lockOnNextActive = useRef(false);
@@ -115,15 +131,21 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
     const lockScheduledAt = useRef<number | null>(null);
     const appState = useRef(AppState.currentState);
 
-    const persist = useCallback(async (next: StoredPasscode | null) => {
-        setStored(next);
-        if (!isSupported) return;
-        if (next) {
-            await SecureStore.setItemAsync(STORAGE_KEY, JSON.stringify(next));
-        } else {
-            await SecureStore.deleteItemAsync(STORAGE_KEY);
-        }
-    }, [isSupported]);
+    const persist = useCallback(
+        async (next: StoredPasscode | null) => {
+            setStored(next);
+            if (!isSupported) return;
+            if (next) {
+                await SecureStore.setItemAsync(
+                    STORAGE_KEY,
+                    JSON.stringify(next),
+                );
+            } else {
+                await SecureStore.deleteItemAsync(STORAGE_KEY);
+            }
+        },
+        [isSupported],
+    );
 
     useEffect(() => {
         const load = async () => {
@@ -205,7 +227,8 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
                 !biometricPromptActive.current
             ) {
                 const delay = stored.autoLockDelay ?? 0;
-                const elapsed = Date.now() - (lockScheduledAt.current ?? Date.now());
+                const elapsed =
+                    Date.now() - (lockScheduledAt.current ?? Date.now());
                 lockOnNextActive.current = false;
                 forceLockOnNextActive.current = false;
                 lockScheduledAt.current = null;
@@ -215,22 +238,26 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             }
         };
 
-        const changeSubscription = AppState.addEventListener("change", (nextState) => {
-            const leavingForeground =
-                nextState !== "active" &&
-                appState.current !== nextState;
+        const changeSubscription = AppState.addEventListener(
+            "change",
+            (nextState) => {
+                const leavingForeground =
+                    nextState !== "active" && appState.current !== nextState;
 
-            if (leavingForeground) scheduleLock(false);
-            if (nextState === "active") applyScheduledLock();
-            appState.current = nextState;
-        });
+                if (leavingForeground) scheduleLock(false);
+                if (nextState === "active") applyScheduledLock();
+                appState.current = nextState;
+            },
+        );
 
-        const blurSubscription = Platform.OS === "android"
-            ? AppState.addEventListener("blur", () => scheduleLock())
-            : null;
-        const focusSubscription = Platform.OS === "android"
-            ? AppState.addEventListener("focus", applyScheduledLock)
-            : null;
+        const blurSubscription =
+            Platform.OS === "android"
+                ? AppState.addEventListener("blur", () => scheduleLock())
+                : null;
+        const focusSubscription =
+            Platform.OS === "android"
+                ? AppState.addEventListener("focus", applyScheduledLock)
+                : null;
 
         return () => {
             changeSubscription.remove();
@@ -264,176 +291,210 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const clearFailures = useCallback(async () => {
         if (!stored) return;
-        await persist({ ...stored, failures: 0, cooldownLevel: 0, lockedUntil: 0 });
-    }, [persist, stored]);
-
-    const setupPasscode = useCallback(async (
-        pin: string,
-        pinLength: PasscodeLength,
-        question: string,
-        answer: string,
-    ) => {
-        const pinSalt = await createSalt();
-        const answerSalt = await createSalt();
-        await persist({
-            pinHash: await hashValue(pin, pinSalt),
-            pinSalt,
-            pinLength,
-            question: question.trim(),
-            answerHash: await hashValue(normalizeAnswer(answer), answerSalt),
-            answerSalt,
-            failures: 0,
-            cooldownLevel: 0,
-            lockedUntil: 0,
-            biometricEnabled: false,
-            autoLockDelay: 0,
-        });
-        setIsLocked(false);
-    }, [persist]);
-
-    const verifyPin = useCallback(async (pin: string): Promise<OperationResult> => {
-        if (!stored || Date.now() < stored.lockedUntil) {
-            return { success: false, cooldownUntil: stored?.lockedUntil };
-        }
-        const matches = (await hashValue(pin, stored.pinSalt)) === stored.pinHash;
-        if (!matches) return registerFailure();
-        await clearFailures();
-        setIsLocked(false);
-        return { success: true };
-    }, [clearFailures, registerFailure, stored]);
-
-    const verifyRecoveryAnswer = useCallback(async (
-        answer: string,
-    ): Promise<OperationResult> => {
-        if (!stored || Date.now() < stored.lockedUntil) {
-            return { success: false, cooldownUntil: stored?.lockedUntil };
-        }
-        const matches =
-            (await hashValue(normalizeAnswer(answer), stored.answerSalt)) ===
-            stored.answerHash;
-        if (!matches) return registerFailure();
-        await clearFailures();
-        return { success: true };
-    }, [clearFailures, registerFailure, stored]);
-
-    const resetPinAfterRecovery = useCallback(async (pin: string, pinLength: PasscodeLength) => {
-        if (!stored) return;
-        const pinSalt = await createSalt();
         await persist({
             ...stored,
-            pinHash: await hashValue(pin, pinSalt),
-            pinSalt,
-            pinLength,
             failures: 0,
             cooldownLevel: 0,
             lockedUntil: 0,
         });
-        setIsLocked(false);
     }, [persist, stored]);
 
-    const changePin = useCallback(async (
-        currentPin: string,
-        newPin: string,
-        pinLength: PasscodeLength,
-        question: string,
-        answer?: string,
-    ): Promise<OperationResult> => {
-        const result = await verifyPin(currentPin);
-        if (!result.success || !stored) return result;
-        const pinSalt = await createSalt();
-        const hasNewAnswer = Boolean(answer?.trim());
-        const answerSalt = hasNewAnswer ? await createSalt() : stored.answerSalt;
-        await persist({
-            ...stored,
-            pinHash: await hashValue(newPin, pinSalt),
-            pinSalt,
-            pinLength,
-            question: question.trim(),
-            answerHash: hasNewAnswer
-                ? await hashValue(normalizeAnswer(answer!), answerSalt)
-                : stored.answerHash,
-            answerSalt,
-            failures: 0,
-            cooldownLevel: 0,
-            lockedUntil: 0,
-        });
-        return { success: true };
-    }, [persist, stored, verifyPin]);
-
-    const disablePasscode = useCallback(async (
-        currentPin: string,
-    ): Promise<OperationResult> => {
-        const result = await verifyPin(currentPin);
-        if (!result.success) return result;
-        await persist(null);
-        setIsLocked(false);
-        return { success: true };
-    }, [persist, verifyPin]);
-
-    const runBiometricPrompt = useCallback(async (
-        promptMessage = "Unlock KhataBook",
-    ): Promise<BiometricOperationResult> => {
-        if (biometricPromptActive.current) {
-            return { success: false, error: "not_available" };
-        }
-        biometricPromptActive.current = true;
-        setIsBiometricAuthenticating(true);
-        try {
-            const result = await LocalAuthentication.authenticateAsync({
-                promptMessage,
-                cancelLabel: "Use PIN",
-                fallbackLabel: "",
-                disableDeviceFallback: true,
-                biometricsSecurityLevel: "strong",
+    const setupPasscode = useCallback(
+        async (
+            pin: string,
+            pinLength: PasscodeLength,
+            question: string,
+            answer: string,
+        ) => {
+            const pinSalt = await createSalt();
+            const answerSalt = await createSalt();
+            await persist({
+                pinHash: await hashValue(pin, pinSalt),
+                pinSalt,
+                pinLength,
+                question: question.trim(),
+                answerHash: await hashValue(
+                    normalizeAnswer(answer),
+                    answerSalt,
+                ),
+                answerSalt,
+                failures: 0,
+                cooldownLevel: 0,
+                lockedUntil: 0,
+                biometricEnabled: false,
+                autoLockDelay: 0,
             });
-            if (result.success) {
-                setIsLocked(false);
+            setIsLocked(false);
+        },
+        [persist],
+    );
+
+    const verifyPin = useCallback(
+        async (pin: string): Promise<OperationResult> => {
+            if (!stored || Date.now() < stored.lockedUntil) {
+                return { success: false, cooldownUntil: stored?.lockedUntil };
+            }
+            const matches =
+                (await hashValue(pin, stored.pinSalt)) === stored.pinHash;
+            if (!matches) return registerFailure();
+            await clearFailures();
+            setIsLocked(false);
+            return { success: true };
+        },
+        [clearFailures, registerFailure, stored],
+    );
+
+    const verifyRecoveryAnswer = useCallback(
+        async (answer: string): Promise<OperationResult> => {
+            if (!stored || Date.now() < stored.lockedUntil) {
+                return { success: false, cooldownUntil: stored?.lockedUntil };
+            }
+            const matches =
+                (await hashValue(
+                    normalizeAnswer(answer),
+                    stored.answerSalt,
+                )) === stored.answerHash;
+            if (!matches) return registerFailure();
+            await clearFailures();
+            return { success: true };
+        },
+        [clearFailures, registerFailure, stored],
+    );
+
+    const resetPinAfterRecovery = useCallback(
+        async (pin: string, pinLength: PasscodeLength) => {
+            if (!stored) return;
+            const pinSalt = await createSalt();
+            await persist({
+                ...stored,
+                pinHash: await hashValue(pin, pinSalt),
+                pinSalt,
+                pinLength,
+                failures: 0,
+                cooldownLevel: 0,
+                lockedUntil: 0,
+            });
+            setIsLocked(false);
+        },
+        [persist, stored],
+    );
+
+    const changePin = useCallback(
+        async (
+            currentPin: string,
+            newPin: string,
+            pinLength: PasscodeLength,
+            question: string,
+            answer?: string,
+        ): Promise<OperationResult> => {
+            const result = await verifyPin(currentPin);
+            if (!result.success || !stored) return result;
+            const pinSalt = await createSalt();
+            const hasNewAnswer = Boolean(answer?.trim());
+            const answerSalt = hasNewAnswer
+                ? await createSalt()
+                : stored.answerSalt;
+            await persist({
+                ...stored,
+                pinHash: await hashValue(newPin, pinSalt),
+                pinSalt,
+                pinLength,
+                question: question.trim(),
+                answerHash: hasNewAnswer
+                    ? await hashValue(normalizeAnswer(answer!), answerSalt)
+                    : stored.answerHash,
+                answerSalt,
+                failures: 0,
+                cooldownLevel: 0,
+                lockedUntil: 0,
+            });
+            return { success: true };
+        },
+        [persist, stored, verifyPin],
+    );
+
+    const disablePasscode = useCallback(
+        async (currentPin: string): Promise<OperationResult> => {
+            const result = await verifyPin(currentPin);
+            if (!result.success) return result;
+            await persist(null);
+            setIsLocked(false);
+            return { success: true };
+        },
+        [persist, verifyPin],
+    );
+
+    const runBiometricPrompt = useCallback(
+        async (
+            promptMessage = "Unlock KhataBook",
+        ): Promise<BiometricOperationResult> => {
+            if (biometricPromptActive.current) {
+                return { success: false, error: "not_available" };
+            }
+            biometricPromptActive.current = true;
+            setIsBiometricAuthenticating(true);
+            try {
+                const result = await LocalAuthentication.authenticateAsync({
+                    promptMessage,
+                    cancelLabel: "Use PIN",
+                    fallbackLabel: "",
+                    disableDeviceFallback: true,
+                    biometricsSecurityLevel: "strong",
+                });
+                if (result.success) {
+                    setIsLocked(false);
+                    return { success: true };
+                }
+                return { success: false, error: result.error };
+            } catch (error) {
+                console.error("Biometric authentication failed", error);
+                return { success: false, error: "unknown" };
+            } finally {
+                biometricPromptActive.current = false;
+                setIsBiometricAuthenticating(false);
+            }
+        },
+        [],
+    );
+
+    const authenticateWithBiometrics = useCallback(
+        async (promptMessage?: string): Promise<BiometricOperationResult> => {
+            if (!stored?.biometricEnabled || !biometricAvailable) {
+                return { success: false, error: "not_available" };
+            }
+            const result = await runBiometricPrompt(promptMessage);
+            if (
+                !result.success &&
+                (result.error === "not_available" ||
+                    result.error === "not_enrolled" ||
+                    result.error === "passcode_not_set")
+            ) {
+                await persist({ ...stored, biometricEnabled: false });
+            }
+            return result;
+        },
+        [biometricAvailable, persist, runBiometricPrompt, stored],
+    );
+
+    const setBiometricEnabled = useCallback(
+        async (
+            enabled: boolean,
+            promptMessage?: string,
+        ): Promise<BiometricOperationResult> => {
+            if (!stored) return { success: false, error: "not_available" };
+            if (!enabled) {
+                await persist({ ...stored, biometricEnabled: false });
                 return { success: true };
             }
-            return { success: false, error: result.error };
-        } catch (error) {
-            console.error("Biometric authentication failed", error);
-            return { success: false, error: "unknown" };
-        } finally {
-            biometricPromptActive.current = false;
-            setIsBiometricAuthenticating(false);
-        }
-    }, []);
-
-    const authenticateWithBiometrics = useCallback(async (
-        promptMessage?: string,
-    ): Promise<BiometricOperationResult> => {
-        if (!stored?.biometricEnabled || !biometricAvailable) {
-            return { success: false, error: "not_available" };
-        }
-        const result = await runBiometricPrompt(promptMessage);
-        if (
-            !result.success &&
-            (result.error === "not_available" ||
-                result.error === "not_enrolled" ||
-                result.error === "passcode_not_set")
-        ) {
-            await persist({ ...stored, biometricEnabled: false });
-        }
-        return result;
-    }, [biometricAvailable, persist, runBiometricPrompt, stored]);
-
-    const setBiometricEnabled = useCallback(async (
-        enabled: boolean,
-        promptMessage?: string,
-    ): Promise<BiometricOperationResult> => {
-        if (!stored) return { success: false, error: "not_available" };
-        if (!enabled) {
-            await persist({ ...stored, biometricEnabled: false });
+            const available = await refreshBiometricAvailability();
+            if (!available) return { success: false, error: "not_available" };
+            const result = await runBiometricPrompt(promptMessage);
+            if (!result.success) return result;
+            await persist({ ...stored, biometricEnabled: true });
             return { success: true };
-        }
-        const available = await refreshBiometricAvailability();
-        if (!available) return { success: false, error: "not_available" };
-        const result = await runBiometricPrompt(promptMessage);
-        if (!result.success) return result;
-        await persist({ ...stored, biometricEnabled: true });
-        return { success: true };
-    }, [persist, refreshBiometricAvailability, runBiometricPrompt, stored]);
+        },
+        [persist, refreshBiometricAvailability, runBiometricPrompt, stored],
+    );
 
     const setAutoLockSuspended = useCallback((suspended: boolean) => {
         autoLockSuspended.current = suspended;
@@ -443,59 +504,65 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
         }
     }, []);
 
-    const setAutoLockDelay = useCallback(async (delay: AutoLockDelay) => {
-        if (!stored) return;
-        await persist({ ...stored, autoLockDelay: delay });
-    }, [persist, stored]);
+    const setAutoLockDelay = useCallback(
+        async (delay: AutoLockDelay) => {
+            if (!stored) return;
+            await persist({ ...stored, autoLockDelay: delay });
+        },
+        [persist, stored],
+    );
 
-    const value = useMemo(() => ({
-        isReady,
-        isSupported,
-        isEnabled: Boolean(stored),
-        isLocked,
-        recoveryQuestion: stored?.question ?? null,
-        cooldownUntil: stored?.lockedUntil ?? 0,
-        pinLength: stored?.pinLength ?? null,
-        biometricEnabled: Boolean(stored?.biometricEnabled),
-        biometricAvailable,
-        biometricHardwareAvailable,
-        biometricEnrolled,
-        biometricTypes,
-        isBiometricAuthenticating,
-        autoLockDelay: stored?.autoLockDelay ?? 0,
-        setupPasscode,
-        verifyPin,
-        verifyRecoveryAnswer,
-        resetPinAfterRecovery,
-        changePin,
-        disablePasscode,
-        refreshBiometricAvailability,
-        setBiometricEnabled,
-        authenticateWithBiometrics,
-        setAutoLockSuspended,
-        setAutoLockDelay,
-    }), [
-        changePin,
-        authenticateWithBiometrics,
-        biometricAvailable,
-        biometricEnrolled,
-        biometricHardwareAvailable,
-        biometricTypes,
-        disablePasscode,
-        isBiometricAuthenticating,
-        isLocked,
-        isReady,
-        isSupported,
-        resetPinAfterRecovery,
-        refreshBiometricAvailability,
-        setAutoLockSuspended,
-        setAutoLockDelay,
-        setBiometricEnabled,
-        setupPasscode,
-        stored,
-        verifyPin,
-        verifyRecoveryAnswer,
-    ]);
+    const value = useMemo(
+        () => ({
+            isReady,
+            isSupported,
+            isEnabled: Boolean(stored),
+            isLocked,
+            recoveryQuestion: stored?.question ?? null,
+            cooldownUntil: stored?.lockedUntil ?? 0,
+            pinLength: stored?.pinLength ?? null,
+            biometricEnabled: Boolean(stored?.biometricEnabled),
+            biometricAvailable,
+            biometricHardwareAvailable,
+            biometricEnrolled,
+            biometricTypes,
+            isBiometricAuthenticating,
+            autoLockDelay: stored?.autoLockDelay ?? 0,
+            setupPasscode,
+            verifyPin,
+            verifyRecoveryAnswer,
+            resetPinAfterRecovery,
+            changePin,
+            disablePasscode,
+            refreshBiometricAvailability,
+            setBiometricEnabled,
+            authenticateWithBiometrics,
+            setAutoLockSuspended,
+            setAutoLockDelay,
+        }),
+        [
+            changePin,
+            authenticateWithBiometrics,
+            biometricAvailable,
+            biometricEnrolled,
+            biometricHardwareAvailable,
+            biometricTypes,
+            disablePasscode,
+            isBiometricAuthenticating,
+            isLocked,
+            isReady,
+            isSupported,
+            resetPinAfterRecovery,
+            refreshBiometricAvailability,
+            setAutoLockSuspended,
+            setAutoLockDelay,
+            setBiometricEnabled,
+            setupPasscode,
+            stored,
+            verifyPin,
+            verifyRecoveryAnswer,
+        ],
+    );
 
     return (
         <PasscodeContext.Provider value={value}>
@@ -506,6 +573,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
 
 export const usePasscode = () => {
     const context = useContext(PasscodeContext);
-    if (!context) throw new Error("usePasscode must be used within PasscodeProvider");
+    if (!context)
+        throw new Error("usePasscode must be used within PasscodeProvider");
     return context;
 };

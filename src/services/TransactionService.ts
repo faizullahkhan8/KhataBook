@@ -35,6 +35,37 @@ export class TransactionService {
         }
     }
 
+    /**
+     * Create a transaction with explicit created_at timestamp
+     * Used for opening balance transactions or data migration
+     */
+    async createTransactionWithTimestamp(
+        transaction: Omit<Transaction, "id">,
+    ): Promise<TransactionId> {
+        if (!this.db) {
+            throw new Error("Database is not initialized");
+        }
+        try {
+            const result = await this.db.runAsync(
+                `INSERT INTO transactions (account_id, type, amount, description, reference, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+                [
+                    transaction.account_id,
+                    transaction.type,
+                    transaction.amount,
+                    transaction.description || null,
+                    transaction.reference || null,
+                    transaction.created_at || Math.floor(Date.now() / 1000),
+                ],
+            );
+
+            // Note: Account balance and Customer summary updates are now handled by database triggers
+            return result.lastInsertRowId as TransactionId;
+        } catch (error) {
+            console.error("Error creating transaction with timestamp:", error);
+            throw error;
+        }
+    }
+
     async getTransactionById(id: TransactionId): Promise<Transaction | null> {
         if (!this.db) {
             throw new Error("Database is not initialized");

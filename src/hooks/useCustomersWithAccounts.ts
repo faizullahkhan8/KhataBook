@@ -106,14 +106,33 @@ export const useCustomersWithAccounts = (db: SQLite.SQLiteDatabase | null) => {
                 const customerId =
                     await customerService.createCustomer(customer);
                 if (customerId) {
-                    await accountService.createAccount({
-                        customer_id: customerId,
-                        account_number: `ACC-${Date.now()}`,
-                        account_type: AccountType.CREDIT,
-                        credit_limit: (options?.creditLimit || 0) as any,
-                        current_balance: (options?.initialBalance || 0) as any,
-                        status: AccountStatus.ACTIVE,
-                    });
+                    const initialBalance = options?.initialBalance || 0;
+                    // If initial balance provided, create account with opening balance transaction
+                    // This ensures the ledger has a matching transaction (audit trail completeness)
+                    if (initialBalance > 0) {
+                        await accountService.createAccountWithOpeningBalance(
+                            {
+                                customer_id: customerId,
+                                account_number: `ACC-${Date.now()}`,
+                                account_type: AccountType.CREDIT,
+                                credit_limit: (options?.creditLimit ||
+                                    0) as any,
+                                current_balance: 0, // Will be set by opening balance transaction
+                                status: AccountStatus.ACTIVE,
+                            },
+                            initialBalance,
+                        );
+                    } else {
+                        // No initial balance, create account normally
+                        await accountService.createAccount({
+                            customer_id: customerId,
+                            account_number: `ACC-${Date.now()}`,
+                            account_type: AccountType.CREDIT,
+                            credit_limit: (options?.creditLimit || 0) as any,
+                            current_balance: 0,
+                            status: AccountStatus.ACTIVE,
+                        });
+                    }
                 }
                 invalidate("customers");
                 return customerId;
@@ -129,32 +148,19 @@ export const useCustomersWithAccounts = (db: SQLite.SQLiteDatabase | null) => {
 
     const bulkDeleteCustomers = useCallback(
         async (ids: CustomerId[]) => {
-            if (
-                !customerService ||
-                !accountService ||
-                !transactionService ||
-                ids.length === 0
-            )
-                return;
+            if (!customerService || !db || ids.length === 0) return;
 
             setLoading(true);
             setError(null);
             try {
-                for (const id of ids) {
-                    const accounts =
-                        await accountService.getAccountsByCustomerId(id);
-
-                    for (const account of accounts) {
-                        if (account.id) {
-                            await transactionService.deleteTransactionsByAccountId(
-                                account.id,
-                            );
-                            await accountService.deleteAccount(account.id);
-                        }
+                // Wrap entire deletion in a transaction for atomicity
+                // SQLite CASCADE will automatically delete related accounts and transactions
+                await db.withTransactionAsync(async () => {
+                    for (const id of ids) {
+                        await customerService.deleteCustomer(id);
                     }
+                });
 
-                    await customerService.deleteCustomer(id);
-                }
                 invalidate("customers");
                 invalidate("accounts");
                 invalidate("transactions");
@@ -165,7 +171,7 @@ export const useCustomersWithAccounts = (db: SQLite.SQLiteDatabase | null) => {
                 setLoading(false);
             }
         },
-        [customerService, accountService, transactionService, invalidate],
+        [customerService, db, invalidate],
     );
 
     const deleteCustomer = useCallback(

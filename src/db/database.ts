@@ -47,7 +47,10 @@ export const getDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
             try {
                 await db.closeAsync();
             } catch (closeError) {
-                console.error("Failed to close database after open error:", closeError);
+                console.error(
+                    "Failed to close database after open error:",
+                    closeError,
+                );
             }
         }
         throw error;
@@ -175,22 +178,36 @@ export const initializeDatabase = async (
 
         // 2. Data Migration (Handle existing string enums and float amounts)
         // Check if we need to migrate (simple check: if 'ACTIVE' still exists in accounts)
-        const sampleAccount = await db.getFirstAsync<{ status: any }>("SELECT status FROM accounts LIMIT 1");
-        if (sampleAccount && typeof sampleAccount.status === 'string') {
+        const sampleAccount = await db.getFirstAsync<{ status: any }>(
+            "SELECT status FROM accounts LIMIT 1",
+        );
+        if (sampleAccount && typeof sampleAccount.status === "string") {
             console.log("Migrating database data to new format...");
             await db.withTransactionAsync(async () => {
                 // Convert Account Status
-                await db.runAsync("UPDATE accounts SET status = CASE WHEN status = 'ACTIVE' THEN 0 WHEN status = 'INACTIVE' THEN 1 WHEN status = 'SUSPENDED' THEN 2 WHEN status = 'CLOSED' THEN 3 ELSE 0 END");
+                await db.runAsync(
+                    "UPDATE accounts SET status = CASE WHEN status = 'ACTIVE' THEN 0 WHEN status = 'INACTIVE' THEN 1 WHEN status = 'SUSPENDED' THEN 2 WHEN status = 'CLOSED' THEN 3 ELSE 0 END",
+                );
                 // Convert Account Type
-                await db.runAsync("UPDATE accounts SET account_type = CASE WHEN account_type = 'CREDIT' THEN 0 WHEN account_type = 'DEBIT' THEN 1 ELSE 0 END");
+                await db.runAsync(
+                    "UPDATE accounts SET account_type = CASE WHEN account_type = 'CREDIT' THEN 0 WHEN account_type = 'DEBIT' THEN 1 ELSE 0 END",
+                );
                 // Convert Transaction Type
-                await db.runAsync("UPDATE transactions SET type = CASE WHEN type = 'DEBIT' THEN 0 WHEN type = 'CREDIT' THEN 1 ELSE 1 END");
-                
+                await db.runAsync(
+                    "UPDATE transactions SET type = CASE WHEN type = 'DEBIT' THEN 0 WHEN type = 'CREDIT' THEN 1 ELSE 1 END",
+                );
+
                 // Convert REAL amounts to INTEGER (multiply by 100 to preserve 2 decimal places)
                 // Note: We use ROUND to avoid floating point precision issues during multiplication
-                await db.runAsync("UPDATE accounts SET credit_limit = ROUND(credit_limit * 100), current_balance = ROUND(current_balance * 100)");
-                await db.runAsync("UPDATE transactions SET amount = ROUND(amount * 100)");
-                await db.runAsync("UPDATE payments SET amount = ROUND(amount * 100)");
+                await db.runAsync(
+                    "UPDATE accounts SET credit_limit = ROUND(credit_limit * 100), current_balance = ROUND(current_balance * 100)",
+                );
+                await db.runAsync(
+                    "UPDATE transactions SET amount = ROUND(amount * 100)",
+                );
+                await db.runAsync(
+                    "UPDATE payments SET amount = ROUND(amount * 100)",
+                );
 
                 // Initial calculation for denormalized fields
                 await db.runAsync(`
@@ -205,21 +222,24 @@ export const initializeDatabase = async (
         // 3. Create Triggers for automatic denormalization
         await db.execAsync(`
             -- Update account balance on transaction insert
+            -- DEBIT (type=0) increases balance (customer owes more)
+            -- CREDIT (type=1) decreases balance (customer pays back)
             CREATE TRIGGER IF NOT EXISTS trig_trans_insert_balance
             AFTER INSERT ON transactions
             BEGIN
                 UPDATE accounts 
-                SET current_balance = current_balance + (CASE WHEN NEW.type = 1 THEN NEW.amount ELSE -NEW.amount END),
+                SET current_balance = current_balance + (CASE WHEN NEW.type = 0 THEN NEW.amount ELSE -NEW.amount END),
                     updated_at = strftime('%s', 'now')
                 WHERE id = NEW.account_id;
             END;
 
             -- Revert account balance on transaction delete
+            -- Mirror the insert logic: undo DEBIT additions and CREDIT subtractions
             CREATE TRIGGER IF NOT EXISTS trig_trans_delete_balance
             AFTER DELETE ON transactions
             BEGIN
                 UPDATE accounts 
-                SET current_balance = current_balance - (CASE WHEN OLD.type = 1 THEN OLD.amount ELSE -OLD.amount END),
+                SET current_balance = current_balance - (CASE WHEN OLD.type = 0 THEN OLD.amount ELSE -OLD.amount END),
                     updated_at = strftime('%s', 'now')
                 WHERE id = OLD.account_id;
             END;
