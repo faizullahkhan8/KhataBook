@@ -16,6 +16,7 @@ const STORAGE_KEY = "khatabook.passcode";
 const FAILURE_LIMIT = 5;
 export type PasscodeLength = 4 | 6;
 type StoredPasscodeLength = PasscodeLength | 8;
+export type AutoLockDelay = 0 | 60_000 | 180_000 | 300_000 | 600_000;
 
 interface StoredPasscode {
     pinHash: string;
@@ -28,6 +29,7 @@ interface StoredPasscode {
     cooldownLevel: number;
     lockedUntil: number;
     biometricEnabled?: boolean;
+    autoLockDelay?: AutoLockDelay;
 }
 
 interface OperationResult {
@@ -54,6 +56,7 @@ interface PasscodeContextType {
     biometricEnrolled: boolean;
     biometricTypes: LocalAuthentication.AuthenticationType[];
     isBiometricAuthenticating: boolean;
+    autoLockDelay: AutoLockDelay;
     setupPasscode: (pin: string, pinLength: PasscodeLength, question: string, answer: string) => Promise<void>;
     verifyPin: (pin: string) => Promise<OperationResult>;
     verifyRecoveryAnswer: (answer: string) => Promise<OperationResult>;
@@ -75,6 +78,7 @@ interface PasscodeContextType {
         promptMessage?: string,
     ) => Promise<BiometricOperationResult>;
     setAutoLockSuspended: (suspended: boolean) => void;
+    setAutoLockDelay: (delay: AutoLockDelay) => Promise<void>;
 }
 
 const PasscodeContext = createContext<PasscodeContextType | undefined>(undefined);
@@ -107,6 +111,8 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
     const autoLockSuspended = useRef(false);
     const biometricPromptActive = useRef(false);
     const lockOnNextActive = useRef(false);
+    const forceLockOnNextActive = useRef(false);
+    const lockScheduledAt = useRef<number | null>(null);
     const appState = useRef(AppState.currentState);
 
     const persist = useCallback(async (next: StoredPasscode | null) => {
@@ -176,30 +182,61 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
     }, [isSupported, persist, stored]);
 
     useEffect(() => {
-        const subscription = AppState.addEventListener("change", (nextState) => {
+        const scheduleLock = (respectSuspension = true) => {
+            if (
+                stored &&
+                (!respectSuspension || !autoLockSuspended.current) &&
+                !biometricPromptActive.current
+            ) {
+                lockOnNextActive.current = true;
+                lockScheduledAt.current ??= Date.now();
+                if (!respectSuspension) {
+                    forceLockOnNextActive.current = true;
+                }
+            }
+        };
+
+        const applyScheduledLock = () => {
+            refreshBiometricAvailability();
+            if (
+                lockOnNextActive.current &&
+                stored &&
+                (!autoLockSuspended.current || forceLockOnNextActive.current) &&
+                !biometricPromptActive.current
+            ) {
+                const delay = stored.autoLockDelay ?? 0;
+                const elapsed = Date.now() - (lockScheduledAt.current ?? Date.now());
+                lockOnNextActive.current = false;
+                forceLockOnNextActive.current = false;
+                lockScheduledAt.current = null;
+                if (elapsed >= delay) {
+                    setIsLocked(true);
+                }
+            }
+        };
+
+        const changeSubscription = AppState.addEventListener("change", (nextState) => {
             const leavingForeground =
                 nextState !== "active" &&
                 appState.current !== nextState;
 
-            if (
-                leavingForeground &&
-                stored &&
-                !autoLockSuspended.current &&
-                !biometricPromptActive.current
-            ) {
-                lockOnNextActive.current = true;
-            }
-
-            if (nextState === "active") {
-                refreshBiometricAvailability();
-                if (lockOnNextActive.current && stored) {
-                    lockOnNextActive.current = false;
-                    setIsLocked(true);
-                }
-            }
+            if (leavingForeground) scheduleLock(false);
+            if (nextState === "active") applyScheduledLock();
             appState.current = nextState;
         });
-        return () => subscription.remove();
+
+        const blurSubscription = Platform.OS === "android"
+            ? AppState.addEventListener("blur", () => scheduleLock())
+            : null;
+        const focusSubscription = Platform.OS === "android"
+            ? AppState.addEventListener("focus", applyScheduledLock)
+            : null;
+
+        return () => {
+            changeSubscription.remove();
+            blurSubscription?.remove();
+            focusSubscription?.remove();
+        };
     }, [refreshBiometricAvailability, stored]);
 
     useEffect(() => {
@@ -249,6 +286,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             cooldownLevel: 0,
             lockedUntil: 0,
             biometricEnabled: false,
+            autoLockDelay: 0,
         });
         setIsLocked(false);
     }, [persist]);
@@ -397,6 +435,19 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
         return { success: true };
     }, [persist, refreshBiometricAvailability, runBiometricPrompt, stored]);
 
+    const setAutoLockSuspended = useCallback((suspended: boolean) => {
+        autoLockSuspended.current = suspended;
+        if (suspended && !forceLockOnNextActive.current) {
+            lockOnNextActive.current = false;
+            lockScheduledAt.current = null;
+        }
+    }, []);
+
+    const setAutoLockDelay = useCallback(async (delay: AutoLockDelay) => {
+        if (!stored) return;
+        await persist({ ...stored, autoLockDelay: delay });
+    }, [persist, stored]);
+
     const value = useMemo(() => ({
         isReady,
         isSupported,
@@ -411,6 +462,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
         biometricEnrolled,
         biometricTypes,
         isBiometricAuthenticating,
+        autoLockDelay: stored?.autoLockDelay ?? 0,
         setupPasscode,
         verifyPin,
         verifyRecoveryAnswer,
@@ -420,9 +472,8 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
         refreshBiometricAvailability,
         setBiometricEnabled,
         authenticateWithBiometrics,
-        setAutoLockSuspended: (suspended: boolean) => {
-            autoLockSuspended.current = suspended;
-        },
+        setAutoLockSuspended,
+        setAutoLockDelay,
     }), [
         changePin,
         authenticateWithBiometrics,
@@ -437,6 +488,8 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
         isSupported,
         resetPinAfterRecovery,
         refreshBiometricAvailability,
+        setAutoLockSuspended,
+        setAutoLockDelay,
         setBiometricEnabled,
         setupPasscode,
         stored,

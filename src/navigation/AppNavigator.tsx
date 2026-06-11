@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -11,10 +11,17 @@ import {
     ReportsScreen,
     SettingsScreen,
 } from "../screens";
-
 import { useTheme } from "../store";
 
-const Tab = createBottomTabNavigator();
+export type AppTabParamList = {
+    Customers: undefined;
+    Reports: undefined;
+    Messages: undefined;
+    Ledger: undefined;
+    Settings: undefined;
+};
+
+const Tab = createMaterialTopTabNavigator<AppTabParamList>();
 
 export const AppNavigator: React.FC = () => {
     const insets = useSafeAreaInsets();
@@ -23,18 +30,36 @@ export const AppNavigator: React.FC = () => {
 
     return (
         <Tab.Navigator
+            tabBarPosition="bottom"
             screenOptions={{
-                headerShown: false,
+                swipeEnabled: true,
+                animationEnabled: true,
+                lazy: false,
+                tabBarShowIcon: true,
+                tabBarActiveTintColor: colors.primary,
+                tabBarInactiveTintColor: colors.text.muted,
+                tabBarIndicatorStyle: {
+                    top: 0,
+                    height: 2,
+                    backgroundColor: colors.primary,
+                },
                 tabBarStyle: {
+                    height: 60 + insets.bottom,
+                    paddingBottom: insets.bottom,
                     backgroundColor: colors.surface,
                     borderTopColor: colors.border,
                     borderTopWidth: 1,
-                    paddingBottom: Spacing.sm + insets.bottom,
-                    paddingTop: Spacing.sm,
-                    height: 60 + insets.bottom,
+                    elevation: 0,
                 },
-                tabBarActiveTintColor: colors.primary,
-                tabBarInactiveTintColor: colors.text.muted,
+                tabBarItemStyle: {
+                    minHeight: 60,
+                    paddingVertical: Spacing.xs,
+                },
+                tabBarLabelStyle: {
+                    margin: 0,
+                    fontSize: 10,
+                    textTransform: "none",
+                },
             }}
         >
             <Tab.Screen
@@ -42,8 +67,8 @@ export const AppNavigator: React.FC = () => {
                 component={CustomersScreen}
                 options={{
                     tabBarLabel: t("navigation.customers"),
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="people" size={size} color={color} />
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="people" size={22} color={color} />
                     ),
                 }}
             />
@@ -52,8 +77,8 @@ export const AppNavigator: React.FC = () => {
                 component={ReportsScreen}
                 options={{
                     tabBarLabel: t("navigation.reports"),
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="bar-chart" size={size} color={color} />
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="bar-chart" size={22} color={color} />
                     ),
                 }}
             />
@@ -62,10 +87,10 @@ export const AppNavigator: React.FC = () => {
                 component={MessagesScreen}
                 options={{
                     tabBarLabel: t("navigation.messages"),
-                    tabBarIcon: ({ color, size }) => (
+                    tabBarIcon: ({ color }) => (
                         <Ionicons
                             name="chatbubble-ellipses"
-                            size={size}
+                            size={22}
                             color={color}
                         />
                     ),
@@ -76,8 +101,8 @@ export const AppNavigator: React.FC = () => {
                 component={LedgerScreen}
                 options={{
                     tabBarLabel: t("navigation.ledger"),
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons name="list" size={size} color={color} />
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="list" size={22} color={color} />
                     ),
                 }}
             />
@@ -86,12 +111,8 @@ export const AppNavigator: React.FC = () => {
                 component={SettingsScreen}
                 options={{
                     tabBarLabel: t("navigation.settings"),
-                    tabBarIcon: ({ color, size }) => (
-                        <Ionicons
-                            name="settings"
-                            size={size}
-                            color={color}
-                        />
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="settings" size={22} color={color} />
                     ),
                 }}
             />

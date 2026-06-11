@@ -1,4 +1,9 @@
 {
+    "photoViewer": {
+        "openCustomer": "{{name}} کی تصویر دیکھیں",
+        "openDeveloper": "ڈویلپر کی تصویر دیکھیں",
+        "close": "تصویر بند کریں"
+    },
     "settings": {
         "title": "ترتیبات",
         "theme": "تھیم",
@@ -15,6 +20,8 @@
         "passcodeDisabled": "غیر فعال",
         "cloudBackup": "کلاؤڈ بیک اپ",
         "cloudBackupSubtitle": "آخری مطابقت: 2 گھنٹے پہلے",
+        "feedback": "رائے اور مدد",
+        "feedbackSubtitle": "رائے، تجاویز، بگز یا مسائل شیئر کریں",
         "aboutDeveloper": "ڈویلپر کے بارے میں",
         "privacyPolicy": "پرائیویسی پالیسی",
         "privacyPolicySubtitle": "جانیں آپ کی معلومات کیسے محفوظ رہتی ہیں",
@@ -22,6 +29,32 @@
         "termsOfUseSubtitle": "KhataBook استعمال کرنے کے اصول اور ذمہ داریاں",
         "english": "انگریزی",
         "urdu": "اردو"
+    },
+    "feedback": {
+        "title": "رائے اور مدد",
+        "subtitle": "جو چیز اچھی کام کر رہی ہے اس کے بارے میں بتائیں، بہتری تجویز کریں یا مسئلہ رپورٹ کریں۔",
+        "category": "قسم",
+        "categories": {
+            "feedback": "رائے",
+            "suggestion": "تجویز",
+            "bug": "بگ",
+            "error": "خرابی یا مسئلہ",
+            "other": "دیگر"
+        },
+        "subject": "موضوع (اختیاری)",
+        "subjectPlaceholder": "مختصر خلاصہ",
+        "details": "تفصیلات",
+        "detailsPlaceholder": "اپنی رائے یا مسئلے کی وضاحت کریں...",
+        "categoryRequired": "رائے کی قسم منتخب کریں۔",
+        "detailsRequired": "رائے کی تفصیلات درج کریں۔",
+        "sendUsing": "اس کے ذریعے بھیجیں",
+        "privacyNote": "صرف آپ کی رائے اور ایپ کی بنیادی معلومات شامل ہوں گی۔ منتخب ایپ میں تصدیق کرنے تک کچھ نہیں بھیجا جائے گا۔",
+        "whatsapp": "واٹس ایپ سے بھیجیں",
+        "email": "ای میل سے بھیجیں",
+        "sms": "ایس ایم ایس سے بھیجیں",
+        "defaultEmailSubject": "KhataBook {{category}}",
+        "unavailableTitle": "سروس دستیاب نہیں",
+        "unavailableMessage": "منتخب ایپ یا سروس اس ڈیوائس پر دستیاب نہیں ہے۔"
     },
     "passcode": {
         "title": "پاس کوڈ",
@@ -64,6 +97,11 @@
     "useBiometric": "بایومیٹرک استعمال کریں",
     "biometricEnableFailedTitle": "بایومیٹرک ان لاک فعال نہیں ہوا",
     "biometricEnableFailedMessage": "بایومیٹرک تصدیق مکمل نہیں ہوئی۔ آپ اپنا پن استعمال کر سکتے ہیں۔",
+    "autoLock": "خودکار لاک",
+    "autoLockMessage": "ایپ سے اتنی دیر دور رہنے کے بعد پاس کوڈ درکار ہوگا۔",
+    "autoLockImmediate": "فوری طور پر",
+    "autoLockMinute": "1 منٹ",
+    "autoLockMinutes": "{{count}} منٹ",
     "manageAuthTitle": "اپنے پاس کوڈ کی تصدیق کریں",
         "manageAuthMessage": "پاس کوڈ ترتیبات تبدیل کرنے سے پہلے اپنا موجودہ پن درج کریں۔",
         "enableTitle": "پاس کوڈ فعال کریں",
@@ -100,7 +138,8 @@
         "emptyMessage": "اکاؤنٹس کا انتظام شروع کرنے کے لیے اپنا پہلا گاہک شامل کریں۔",
         "noResults": "کوئی گاہک نہیں ملا",
         "noResultsMessage": "کوئی مختلف نام، فون نمبر، یا شناختی کارڈ نمبر تلاش کریں۔",
-        "account": "اکاؤنٹ: {{number}}",
+  "account": "اکاؤنٹ: {{number}}",
+  "inactive": "غیر فعال",
         "loading": "ڈیٹا بیس لوڈ ہو رہا ہے...",
         "selected": "{{count}} منتخب",
         "selectAll": "سب منتخب کریں",

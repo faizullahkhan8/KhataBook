@@ -5,12 +5,13 @@ import React, { useCallback, useEffect, useState } from "react";
 import { Alert, BackHandler, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { Button, Card, Input, PasscodeLengthSelector, PasscodePinInput, Typography } from "../components";
+import { Button, Card, Input, PasscodeLengthSelector, PasscodePinInput, PasscodeUnlockScreen, Typography } from "../components";
 import { Spacing } from "../constants";
-import { PasscodeLength, usePasscode, useTheme } from "../store";
+import { AutoLockDelay, PasscodeLength, usePasscode, useTheme } from "../store";
 
 type Mode = "enable" | "authenticate" | "menu" | "change" | "disable";
 type SetupStep = 1 | 2 | 3;
+const AUTO_LOCK_OPTIONS: AutoLockDelay[] = [0, 60_000, 180_000, 300_000, 600_000];
 
 export const PasscodeScreen: React.FC = () => {
     const router = useRouter();
@@ -22,18 +23,18 @@ export const PasscodeScreen: React.FC = () => {
         isEnabled,
         pinLength,
         recoveryQuestion,
-        cooldownUntil,
         biometricEnabled,
         biometricAvailable,
         biometricTypes,
         isBiometricAuthenticating,
+        autoLockDelay,
         setupPasscode,
-        verifyPin,
         changePin,
         disablePasscode,
         refreshBiometricAvailability,
         setBiometricEnabled,
         setAutoLockSuspended,
+        setAutoLockDelay,
     } = usePasscode();
     const [mode, setMode] = useState<Mode>(isEnabled ? "authenticate" : "enable");
     const [pin, setPin] = useState("");
@@ -43,7 +44,6 @@ export const PasscodeScreen: React.FC = () => {
     const [customQuestion, setCustomQuestion] = useState("");
     const [answer, setAnswer] = useState("");
     const [error, setError] = useState("");
-    const [secondsLeft, setSecondsLeft] = useState(0);
     const [selectedLength, setSelectedLength] = useState<PasscodeLength>(4);
     const [setupStep, setSetupStep] = useState<SetupStep>(1);
     const isWizardMode = mode === "enable" || mode === "change";
@@ -78,14 +78,6 @@ export const PasscodeScreen: React.FC = () => {
         if (mode === "menu") refreshBiometricAvailability();
     }, [mode, refreshBiometricAvailability]);
 
-    useEffect(() => {
-        const update = () =>
-            setSecondsLeft(Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000)));
-        update();
-        const timer = setInterval(update, 1000);
-        return () => clearInterval(timer);
-    }, [cooldownUntil]);
-
     const resetEditFields = () => {
         setPin("");
         setConfirmPin("");
@@ -105,18 +97,6 @@ export const PasscodeScreen: React.FC = () => {
             setCustomQuestion(recoveryQuestion);
         }
         setMode("change");
-    };
-
-    const handleAuthenticate = async () => {
-        setError("");
-        if (secondsLeft > 0) return;
-        const result = await verifyPin(currentPin);
-        if (!result.success) {
-            setError(t("passcode.incorrectPin"));
-            return;
-        }
-        setMode("menu");
-        setError("");
     };
 
     const validateNewPin = () => {
@@ -269,6 +249,19 @@ export const PasscodeScreen: React.FC = () => {
         </>
     );
 
+    if (isSupported && mode === "authenticate") {
+        return (
+            <PasscodeUnlockScreen
+                requirePinOnly
+                onVerified={(verifiedPin) => {
+                    setCurrentPin(verifiedPin);
+                    setError("");
+                    setMode("menu");
+                }}
+            />
+        );
+    }
+
     return (
         <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
             <View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
@@ -291,36 +284,6 @@ export const PasscodeScreen: React.FC = () => {
                     <Card style={styles.card}>
                         <Typography variant="heading-small">{t("passcode.unavailableTitle")}</Typography>
                         <Typography color="muted">{t("passcode.unavailableMessage")}</Typography>
-                    </Card>
-                ) : mode === "authenticate" ? (
-                    <Card style={styles.card}>
-                        <View style={[styles.statusIcon, { backgroundColor: `${colors.primary}20` }]}>
-                            <Ionicons name="lock-closed" size={36} color={colors.primary} />
-                        </View>
-                        <Typography variant="heading-small" style={styles.center}>
-                            {t("passcode.manageAuthTitle")}
-                        </Typography>
-                        <Typography color="muted" style={styles.center}>
-                            {t("passcode.manageAuthMessage")}
-                        </Typography>
-                        <PasscodePinInput
-                            length={pinLength ?? 8}
-                            value={currentPin}
-                            onChangeText={(text) => setCurrentPin(text.replace(/\D/g, ""))}
-                            placeholder={t("passcode.currentPin")}
-                            autoFocus
-                        />
-                        {Boolean(error) && <Typography color="danger">{error}</Typography>}
-                        {secondsLeft > 0 && (
-                            <Typography color="warning">
-                                {t("passcode.tryAgainIn", { seconds: secondsLeft })}
-                            </Typography>
-                        )}
-                        <Button
-                            title={t("passcode.continue")}
-                            onPress={handleAuthenticate}
-                            disabled={!currentPin || secondsLeft > 0}
-                        />
                     </Card>
                 ) : mode === "menu" ? (
                     <Card style={styles.card}>
@@ -348,6 +311,54 @@ export const PasscodeScreen: React.FC = () => {
                                 trackColor={{ false: colors.border, true: colors.primary }}
                             />
                         </View>
+                        <View style={styles.autoLockSection}>
+                            <Typography variant="subheading-small">
+                                {t("passcode.autoLock")}
+                            </Typography>
+                            <Typography color="muted" variant="small-small">
+                                {t("passcode.autoLockMessage")}
+                            </Typography>
+                            <View style={styles.autoLockOptions}>
+                                {AUTO_LOCK_OPTIONS.map((delay) => {
+                                    const selected = autoLockDelay === delay;
+                                    return (
+                                        <Pressable
+                                            key={delay}
+                                            onPress={() => setAutoLockDelay(delay)}
+                                            style={[
+                                                styles.autoLockOption,
+                                                {
+                                                    borderColor: selected
+                                                        ? colors.primary
+                                                        : colors.border,
+                                                    backgroundColor: selected
+                                                        ? `${colors.primary}10`
+                                                        : colors.surface,
+                                                },
+                                            ]}
+                                        >
+                                            <Ionicons
+                                                name={selected ? "radio-button-on" : "radio-button-off"}
+                                                size={18}
+                                                color={selected ? colors.primary : colors.text.muted}
+                                            />
+                                            <Typography
+                                                variant="body-small"
+                                                color={selected ? "primary" : "muted"}
+                                            >
+                                                {delay === 0
+                                                    ? t("passcode.autoLockImmediate")
+                                                    : delay === 60_000
+                                                      ? t("passcode.autoLockMinute")
+                                                      : t("passcode.autoLockMinutes", {
+                                                            count: delay / 60_000,
+                                                        })}
+                                            </Typography>
+                                        </Pressable>
+                                    );
+                                })}
+                            </View>
+                        </View>
                         <Button title={t("passcode.change")} onPress={startChangeWizard} />
                         <Button title={t("passcode.disable")} variant="danger" onPress={() => { resetEditFields(); setMode("disable"); }} />
                     </Card>
@@ -356,27 +367,6 @@ export const PasscodeScreen: React.FC = () => {
                         <Typography variant="heading-small">
                             {mode === "enable" ? t("passcode.enableTitle") : mode === "change" ? t("passcode.changeTitle") : t("passcode.disableTitle")}
                         </Typography>
-                        {isWizardMode && (
-                            <View style={styles.stepRow}>
-                                {([1, 2, 3] as const).map((step) => (
-                                    <View key={step} style={styles.stepItem}>
-                                        <View style={[
-                                            styles.stepCircle,
-                                            {
-                                                backgroundColor: setupStep >= step ? colors.primary : colors.border,
-                                            },
-                                        ]}>
-                                            <Typography variant="small-small" style={styles.stepNumber}>
-                                                {step}
-                                            </Typography>
-                                        </View>
-                                        <Typography variant="small-small" color={setupStep === step ? "primary" : "muted"}>
-                                            {t(`passcode.setupSteps.${step}`)}
-                                        </Typography>
-                                    </View>
-                                ))}
-                            </View>
-                        )}
                         {isWizardMode && setupStep === 1 && (
                             <PasscodeLengthSelector
                                 value={selectedLength}
@@ -500,10 +490,17 @@ const styles = StyleSheet.create({
         gap: Spacing.md,
     },
     biometricCopy: { flex: 1, gap: Spacing.xs },
-    stepRow: { flexDirection: "row", justifyContent: "space-between" },
-    stepItem: { flex: 1, alignItems: "center", gap: Spacing.xs },
-    stepCircle: { width: 28, height: 28, borderRadius: 14, alignItems: "center", justifyContent: "center" },
-    stepNumber: { color: "#FFFFFF" },
+    autoLockSection: { gap: Spacing.sm },
+    autoLockOptions: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
+    autoLockOption: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.xs,
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
+    },
     setupFooter: {
         flexDirection: "row",
         gap: Spacing.sm,

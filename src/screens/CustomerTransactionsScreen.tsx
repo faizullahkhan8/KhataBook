@@ -1,6 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Alert,
     FlatList,
@@ -11,37 +13,42 @@ import {
     StyleSheet,
     View,
 } from "react-native";
-import { Image } from "expo-image";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTranslation } from "react-i18next";
 import {
     Button,
     Card,
     Input,
     TouchableAmount,
     Typography,
+    ViewPhoto,
 } from "../components";
 import { Colors, Spacing } from "../constants";
-import { LedgerFundingSource, useCustomerById, useLedgerEntries } from "../hooks";
+import {
+    LedgerFundingSource,
+    useCustomerById,
+    useLedgerEntries,
+} from "../hooks";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useTransactions } from "../hooks/useTransactions";
-import { AccountService } from "../services/AccountService";
-import { useDatabaseContext, useTheme } from "../store";
-import { formatCurrency, formatDateTime } from "../utils";
 import {
     AccountStatus,
-    TransactionType,
     CustomerId,
     TransactionId,
+    TransactionType,
 } from "../models";
+import { AccountService } from "../services/AccountService";
+import { useDatabaseContext, usePasscode, useTheme } from "../store";
+import { formatCurrency, formatDateTime } from "../utils";
 import { toInteger } from "../utils/currencyUtils";
 
 export const CustomerTransactionsScreen: React.FC = () => {
     const { customerId } = useLocalSearchParams<{ customerId: string }>();
     const { db, invalidate } = useDatabaseContext();
+    const { setAutoLockSuspended } = usePasscode();
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { colors } = useTheme();    const { t } = useTranslation();
+    const { colors } = useTheme();
+    const { t } = useTranslation();
     const { customer, refresh: refreshCustomer } = useCustomerById(
         db,
         parseInt(customerId || "0") as CustomerId,
@@ -51,7 +58,8 @@ export const CustomerTransactionsScreen: React.FC = () => {
         [db],
     );
 
-    const { deleteCustomer, loading: deleteLoading } = useCustomersWithAccounts(db);
+    const { deleteCustomer, loading: deleteLoading } =
+        useCustomersWithAccounts(db);
     const {
         transactions,
         fetchTransactionsByAccount,
@@ -75,11 +83,18 @@ export const CustomerTransactionsScreen: React.FC = () => {
     const [amount, setAmount] = useState("");
     const [description, setDescription] = useState("");
     const [isMenuVisible, setIsMenuVisible] = useState(false);
+    const [isMenuActionActive, setIsMenuActionActive] = useState(false);
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
 
     const accountId = customer?.accounts?.[0]?.id;
     const account = customer?.accounts?.[0];
     const isAccountActive = account?.status === AccountStatus.ACTIVE;
+    const isAccountInactive = account?.status === AccountStatus.INACTIVE;
+
+    useEffect(() => {
+        setAutoLockSuspended(isMenuVisible || isMenuActionActive);
+        return () => setAutoLockSuspended(false);
+    }, [isMenuActionActive, isMenuVisible, setAutoLockSuspended]);
 
     useEffect(() => {
         if (accountId) {
@@ -111,7 +126,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
         const totalPaid = customerTransactions
             .filter((t) => t.type === TransactionType.DEBIT)
             .reduce((sum, t) => sum + t.amount, 0);
-        
+
         // Return values remain as integers for stats; TouchableAmount will handle formatting
         const balance = totalPaid - totalReceived;
         return { totalReceived, totalPaid, balance };
@@ -171,27 +186,30 @@ export const CustomerTransactionsScreen: React.FC = () => {
 
     const handleViewProfile = () => {
         if (!customer?.id) return;
+        setIsMenuActionActive(true);
         setIsMenuVisible(false);
         router.push(`/customer-profile?customerId=${customer.id}` as any);
+        setTimeout(() => setIsMenuActionActive(false), 500);
     };
 
     const handleEditCustomer = () => {
         if (!customer?.id) return;
+        setIsMenuActionActive(true);
         setIsMenuVisible(false);
         router.push(`/add-customer?customerId=${customer.id}` as any);
+        setTimeout(() => setIsMenuActionActive(false), 500);
     };
 
     const handleToggleAccountStatus = async () => {
         if (!accountService || !account?.id) return;
 
+        setIsMenuActionActive(true);
         setIsMenuVisible(false);
         setIsUpdatingStatus(true);
         try {
             await accountService.updateAccountStatus(
                 account.id,
-                isAccountActive
-                    ? AccountStatus.INACTIVE
-                    : AccountStatus.ACTIVE,
+                isAccountActive ? AccountStatus.INACTIVE : AccountStatus.ACTIVE,
             );
             invalidate("accounts");
             invalidate("customers");
@@ -203,18 +221,24 @@ export const CustomerTransactionsScreen: React.FC = () => {
             );
         } finally {
             setIsUpdatingStatus(false);
+            setIsMenuActionActive(false);
         }
     };
 
     const handleDeleteCustomer = () => {
         if (!customer?.id) return;
 
+        setIsMenuActionActive(true);
         setIsMenuVisible(false);
         Alert.alert(
             t("customerProfile.deleteTitle"),
             t("customerProfile.deleteMessage", { name: customer.name }),
             [
-                { text: t("customerProfile.cancel"), style: "cancel" },
+                {
+                    text: t("customerProfile.cancel"),
+                    style: "cancel",
+                    onPress: () => setIsMenuActionActive(false),
+                },
                 {
                     text: t("customerProfile.delete"),
                     style: "destructive",
@@ -227,10 +251,15 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                 t("customerProfile.deleteError"),
                                 t("customerProfile.deleteErrorMessage"),
                             );
+                        } finally {
+                            setIsMenuActionActive(false);
                         }
                     },
                 },
             ],
+            {
+                onDismiss: () => setIsMenuActionActive(false),
+            },
         );
     };
 
@@ -245,7 +274,9 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     style: "destructive",
                     onPress: async () => {
                         if (transaction.id) {
-                            await deleteTransaction(transaction.id as TransactionId);
+                            await deleteTransaction(
+                                transaction.id as TransactionId,
+                            );
                             if (customer?.accounts?.[0]?.id) {
                                 await fetchTransactionsByAccount(
                                     customer.accounts[0].id,
@@ -280,55 +311,62 @@ export const CustomerTransactionsScreen: React.FC = () => {
             : undefined;
 
         return (
-        <Card style={styles.transactionCard}>
-            <View style={styles.transactionHeader}>
-                <Typography
-                    variant="body-medium"
-                    color={semanticColor}
-                    style={balanceFundedStyle}
-                >
-                    {label}
-                </Typography>
-                <View style={styles.transactionActions}>
-                    <Typography variant="small-small" color="muted">
-                        {formatDateTime(item.created_at || Date.now() / 1000)}
-                    </Typography>
-                    <Pressable
-                        onPress={() => handleDeleteTransaction(item)}
-                        style={styles.deleteIcon}
+            <Card style={styles.transactionCard}>
+                <View style={styles.transactionHeader}>
+                    <Typography
+                        variant="body-medium"
+                        color={semanticColor}
+                        style={balanceFundedStyle}
                     >
-                        <Ionicons
-                            name="trash-outline"
-                            size={18}
-                            color={colors.danger}
-                        />
-                    </Pressable>
+                        {label}
+                    </Typography>
+                    <View style={styles.transactionActions}>
+                        <Typography variant="small-small" color="muted">
+                            {formatDateTime(
+                                item.created_at || Date.now() / 1000,
+                            )}
+                        </Typography>
+                        <Pressable
+                            onPress={() => handleDeleteTransaction(item)}
+                            style={styles.deleteIcon}
+                        >
+                            <Ionicons
+                                name="trash-outline"
+                                size={18}
+                                color={colors.danger}
+                            />
+                        </Pressable>
+                    </View>
                 </View>
-            </View>
-            <View style={styles.amountContainer}>
-                <TouchableAmount
-                    amount={item.amount}
-                    variant="heading-medium"
-                    color={semanticColor}
-                    style={{ ...styles.amount, ...(balanceFundedStyle || {}) }}
-                />
-            </View>
-            {item.description && (
-                <Typography
-                    variant="body-small"
-                    color="muted"
-                    style={styles.description}
-                >
-                    {item.description}
-                </Typography>
-            )}
-        </Card>
+                <View style={styles.amountContainer}>
+                    <TouchableAmount
+                        amount={item.amount}
+                        variant="heading-medium"
+                        color={semanticColor}
+                        style={{
+                            ...styles.amount,
+                            ...(balanceFundedStyle || {}),
+                        }}
+                    />
+                </View>
+                {item.description && (
+                    <Typography
+                        variant="body-small"
+                        color="muted"
+                        style={styles.description}
+                    >
+                        {item.description}
+                    </Typography>
+                )}
+            </Card>
         );
     };
 
     if (!db) {
         return (
-            <View style={[styles.center, { backgroundColor: colors.background }]}>
+            <View
+                style={[styles.center, { backgroundColor: colors.background }]}
+            >
                 <Typography variant="body-medium" color="muted">
                     Loading database...
                 </Typography>
@@ -337,9 +375,18 @@ export const CustomerTransactionsScreen: React.FC = () => {
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View
+            style={[styles.container, { backgroundColor: colors.background }]}
+        >
             <View
-                style={[styles.header, { paddingTop: insets.top + Spacing.md, backgroundColor: colors.surface, borderBottomColor: colors.border }]}
+                style={[
+                    styles.header,
+                    {
+                        paddingTop: insets.top + Spacing.md,
+                        backgroundColor: colors.surface,
+                        borderBottomColor: colors.border,
+                    },
+                ]}
             >
                 <Pressable
                     onPress={() => router.back()}
@@ -354,12 +401,25 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 <View style={styles.headerContent}>
                     <View style={styles.headerRow}>
                         {customer?.image_uri ? (
-                            <Image
+                            <ViewPhoto
                                 source={{ uri: customer.image_uri }}
-                                style={styles.headerImage}
-                            />
+                                accessibilityLabel={t("photoViewer.openCustomer", {
+                                    name: customer.name,
+                                })}
+                                closeAccessibilityLabel={t("photoViewer.close")}
+                            >
+                                <Image
+                                    source={{ uri: customer.image_uri }}
+                                    style={styles.headerImage}
+                                />
+                            </ViewPhoto>
                         ) : (
-                            <View style={[styles.headerImagePlaceholder, { backgroundColor: colors.background }]}>
+                            <View
+                                style={[
+                                    styles.headerImagePlaceholder,
+                                    { backgroundColor: colors.background },
+                                ]}
+                            >
                                 <Ionicons
                                     name="person"
                                     size={20}
@@ -377,6 +437,31 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                 >
                                     {customer?.name || "Customer"}
                                 </Typography>
+                                {isAccountInactive && (
+                                    <View
+                                        style={[
+                                            styles.inactiveBadge,
+                                            {
+                                                backgroundColor: `${colors.warning}18`,
+                                                borderColor: `${colors.warning}60`,
+                                            },
+                                        ]}
+                                    >
+                                        <View
+                                            style={[
+                                                styles.inactiveDot,
+                                                { backgroundColor: colors.warning },
+                                            ]}
+                                        />
+                                        <Typography
+                                            variant="small-small"
+                                            color="warning"
+                                            numberOfLines={1}
+                                        >
+                                            {t("customers.inactive")}
+                                        </Typography>
+                                    </View>
+                                )}
                             </View>
                             <Typography
                                 variant="body-small"
@@ -389,14 +474,19 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     </View>
                 </View>
                 <Pressable
-                    onPress={() => setIsMenuVisible(true)}
+                    onPress={() => {
+                        setAutoLockSuspended(true);
+                        setIsMenuVisible(true);
+                    }}
                     style={styles.menuButton}
                     disabled={!customer}
                 >
                     <Ionicons
                         name="ellipsis-vertical"
                         size={24}
-                        color={customer ? colors.text.primary : colors.text.muted}
+                        color={
+                            customer ? colors.text.primary : colors.text.muted
+                        }
                     />
                 </Pressable>
             </View>
@@ -450,11 +540,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     ]}
                     onPress={() => openAddModal(TransactionType.CREDIT)}
                 >
-                    <Ionicons
-                        name="arrow-down"
-                        size={20}
-                        color="#FFFFFF"
-                    />
+                    <Ionicons name="arrow-down" size={20} color="#FFFFFF" />
                     <Typography
                         variant="body-medium"
                         color="primary"
@@ -470,11 +556,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     ]}
                     onPress={() => openAddModal(TransactionType.DEBIT)}
                 >
-                    <Ionicons
-                        name="arrow-up"
-                        size={20}
-                        color="#FFFFFF"
-                    />
+                    <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
                     <Typography
                         variant="body-medium"
                         color="primary"
@@ -685,7 +767,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     </View>
                 </Pressable>
             </Modal>
-
         </View>
     );
 };
@@ -731,6 +812,20 @@ const styles = StyleSheet.create({
     },
     customerName: {
         flex: 1,
+    },
+    inactiveBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.xs,
+        borderWidth: 1,
+        borderRadius: 12,
+        paddingHorizontal: Spacing.sm,
+        paddingVertical: 2,
+    },
+    inactiveDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
     },
     menuButton: {
         padding: Spacing.sm,

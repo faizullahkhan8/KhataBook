@@ -9,3 +9,4 @@ export { ReportsScreen } from "./ReportsScreen";
 export { SettingsScreen } from "./SettingsScreen";
 export { PasscodeScreen } from "./PasscodeScreen";
 export { TermsOfUseScreen } from "./TermsOfUseScreen";
+export { FeedbackScreen } from "./FeedbackScreen";

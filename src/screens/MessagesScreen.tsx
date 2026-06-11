@@ -303,74 +303,6 @@ export const MessagesScreen: React.FC = () => {
             </Card>
         ) : null;
 
-    const renderStepIndicator = () => {
-        const steps: SendStep[] = ["recipients", "message", "send"];
-        const activeIndex = steps.indexOf(sendStep);
-
-        return (
-            <View style={[styles.stepIndicator, false && styles.rowRTL]}>
-                {steps.map((step, index) => {
-                    const isActive = step === sendStep;
-                    const isDone = index < activeIndex;
-
-                    return (
-                        <React.Fragment key={step}>
-                            <View style={styles.stepItem}>
-                                <View
-                                    style={[
-                                        styles.stepCircle,
-                                        {
-                                            backgroundColor:
-                                                isActive || isDone
-                                                    ? colors.primary
-                                                    : colors.surface,
-                                            borderColor:
-                                                isActive || isDone
-                                                    ? colors.primary
-                                                    : colors.border,
-                                        },
-                                    ]}
-                                >
-                                    <Typography
-                                        variant="small-small"
-                                        color={isActive || isDone ? "primary" : "muted"}
-                                        style={[
-                                            isActive || isDone
-                                                ? { color: "#FFFFFF" }
-                                                : null,
-                                        ]}
-                                    >
-                                        {index + 1}
-                                    </Typography>
-                                </View>
-                                <Typography
-                                    variant="small-small"
-                                    color={isActive ? "primary" : "muted"}
-                                    style={styles.centerText}
-                                >
-                                    {t(`customerMessages.step${step[0].toUpperCase()}${step.slice(1)}`)}
-                                </Typography>
-                            </View>
-                            {index < steps.length - 1 && (
-                                <View
-                                    style={[
-                                        styles.stepDivider,
-                                        {
-                                            backgroundColor:
-                                                index < activeIndex
-                                                    ? colors.primary
-                                                    : colors.border,
-                                        },
-                                    ]}
-                                />
-                            )}
-                        </React.Fragment>
-                    );
-                })}
-            </View>
-        );
-    };
-
     const renderRecipientsStep = () => (
         <>
             <View style={[styles.sectionTitleRow, false && styles.rowRTL]}>
@@ -894,7 +826,6 @@ export const MessagesScreen: React.FC = () => {
                     ))}
                 </View>
             </View>
-            {section === "send" && renderStepIndicator()}
             {section === "send" ? renderSendSection() : renderTemplatesSection()}
             {renderSendActions()}
 
@@ -957,31 +888,6 @@ const styles = StyleSheet.create({
     },
     tabs: { flexDirection: "row", gap: Spacing.sm },
     tab: { flex: 1, alignItems: "center", padding: Spacing.sm, borderWidth: 1, borderRadius: 8 },
-    stepIndicator: {
-        flexDirection: "row",
-        alignItems: "center",
-        paddingHorizontal: Spacing.lg,
-        paddingBottom: Spacing.sm,
-        gap: Spacing.xs,
-    },
-    stepItem: {
-        alignItems: "center",
-        flex: 1,
-        gap: Spacing.xs,
-    },
-    stepCircle: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        borderWidth: 1,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    stepDivider: {
-        height: 2,
-        flex: 0.45,
-        marginBottom: 18,
-    },
     rowRTL: { flexDirection: "row-reverse" },
     sendContent: { flex: 1 },
     content: { padding: Spacing.md, gap: Spacing.md },

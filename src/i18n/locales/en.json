@@ -1,4 +1,9 @@
 {
+    "photoViewer": {
+        "openCustomer": "View {{name}}'s photo",
+        "openDeveloper": "View developer photo",
+        "close": "Close photo"
+    },
     "settings": {
         "title": "Settings",
         "theme": "Theme",
@@ -15,6 +20,8 @@
         "passcodeDisabled": "Disabled",
         "cloudBackup": "Cloud Backup",
         "cloudBackupSubtitle": "Last synced: 2h ago",
+        "feedback": "Feedback & Support",
+        "feedbackSubtitle": "Share feedback, suggestions, bugs, or problems",
         "aboutDeveloper": "About Developer",
         "privacyPolicy": "Privacy Policy",
         "privacyPolicySubtitle": "Learn how your data is handled",
@@ -22,6 +29,32 @@
         "termsOfUseSubtitle": "Rules and responsibilities for using KhataBook",
         "english": "English",
         "urdu": "Urdu"
+    },
+    "feedback": {
+        "title": "Feedback & Support",
+        "subtitle": "Tell us what is working well, suggest an improvement, or report a problem.",
+        "category": "Category",
+        "categories": {
+            "feedback": "Feedback",
+            "suggestion": "Suggestion",
+            "bug": "Bug",
+            "error": "Error or problem",
+            "other": "Other"
+        },
+        "subject": "Subject (optional)",
+        "subjectPlaceholder": "Short summary",
+        "details": "Details",
+        "detailsPlaceholder": "Describe your feedback or problem...",
+        "categoryRequired": "Choose a feedback category.",
+        "detailsRequired": "Enter feedback details.",
+        "sendUsing": "Send using",
+        "privacyNote": "Only your feedback and basic app information will be included. Nothing is sent until you confirm it in the selected app.",
+        "whatsapp": "Send with WhatsApp",
+        "email": "Send with Email",
+        "sms": "Send with SMS",
+        "defaultEmailSubject": "KhataBook {{category}}",
+        "unavailableTitle": "Service unavailable",
+        "unavailableMessage": "The selected app or service is not available on this device."
     },
     "passcode": {
         "title": "Passcode",
@@ -64,6 +97,11 @@
     "useBiometric": "Use biometrics",
     "biometricEnableFailedTitle": "Biometric unlock not enabled",
     "biometricEnableFailedMessage": "Biometric verification was not completed. You can continue using your PIN.",
+    "autoLock": "Auto-lock",
+    "autoLockMessage": "Require the passcode after the app has been away for this long.",
+    "autoLockImmediate": "Immediately",
+    "autoLockMinute": "1 minute",
+    "autoLockMinutes": "{{count}} minutes",
     "manageAuthTitle": "Verify your passcode",
         "manageAuthMessage": "Enter your current PIN before managing passcode settings.",
         "enableTitle": "Enable passcode",
@@ -100,7 +138,8 @@
         "emptyMessage": "Add your first customer to start managing accounts.",
         "noResults": "No customers found",
         "noResultsMessage": "Try a different customer name, phone number, or CNIC.",
-        "account": "Account: {{number}}",
+  "account": "Account: {{number}}",
+  "inactive": "Inactive",
         "loading": "Loading database...",
         "selected": "{{count}} selected",
         "selectAll": "Select All",

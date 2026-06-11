@@ -1,10 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Card, Typography } from "../components";
+import { Card, Typography, ViewPhoto } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useTheme } from "../store";
 
@@ -138,18 +139,28 @@ export const AboutScreen: React.FC = () => {
                             false && { flexDirection: "row-reverse" },
                         ]}
                     >
-                        <View
-                            style={[
-                                styles.avatarContainer,
-                                { backgroundColor: `${colors.primary}15` },
-                            ]}
+                        <ViewPhoto
+                            source={require("../../assets/images/developer_profile.jpg")}
+                            accessibilityLabel={t("photoViewer.openDeveloper")}
+                            closeAccessibilityLabel={t("photoViewer.close")}
                         >
-                            <Ionicons
-                                name="person"
-                                size={40}
-                                color={colors.primary}
-                            />
-                        </View>
+                            <View
+                                style={[
+                                    styles.avatarContainer,
+                                    {
+                                        backgroundColor: `${colors.primary}15`,
+                                        borderColor: colors.primary,
+                                    },
+                                ]}
+                            >
+                                <Image
+                                    source={require("../../assets/images/developer_profile.jpg")}
+                                    style={styles.developerImage}
+                                    contentFit="cover"
+                                    transition={200}
+                                />
+                            </View>
+                        </ViewPhoto>
                         <View>
                             <Typography variant="heading-small" color="primary">
                                 Faiz Ullah Khan
@@ -556,10 +567,13 @@ const styles = StyleSheet.create({
         width: 60,
         height: 60,
         borderRadius: 30,
+        borderWidth: 2,
         backgroundColor: `${Colors.primary}15`,
         justifyContent: "center",
         alignItems: "center",
+        overflow: "hidden",
     },
+    developerImage: { width: "100%", height: "100%" },
     contactSection: {
         marginBottom: Spacing.md,
     },

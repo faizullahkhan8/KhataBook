@@ -45,11 +45,31 @@ export const PasscodePinInput: React.FC<PasscodePinInputProps> = ({
     React.useEffect(() => {
         if (!shakeTrigger) return;
         Animated.sequence([
-            Animated.timing(shake, { toValue: -10, duration: 50, useNativeDriver: true }),
-            Animated.timing(shake, { toValue: 10, duration: 50, useNativeDriver: true }),
-            Animated.timing(shake, { toValue: -8, duration: 50, useNativeDriver: true }),
-            Animated.timing(shake, { toValue: 8, duration: 50, useNativeDriver: true }),
-            Animated.timing(shake, { toValue: 0, duration: 50, useNativeDriver: true }),
+            Animated.timing(shake, {
+                toValue: -10,
+                duration: 50,
+                useNativeDriver: true,
+            }),
+            Animated.timing(shake, {
+                toValue: 10,
+                duration: 50,
+                useNativeDriver: true,
+            }),
+            Animated.timing(shake, {
+                toValue: -8,
+                duration: 50,
+                useNativeDriver: true,
+            }),
+            Animated.timing(shake, {
+                toValue: 8,
+                duration: 50,
+                useNativeDriver: true,
+            }),
+            Animated.timing(shake, {
+                toValue: 0,
+                duration: 50,
+                useNativeDriver: true,
+            }),
         ]).start();
     }, [shake, shakeTrigger]);
 
@@ -65,66 +85,70 @@ export const PasscodePinInput: React.FC<PasscodePinInputProps> = ({
                 </Typography>
             )} */}
             <Animated.View style={{ transform: [{ translateX: shake }] }}>
-            <Pressable
-                onPress={() => inputRef.current?.focus()}
-                style={[
-                    styles.row,
-                    length === 4
-                        ? styles.rowFour
-                        : length === 6
-                          ? styles.rowSix
-                          : styles.rowEight,
-                ]}
-                accessibilityRole="button"
-            >
-                {Array.from({ length }, (_, index) => {
-                    const digit = pin[index];
-                    const isActive = pin.length === index;
-                    return (
-                        <View
-                            key={index}
-                            style={[
-                                styles.box,
-                                length === 4
-                                    ? styles.boxFour
-                                    : length === 6
-                                      ? styles.boxSix
-                                      : styles.boxEight,
-                                {
-                                    borderColor: error
-                                        ? colors.danger
-                                        : isActive
-                                        ? colors.primary
-                                        : colors.input.border,
-                                    backgroundColor: colors.input.background,
-                                },
-                            ]}
-                        >
-                            <Text
+                <Pressable
+                    onPress={() => inputRef.current?.focus()}
+                    style={[
+                        styles.row,
+                        length === 4
+                            ? styles.rowFour
+                            : length === 6
+                              ? styles.rowSix
+                              : styles.rowEight,
+                    ]}
+                    accessibilityRole="button"
+                >
+                    {Array.from({ length }, (_, index) => {
+                        const digit = pin[index];
+                        const isActive = pin.length === index;
+                        return (
+                            <View
+                                key={index}
                                 style={[
-                                    styles.digit,
-                                    { color: colors.text.primary },
+                                    styles.box,
+                                    length === 4
+                                        ? styles.boxFour
+                                        : length === 6
+                                          ? styles.boxSix
+                                          : styles.boxEight,
+                                    {
+                                        borderColor: error
+                                            ? colors.danger
+                                            : isActive
+                                              ? colors.primary
+                                              : colors.input.border,
+                                        backgroundColor:
+                                            colors.input.background,
+                                    },
                                 ]}
                             >
-                                {digit ? (isVisible ? digit : "•") : ""}
-                            </Text>
-                        </View>
-                    );
-                })}
-                <TextInput
-                    ref={inputRef}
-                    value={pin}
-                    onChangeText={(text) =>
-                        onChangeText?.(text.replace(/\D/g, "").slice(0, length))
-                    }
-                    keyboardType="number-pad"
-                    maxLength={length}
-                    autoFocus={autoFocus}
-                    style={styles.hiddenInput}
-                    caretHidden
-                    {...props}
-                />
-            </Pressable>
+                                <Text
+                                    style={[
+                                        styles.digit,
+                                        { color: colors.text.primary },
+                                    ]}
+                                >
+                                    {digit ? (isVisible ? digit : "•") : ""}
+                                </Text>
+                            </View>
+                        );
+                    })}
+                    <TextInput
+                        ref={inputRef}
+                        value={pin}
+                        placeholder="*"
+                        onChangeText={(text) =>
+                            onChangeText?.(
+                                text.replace(/\D/g, "").slice(0, length),
+                            )
+                        }
+                        keyboardType="number-pad"
+                        maxLength={length}
+                        autoFocus={autoFocus}
+                        style={styles.hiddenInput}
+                        caretHidden
+                        {...props}
+                    />
+                </Pressable>
             </Animated.View>
             {/* {showVisibilityToggle && (
                 <Pressable
@@ -149,7 +173,7 @@ const styles = StyleSheet.create({
     label: { marginBottom: Spacing.sm },
     row: {
         flexDirection: "row",
-        justifyContent: "center",
+        justifyContent: "space-between",
         position: "relative",
         width: "100%",
     },

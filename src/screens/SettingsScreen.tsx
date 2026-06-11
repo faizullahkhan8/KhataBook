@@ -62,6 +62,14 @@ export const SettingsScreen: React.FC = () => {
             section: "Security",
         },
         {
+            id: "feedback",
+            title: t('settings.feedback'),
+            subtitle: t('settings.feedbackSubtitle'),
+            icon: "chatbox-ellipses-outline",
+            type: "navigation",
+            section: "Support",
+        },
+        {
             id: "about",
             title: t('settings.aboutDeveloper'),
             subtitle: "Faiz Ullah Khan",
@@ -97,6 +105,9 @@ export const SettingsScreen: React.FC = () => {
         }
         else if (item.id === "about") {
             router.push("/about");
+        }
+        else if (item.id === "feedback") {
+            router.push("/feedback");
         }
         else if (item.id === "passcode") {
             router.push("/passcode");

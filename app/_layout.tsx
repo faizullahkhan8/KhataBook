@@ -38,6 +38,10 @@ export default function RootLayout() {
                                     name="passcode"
                                     options={{ headerShown: false }}
                                 />
+                                <Stack.Screen
+                                    name="feedback"
+                                    options={{ headerShown: false }}
+                                />
                             </Stack>
                         </PasscodeGate>
                     </DatabaseProvider>

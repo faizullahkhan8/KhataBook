@@ -16,11 +16,11 @@ import {
 import DraggableFlatList from "react-native-draggable-flatlist";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Card, ErrorScreen, TouchableAmount, Typography } from "../components";
+import { Card, ErrorScreen, TouchableAmount, Typography, ViewPhoto } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useDebounce } from "../hooks/useDebounce";
-import { CustomerId, CustomerWithAccounts } from "../models";
+import { AccountStatus, CustomerId, CustomerWithAccounts } from "../models";
 
 import { useDatabaseContext, useTheme } from "../store";
 
@@ -254,6 +254,8 @@ export const CustomersScreen: React.FC = () => {
         }) => {
             const balance = item.accounts?.[0]?.current_balance || 0;
             const accountNumber = item.accounts?.[0]?.account_number || "N/A";
+            const isInactive =
+                item.accounts?.[0]?.status === AccountStatus.INACTIVE;
             const isSelected =
                 item.id !== undefined && selectedIds.has(item.id);
 
@@ -347,19 +349,28 @@ export const CustomersScreen: React.FC = () => {
                                     </View>
                                 )}
                                 {item.image_uri ? (
-                                    <Image
+                                    <ViewPhoto
                                         source={{ uri: item.image_uri }}
-                                        style={[
-                                            styles.customerImage,
-                                            false
-                                                ? { marginLeft: Spacing.sm }
-                                                : { marginRight: Spacing.sm },
-                                        ]}
-                                        contentFit="cover"
-                                        transition={isReorderMode ? 0 : 200}
-                                        priority="high"
-                                        cachePolicy="memory-disk"
-                                    />
+                                        enabled={!isSelectionMode && !isReorderMode}
+                                        accessibilityLabel={t("photoViewer.openCustomer", {
+                                            name: item.name,
+                                        })}
+                                        closeAccessibilityLabel={t("photoViewer.close")}
+                                    >
+                                        <Image
+                                            source={{ uri: item.image_uri }}
+                                            style={[
+                                                styles.customerImage,
+                                                false
+                                                    ? { marginLeft: Spacing.sm }
+                                                    : { marginRight: Spacing.sm },
+                                            ]}
+                                            contentFit="cover"
+                                            transition={isReorderMode ? 0 : 200}
+                                            priority="high"
+                                            cachePolicy="memory-disk"
+                                        />
+                                    </ViewPhoto>
                                 ) : (
                                     <View
                                         style={[
@@ -393,27 +404,41 @@ export const CustomersScreen: React.FC = () => {
                                                 : []),
                                         ]}
                                     >
-                                        <Typography
-                                            variant="heading-small"
-                                            color="primary"
-                                            numberOfLines={1}
-                                            style={[
-                                                styles.customerName,
-                                                ...(false
-                                                    ? [
-                                                          {
-                                                              textAlign:
-                                                                  "right",
-                                                              marginLeft:
-                                                                  Spacing.sm,
-                                                              marginRight: 0,
-                                                          } as const,
-                                                      ]
-                                                    : []),
-                                            ]}
-                                        >
-                                            {item.name}
-                                        </Typography>
+                                        <View style={styles.customerNameRow}>
+                                            <Typography
+                                                variant="heading-small"
+                                                color="primary"
+                                                numberOfLines={1}
+                                                style={styles.customerName}
+                                            >
+                                                {item.name}
+                                            </Typography>
+                                            {isInactive && (
+                                                <View
+                                                    style={[
+                                                        styles.inactiveBadge,
+                                                        {
+                                                            backgroundColor: `${colors.warning}18`,
+                                                            borderColor: `${colors.warning}60`,
+                                                        },
+                                                    ]}
+                                                >
+                                                    <View
+                                                        style={[
+                                                            styles.inactiveDot,
+                                                            { backgroundColor: colors.warning },
+                                                        ]}
+                                                    />
+                                                    <Typography
+                                                        variant="small-small"
+                                                        color="warning"
+                                                        numberOfLines={1}
+                                                    >
+                                                        {t("customers.inactive")}
+                                                    </Typography>
+                                                </View>
+                                            )}
+                                        </View>
                                         <TouchableAmount
                                             amount={balance}
                                             variant="heading-medium"
@@ -455,6 +480,7 @@ export const CustomersScreen: React.FC = () => {
             t,
             false,
             colors.primary,
+            colors.warning,
             colors.text.muted,
         ],
     );
@@ -1124,6 +1150,27 @@ const styles = StyleSheet.create({
     customerName: {
         flex: 1,
         flexShrink: 1,
+    },
+    customerNameRow: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.xs,
+    },
+    inactiveBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 4,
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: Spacing.xs,
+        paddingVertical: 2,
+        flexShrink: 0,
+    },
+    inactiveDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
     },
     balanceText: {
         flexShrink: 0,
