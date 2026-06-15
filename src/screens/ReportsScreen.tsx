@@ -17,6 +17,7 @@ import {
     DateFilter,
     DateRangePicker,
     ErrorScreen,
+    LoadingScreen,
     TouchableAmount,
     Typography,
 } from "../components";
@@ -440,20 +441,6 @@ const EmptySearchState = memo(({ message, colors }: EmptySearchStateProps) => (
 ));
 EmptySearchState.displayName = "EmptySearchState";
 
-interface LoadingStateProps {
-    message: string;
-    backgroundColor: string;
-}
-
-const LoadingState = memo(({ message, backgroundColor }: LoadingStateProps) => (
-    <View style={[styles.center, { backgroundColor }]}>
-        <Typography variant="body-medium" color="muted">
-            {message}
-        </Typography>
-    </View>
-));
-LoadingState.displayName = "LoadingState";
-
 export const ReportsScreen: React.FC = () => {
     const { db, error: dbError, initDatabase } = useDatabaseContext();
     const insets = useSafeAreaInsets();
@@ -715,10 +702,7 @@ export const ReportsScreen: React.FC = () => {
             onRetry={initDatabase}
         >
             {!db ? (
-                <LoadingState
-                    message={labels.loading}
-                    backgroundColor={colors.background}
-                />
+                <LoadingScreen />
             ) : (
                 <View
                     style={[

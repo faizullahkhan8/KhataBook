@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Spacing } from "../constants";
 import { useTheme } from "../store";
 import { Button } from "./Button";
+import { LoadingScreen } from "./LoadingScreen";
 import { Typography } from "./Typography";
 
 type ErrorType = "database" | "network" | "general" | "loading";
@@ -39,14 +40,21 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
 
-    // If no error and not loading, render children
+    if (isLoading) {
+        return (
+            <LoadingScreen
+                message={loadingText || t("common.loading", "Loading...")}
+            />
+        );
+    }
+
+    // If no error, render children
     if (!error && !isLoading) {
         return <>{children}</>;
     }
 
     const getIcon = (): keyof typeof Ionicons.glyphMap => {
         if (icon) return icon;
-        if (isLoading) return "hourglass-outline";
         switch (type) {
             case "database":
                 return "server-outline";
@@ -59,13 +67,11 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
 
     const getTitle = (): string => {
         if (title) return title;
-        if (isLoading) return t("common.loading", "Loading...");
         return t("common.errorTitle", "Oops!");
     };
 
     const getMessage = (): string => {
         if (message) return message;
-        if (isLoading) return loadingText || "";
         switch (type) {
             case "database":
                 return t(
@@ -90,8 +96,6 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
     };
 
     const iconName = getIcon();
-    const iconColor = isLoading ? colors.primary : colors.danger;
-
     return (
         <View
             style={[
@@ -106,12 +110,12 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
                 <Ionicons
                     name={iconName}
                     size={64}
-                    color={iconColor}
+                    color={colors.danger}
                     style={styles.icon}
                 />
                 <Typography
                     variant="heading-small"
-                    color={isLoading ? "primary" : "danger"}
+                    color="danger"
                     style={styles.title}
                 >
                     {getTitle()}
@@ -125,7 +129,7 @@ export const ErrorScreen: React.FC<ErrorScreenProps> = ({
                         {getMessage()}
                     </Typography>
                 ) : null}
-                {onRetry && !isLoading && (
+                {onRetry && (
                     <Button
                         title={getRetryText()}
                         onPress={onRetry}

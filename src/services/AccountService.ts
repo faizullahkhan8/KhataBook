@@ -1,11 +1,11 @@
-import * as SQLite from "expo-sqlite";
+import { SQLiteDatabase } from "../db/types";
 import { Account, AccountStatus } from "../models/Account";
 import { AccountId, CustomerId } from "../models/types";
 
 export class AccountService {
-    private db: SQLite.SQLiteDatabase;
+    private db: SQLiteDatabase;
 
-    constructor(db: SQLite.SQLiteDatabase) {
+    constructor(db: SQLiteDatabase) {
         this.db = db;
     }
 
@@ -57,9 +57,9 @@ export class AccountService {
 
             // Use transaction to ensure atomicity
             let accountId: AccountId | undefined;
-            await this.db.transactionAsync(async (tx) => {
+            await this.db.withTransactionAsync(async () => {
                 // 1. Create account with current_balance = 0
-                const result = await tx.runAsync(
+                const result = await this.db.runAsync(
                     `INSERT INTO accounts (customer_id, account_number, account_type, credit_limit, current_balance, status) VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         accountWithZeroBalance.customer_id,
@@ -74,7 +74,7 @@ export class AccountService {
 
                 // 2. Insert opening balance transaction (DEBIT type = 0)
                 // This triggers the balance update via trig_trans_insert_balance
-                await tx.runAsync(
+                await this.db.runAsync(
                     `INSERT INTO transactions (account_id, type, amount, description, reference, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         accountId,

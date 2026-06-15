@@ -9,3 +9,4 @@ export {
     useLedgerEntries,
 } from "./useLedgerEntries";
 export { useTransactions } from "./useTransactions";
+export { useDeleteAuthentication } from "./useDeleteAuthentication";

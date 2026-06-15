@@ -1,12 +1,12 @@
-import * as SQLite from "expo-sqlite";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getDatabase, initializeDatabase } from "../db/database";
+import { SQLiteDatabase } from "../db/types";
 
 export const useDatabase = () => {
-    const [db, setDb] = useState<SQLite.SQLiteDatabase | null>(null);
+    const [db, setDb] = useState<SQLiteDatabase | null>(null);
     const [isInitialized, setIsInitialized] = useState(false);
     const [error, setError] = useState<Error | null>(null);
-    const dbRef = useRef<SQLite.SQLiteDatabase | null>(null);
+    const dbRef = useRef<SQLiteDatabase | null>(null);
     const initializationRef = useRef<Promise<void> | null>(null);
     const mountedRef = useRef(true);
 
@@ -15,7 +15,7 @@ export const useDatabase = () => {
         if (dbRef.current) return;
 
         initializationRef.current = (async () => {
-            let database: SQLite.SQLiteDatabase | null = null;
+            let database: SQLiteDatabase | null = null;
             try {
                 console.log("Initializing database...");
                 database = await getDatabase();

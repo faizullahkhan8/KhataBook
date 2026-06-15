@@ -15,6 +15,7 @@ import {
     DateFilter,
     DateRangePicker,
     ErrorScreen,
+    LoadingScreen,
     TouchableAmount,
     Typography,
 } from "../components";
@@ -35,6 +36,8 @@ interface LedgerEntry {
     description: string;
     date: number;
     fundingSource: LedgerFundingSource;
+    balanceFundedAmount: number;
+    pocketFundedAmount: number;
     customerName: string;
     accountNumber: string;
 }
@@ -153,6 +156,8 @@ export const LedgerScreen: React.FC = () => {
                         : t("ledger.debit")),
                 date: entry.created_at,
                 fundingSource: entry.funding_source,
+                balanceFundedAmount: entry.balance_funded_amount,
+                pocketFundedAmount: entry.pocket_funded_amount,
                 customerName: entry.customer_name || t("ledger.unknown"),
                 accountNumber:
                     entry.account_number || t("ledger.notAvailable"),
@@ -173,19 +178,19 @@ export const LedgerScreen: React.FC = () => {
         ({ item }: { item: LedgerEntry }) => {
             const isReceived = item.fundingSource === "received";
             const isBalanceFunded = item.fundingSource === "balance";
+            const isMixedFunded = item.fundingSource === "mixed";
             const label = isReceived
                 ? t("ledger.receivedFrom")
                 : isBalanceFunded
                   ? t("ledger.paidFromBalance")
-                  : t("ledger.paidFromPocket");
-            const semanticColor: "success" | "primary" | "warning" = isReceived
-                ? "success"
-                : isBalanceFunded
-                  ? "primary"
-                  : "warning";
-            const balanceFundedStyle = isBalanceFunded
-                ? { color: colors.info }
-                : undefined;
+                  : isMixedFunded
+                    ? t("ledger.paidFromBalanceAndPocket")
+                    : t("ledger.paidFromPocket");
+            const semanticColor: "success" | "danger" | "warning" = isReceived
+                ? "danger"
+                : isMixedFunded
+                  ? "warning"
+                  : "success";
 
             return (
             <Card style={styles.entryCard}>
@@ -212,7 +217,7 @@ export const LedgerScreen: React.FC = () => {
                         <Typography
                             variant="heading-small"
                             color={semanticColor}
-                            style={[styles.description, balanceFundedStyle]}
+                            style={styles.description}
                             numberOfLines={1}
                         >
                             {label}
@@ -232,16 +237,44 @@ export const LedgerScreen: React.FC = () => {
                         >
                             {item.accountNumber}
                         </Typography>
+                        {isMixedFunded && (
+                            <View style={styles.fundingBreakdown}>
+                                <View style={styles.fundingBreakdownRow}>
+                                    <Typography
+                                        variant="body-small"
+                                        color="muted"
+                                    >
+                                        {t("ledger.fromCustomerBalance")}
+                                    </Typography>
+                                    <TouchableAmount
+                                        amount={item.balanceFundedAmount}
+                                        variant="body-small"
+                                        color="primary"
+                                        style={{ color: colors.info }}
+                                    />
+                                </View>
+                                <View style={styles.fundingBreakdownRow}>
+                                    <Typography
+                                        variant="body-small"
+                                        color="muted"
+                                    >
+                                        {t("ledger.fromPocketBusiness")}
+                                    </Typography>
+                                    <TouchableAmount
+                                        amount={item.pocketFundedAmount}
+                                        variant="body-small"
+                                        color="warning"
+                                    />
+                                </View>
+                            </View>
+                        )}
                     </View>
                     <View style={styles.amountContainer}>
                         <TouchableAmount
                             amount={item.amount}
                             variant="heading-large"
                             color={semanticColor}
-                            style={{
-                                ...styles.amount,
-                                ...(balanceFundedStyle || {}),
-                            }}
+                            style={styles.amount}
                         />
                     </View>
                 </View>
@@ -251,16 +284,8 @@ export const LedgerScreen: React.FC = () => {
         [colors.info, false, t],
     );
 
-    if (!db) {
-        return (
-            <View
-                style={[styles.center, { backgroundColor: colors.background }]}
-            >
-                <Typography variant="body-medium" color="muted">
-                    {t("ledger.loading")}
-                </Typography>
-            </View>
-        );
+    if (!db || (loadingEntries && transactionEntries.length === 0)) {
+        return <LoadingScreen />;
     }
 
     return (
@@ -556,6 +581,16 @@ const styles = StyleSheet.create({
     },
     accountNumber: {
         marginTop: Spacing.xs,
+    },
+    fundingBreakdown: {
+        marginTop: Spacing.sm,
+        gap: Spacing.xs,
+    },
+    fundingBreakdownRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: Spacing.md,
     },
     amount: {
         textAlign: "right",

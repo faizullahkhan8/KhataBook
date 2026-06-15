@@ -5,7 +5,7 @@ import React, { useCallback } from "react";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { Card, TouchableAmount, Typography } from "../components";
+import { Card, LoadingScreen, TouchableAmount, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomerById } from "../hooks";
 import { AccountStatus, AccountType, CustomerId } from "../models";
@@ -70,14 +70,8 @@ export const CustomerProfileScreen: React.FC = () => {
         </View>
     );
 
-    if (!db) {
-        return (
-            <View style={[styles.center, { backgroundColor: colors.background }]}>
-                <Typography variant="body-medium" color="muted">
-                    {t("customers.loading")}
-                </Typography>
-            </View>
-        );
+    if (!db || (loading && !customer)) {
+        return <LoadingScreen />;
     }
 
     return (
@@ -135,13 +129,7 @@ export const CustomerProfileScreen: React.FC = () => {
                     { paddingBottom: insets.bottom + Spacing.xxl },
                 ]}
             >
-                {loading && !customer ? (
-                    <View style={styles.emptyState}>
-                        <Typography variant="body-medium" color="muted">
-                            {t("customers.loading")}
-                        </Typography>
-                    </View>
-                ) : error || !customer ? (
+                {error || !customer ? (
                     <View style={styles.emptyState}>
                         <Ionicons
                             name="person-circle-outline"
@@ -213,8 +201,10 @@ export const CustomerProfileScreen: React.FC = () => {
                                             variant="body-medium"
                                             color={
                                                 (account.current_balance || 0) > 0
-                                                    ? "danger"
-                                                    : "success"
+                                                    ? "success"
+                                                    : (account.current_balance || 0) < 0
+                                                      ? "danger"
+                                                      : "primary"
                                             }
                                             style={styles.infoValue}
                                         />

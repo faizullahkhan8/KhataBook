@@ -1,4 +1,4 @@
-import * as SQLite from "expo-sqlite";
+import { SQLiteDatabase } from "../db/types";
 import { useCallback, useEffect, useState } from "react";
 import {
     AccountId,
@@ -9,7 +9,7 @@ import {
 } from "../models";
 import { useDatabaseContext } from "../store";
 
-export type LedgerFundingSource = "received" | "balance" | "pocket";
+export type LedgerFundingSource = "received" | "balance" | "pocket" | "mixed";
 
 export interface LedgerTransactionEntry {
     id: TransactionId;
@@ -22,11 +22,16 @@ export interface LedgerTransactionEntry {
     account_number: string;
     pre_transaction_balance: CurrencyAmount;
     funding_source: LedgerFundingSource;
+    balance_funded_amount: CurrencyAmount;
+    pocket_funded_amount: CurrencyAmount;
 }
 
-type LedgerTransactionRow = Omit<LedgerTransactionEntry, "funding_source">;
+type LedgerTransactionRow = Omit<
+    LedgerTransactionEntry,
+    "funding_source" | "balance_funded_amount" | "pocket_funded_amount"
+>;
 
-export const useLedgerEntries = (db: SQLite.SQLiteDatabase | null) => {
+export const useLedgerEntries = (db: SQLiteDatabase | null) => {
     const { refreshVersions } = useDatabaseContext();
     const [entries, setEntries] = useState<LedgerTransactionEntry[]>([]);
     const [loading, setLoading] = useState(false);
@@ -72,15 +77,35 @@ export const useLedgerEntries = (db: SQLite.SQLiteDatabase | null) => {
             `);
 
             setEntries(
-                rows.map((row) => ({
-                    ...row,
-                    funding_source:
-                        row.type === TransactionType.CREDIT
-                            ? "received"
-                            : row.pre_transaction_balance >= row.amount
-                              ? "balance"
-                              : "pocket",
-                })),
+                rows.map((row) => {
+                    if (row.type === TransactionType.CREDIT) {
+                        return {
+                            ...row,
+                            funding_source: "received",
+                            balance_funded_amount: 0 as CurrencyAmount,
+                            pocket_funded_amount: 0 as CurrencyAmount,
+                        };
+                    }
+
+                    const balanceFundedAmount = Math.min(
+                        Math.max(-row.pre_transaction_balance, 0),
+                        row.amount,
+                    ) as CurrencyAmount;
+                    const pocketFundedAmount = (row.amount -
+                        balanceFundedAmount) as CurrencyAmount;
+
+                    return {
+                        ...row,
+                        funding_source:
+                            balanceFundedAmount === row.amount
+                                ? "balance"
+                                : balanceFundedAmount > 0
+                                  ? "mixed"
+                                  : "pocket",
+                        balance_funded_amount: balanceFundedAmount,
+                        pocket_funded_amount: pocketFundedAmount,
+                    };
+                }),
             );
         } catch (err) {
             setError(err as Error);

@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     KeyboardAvoidingView,
+    Modal,
     Platform,
     Pressable,
     ScrollView,
@@ -23,11 +24,23 @@ type RecoveryStep = "pin" | "answer" | "newPin";
 interface PasscodeUnlockScreenProps {
     onVerified?: (pin: string) => void;
     requirePinOnly?: boolean;
+    authenticationActive?: boolean;
+    allowBiometrics?: boolean;
+    allowRecovery?: boolean;
+    title?: string;
+    subtitle?: string;
+    biometricPromptMessage?: string;
 }
 
 export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
     onVerified,
     requirePinOnly = false,
+    authenticationActive,
+    allowBiometrics = !requirePinOnly,
+    allowRecovery = !requirePinOnly,
+    title,
+    subtitle,
+    biometricPromptMessage,
 }) => {
     const { t } = useTranslation();
     const { colors } = useTheme();
@@ -50,40 +63,48 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
     const [confirmPin, setConfirmPin] = useState("");
     const [error, setError] = useState("");
     const [secondsLeft, setSecondsLeft] = useState(0);
-    const [selectedLength, setSelectedLength] = useState<PasscodeLength>(4);
+    const [selectedLength, setSelectedLength] = useState<PasscodeLength>(6);
     const [pinHasError, setPinHasError] = useState(false);
     const [shakeTrigger, setShakeTrigger] = useState(0);
     const isSubmittingPin = useRef(false);
     const biometricPromptedForLock = useRef(false);
+    const isAuthenticationActive = authenticationActive ?? isLocked;
 
     useEffect(() => {
         setStep("pin");
         setValue("");
         setConfirmPin("");
         setError("");
-        setSelectedLength(4);
+        setSelectedLength(6);
         setPinHasError(false);
         isSubmittingPin.current = false;
         biometricPromptedForLock.current = false;
-    }, [isLocked]);
+    }, [isAuthenticationActive]);
 
     const unlockWithBiometrics = useCallback(async () => {
         if (isBiometricAuthenticating) return;
         const result = await authenticateWithBiometrics(
-            t("passcode.biometricPrompt"),
+            biometricPromptMessage ?? t("passcode.biometricPrompt"),
         );
         if (result.success) {
             setValue("");
             setConfirmPin("");
             setError("");
             setPinHasError(false);
+            onVerified?.("");
         }
-    }, [authenticateWithBiometrics, isBiometricAuthenticating, t]);
+    }, [
+        authenticateWithBiometrics,
+        biometricPromptMessage,
+        isBiometricAuthenticating,
+        onVerified,
+        t,
+    ]);
 
     useEffect(() => {
         if (
-            isLocked &&
-            !requirePinOnly &&
+            isAuthenticationActive &&
+            allowBiometrics &&
             step === "pin" &&
             biometricEnabled &&
             biometricAvailable &&
@@ -95,8 +116,8 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
     }, [
         biometricAvailable,
         biometricEnabled,
-        isLocked,
-        requirePinOnly,
+        isAuthenticationActive,
+        allowBiometrics,
         step,
         unlockWithBiometrics,
     ]);
@@ -215,14 +236,16 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                     />
                 </View>
                 <Typography variant="heading-large" style={styles.center}>
-                    {step === "pin"
+                    {step === "pin" && title
+                        ? title
+                        : step === "pin"
                         ? t("passcode.unlockTitle")
                         : t("passcode.recoverTitle")}
                 </Typography>
                 <Typography color="muted" style={styles.center}>
                     {step === "answer"
                         ? recoveryQuestion
-                        : t("passcode.unlockSubtitle")}
+                        : subtitle ?? t("passcode.unlockSubtitle")}
                 </Typography>
                 <View style={styles.form}>
                     {isPinStep ? (
@@ -283,7 +306,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                         </Typography>
                     )}
                     {step === "pin" &&
-                        !requirePinOnly &&
+                        allowBiometrics &&
                         biometricEnabled &&
                         biometricAvailable && (
                             <Pressable
@@ -319,7 +342,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                             disabled={!value || secondsLeft > 0}
                         />
                     )}
-                    {step === "pin" && !requirePinOnly && (
+                    {step === "pin" && allowRecovery && (
                         <Pressable
                             onPress={() => {
                                 setStep("answer");
@@ -349,6 +372,60 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                 </View>
             </ScrollView>
         </KeyboardAvoidingView>
+    );
+};
+
+interface PasscodeVerificationModalProps {
+    visible: boolean;
+    onCancel: () => void;
+    onVerified: () => void | Promise<void>;
+}
+
+export const PasscodeVerificationModal: React.FC<
+    PasscodeVerificationModalProps
+> = ({ visible, onCancel, onVerified }) => {
+    const { t } = useTranslation();
+    const { colors } = useTheme();
+    const insets = useSafeAreaInsets();
+
+    return (
+        <Modal
+            visible={visible}
+            animationType="slide"
+            onRequestClose={onCancel}
+        >
+            <View style={styles.verificationModal}>
+                <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={t("customers.cancel")}
+                    onPress={onCancel}
+                    hitSlop={Spacing.md}
+                    style={[
+                        styles.verificationClose,
+                        {
+                            borderColor: colors.border,
+                            top: insets.top + Spacing.md,
+                        },
+                    ]}
+                >
+                    <Ionicons
+                        name="close"
+                        size={24}
+                        color={colors.text.primary}
+                    />
+                </Pressable>
+                {visible && (
+                    <PasscodeUnlockScreen
+                        authenticationActive={visible}
+                        allowRecovery={false}
+                        title={t("passcode.deleteAuthTitle")}
+                        subtitle={t("passcode.deleteAuthMessage")}
+                        biometricPromptMessage={t("passcode.deleteAuthTitle")}
+                        onVerified={() => void onVerified()}
+                    />
+                )}
+            </View>
+        </Modal>
     );
 };
 
@@ -411,6 +488,18 @@ const styles = StyleSheet.create({
         gap: Spacing.md,
     },
     link: { textAlign: "center", padding: Spacing.md },
+    verificationModal: { flex: 1 },
+    verificationClose: {
+        position: "absolute",
+        zIndex: 1,
+        right: Spacing.lg,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        borderWidth: 1,
+        alignItems: "center",
+        justifyContent: "center",
+    },
     biometricButton: {
         minHeight: 48,
         borderWidth: 1,

@@ -6,10 +6,12 @@ import { useTranslation } from "react-i18next";
 import {
     Alert,
     FlatList,
+    Keyboard,
     KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
+    ScrollView,
     StyleSheet,
     View,
 } from "react-native";
@@ -18,6 +20,7 @@ import {
     Button,
     Card,
     Input,
+    LoadingScreen,
     TouchableAmount,
     Typography,
     ViewPhoto,
@@ -26,6 +29,7 @@ import { Colors, Spacing } from "../constants";
 import {
     LedgerFundingSource,
     useCustomerById,
+    useDeleteAuthentication,
     useLedgerEntries,
 } from "../hooks";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
@@ -68,6 +72,8 @@ export const CustomerTransactionsScreen: React.FC = () => {
         loading: loadingTransactions,
     } = useTransactions(db);
     const { entries: ledgerEntries } = useLedgerEntries(db);
+    const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
+        useDeleteAuthentication();
 
     const handleRefresh = useCallback(async () => {
         await refreshCustomer();
@@ -113,7 +119,11 @@ export const CustomerTransactionsScreen: React.FC = () => {
             new Map(
                 ledgerEntries.map((entry) => [
                     entry.id as number,
-                    entry.funding_source,
+                    {
+                        source: entry.funding_source,
+                        balanceFundedAmount: entry.balance_funded_amount,
+                        pocketFundedAmount: entry.pocket_funded_amount,
+                    },
                 ]),
             ),
         [ledgerEntries],
@@ -177,12 +187,18 @@ export const CustomerTransactionsScreen: React.FC = () => {
 
         setAmount("");
         setDescription("");
+        Keyboard.dismiss();
         setShowAddModal(false);
     };
 
     const openAddModal = (type: TransactionType) => {
         setTransactionType(type);
         setShowAddModal(true);
+    };
+
+    const closeAddModal = () => {
+        Keyboard.dismiss();
+        setShowAddModal(false);
     };
 
     const handleViewProfile = () => {
@@ -243,18 +259,19 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 {
                     text: t("customerProfile.delete"),
                     style: "destructive",
-                    onPress: async () => {
-                        try {
-                            await deleteCustomer(customer.id!);
-                            router.replace("/" as any);
-                        } catch {
-                            Alert.alert(
-                                t("customerProfile.deleteError"),
-                                t("customerProfile.deleteErrorMessage"),
-                            );
-                        } finally {
-                            setIsMenuActionActive(false);
-                        }
+                    onPress: () => {
+                        setIsMenuActionActive(false);
+                        void requestDeleteAuthentication(async () => {
+                            try {
+                                await deleteCustomer(customer.id!);
+                                router.replace("/" as any);
+                            } catch {
+                                Alert.alert(
+                                    t("customerProfile.deleteError"),
+                                    t("customerProfile.deleteErrorMessage"),
+                                );
+                            }
+                        });
                     },
                 },
             ],
@@ -265,51 +282,65 @@ export const CustomerTransactionsScreen: React.FC = () => {
     };
 
     const handleDeleteTransaction = (transaction: any) => {
+        setIsMenuActionActive(true);
         Alert.alert(
             "Delete Transaction",
             `Are you sure you want to delete this ${transaction.type === TransactionType.CREDIT ? "RECEIVED" : "PAID"} transaction of ${formatCurrency(transaction.amount)}?`,
             [
-                { text: "Cancel", style: "cancel" },
+                {
+                    text: "Cancel",
+                    style: "cancel",
+                    onPress: () => setIsMenuActionActive(false),
+                },
                 {
                     text: "Delete",
                     style: "destructive",
-                    onPress: async () => {
-                        if (transaction.id) {
-                            await deleteTransaction(
-                                transaction.id as TransactionId,
-                            );
-                            if (customer?.accounts?.[0]?.id) {
-                                await fetchTransactionsByAccount(
-                                    customer.accounts[0].id,
+                    onPress: () => {
+                        setIsMenuActionActive(false);
+                        void requestDeleteAuthentication(async () => {
+                            if (transaction.id) {
+                                await deleteTransaction(
+                                    transaction.id as TransactionId,
                                 );
+                                if (customer?.accounts?.[0]?.id) {
+                                    await fetchTransactionsByAccount(
+                                        customer.accounts[0].id,
+                                    );
+                                }
+                                await refreshCustomer();
                             }
-                            await refreshCustomer();
-                        }
+                        });
                     },
                 },
             ],
+            {
+                onDismiss: () => setIsMenuActionActive(false),
+            },
         );
     };
 
     const renderTransaction = ({ item }: { item: any }) => {
+        const fundingDetails = fundingSourcesByTransactionId.get(
+            item.id as number,
+        );
         const fundingSource: LedgerFundingSource =
-            fundingSourcesByTransactionId.get(item.id as number) ??
+            fundingDetails?.source ??
             (item.type === TransactionType.CREDIT ? "received" : "pocket");
         const isReceived = fundingSource === "received";
         const isBalanceFunded = fundingSource === "balance";
+        const isMixedFunded = fundingSource === "mixed";
         const label = isReceived
             ? t("ledger.receivedFrom")
             : isBalanceFunded
               ? t("ledger.paidFromBalance")
-              : t("ledger.paidFromPocket");
-        const semanticColor: "success" | "primary" | "warning" = isReceived
-            ? "success"
-            : isBalanceFunded
-              ? "primary"
-              : "warning";
-        const balanceFundedStyle = isBalanceFunded
-            ? { color: colors.info }
-            : undefined;
+              : isMixedFunded
+                ? t("ledger.paidFromBalanceAndPocket")
+                : t("ledger.paidFromPocket");
+        const semanticColor: "success" | "danger" | "warning" = isReceived
+            ? "danger"
+            : isMixedFunded
+              ? "warning"
+              : "success";
 
         return (
             <Card style={styles.transactionCard}>
@@ -317,7 +348,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <Typography
                         variant="body-medium"
                         color={semanticColor}
-                        style={balanceFundedStyle}
                     >
                         {label}
                     </Typography>
@@ -344,10 +374,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         amount={item.amount}
                         variant="heading-medium"
                         color={semanticColor}
-                        style={{
-                            ...styles.amount,
-                            ...(balanceFundedStyle || {}),
-                        }}
+                        style={styles.amount}
                     />
                 </View>
                 {item.description && (
@@ -359,20 +386,37 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         {item.description}
                     </Typography>
                 )}
+                {isMixedFunded && fundingDetails && (
+                    <View style={styles.fundingBreakdown}>
+                        <View style={styles.fundingBreakdownRow}>
+                            <Typography variant="body-small" color="muted">
+                                {t("ledger.fromCustomerBalance")}
+                            </Typography>
+                            <TouchableAmount
+                                amount={fundingDetails.balanceFundedAmount}
+                                variant="body-small"
+                                color="primary"
+                                style={{ color: colors.info }}
+                            />
+                        </View>
+                        <View style={styles.fundingBreakdownRow}>
+                            <Typography variant="body-small" color="muted">
+                                {t("ledger.fromPocketBusiness")}
+                            </Typography>
+                            <TouchableAmount
+                                amount={fundingDetails.pocketFundedAmount}
+                                variant="body-small"
+                                color="warning"
+                            />
+                        </View>
+                    </View>
+                )}
             </Card>
         );
     };
 
-    if (!db) {
-        return (
-            <View
-                style={[styles.center, { backgroundColor: colors.background }]}
-            >
-                <Typography variant="body-medium" color="muted">
-                    Loading database...
-                </Typography>
-            </View>
-        );
+    if (!db || (loadingTransactions && customerTransactions.length === 0)) {
+        return <LoadingScreen />;
     }
 
     return (
@@ -509,7 +553,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <TouchableAmount
                         amount={stats.totalReceived}
                         variant="heading-medium"
-                        color="success"
+                        color="danger"
                     />
                 </Card>
                 <Card style={{ ...styles.statCard, ...styles.statCardPaid }}>
@@ -519,7 +563,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <TouchableAmount
                         amount={stats.totalPaid}
                         variant="heading-medium"
-                        color="danger"
+                        color="success"
                     />
                 </Card>
             </View>
@@ -533,7 +577,13 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <TouchableAmount
                         amount={stats.balance}
                         variant="heading-large"
-                        color={stats.balance > 0 ? "danger" : "success"}
+                        color={
+                            stats.balance > 0
+                                ? "success"
+                                : stats.balance < 0
+                                  ? "danger"
+                                  : "primary"
+                        }
                     />
                 </Card>
             </View>
@@ -543,7 +593,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 <Pressable
                     style={[
                         styles.actionButton,
-                        { backgroundColor: colors.primary },
+                        { backgroundColor: colors.danger },
                     ]}
                     onPress={() => openAddModal(TransactionType.CREDIT)}
                 >
@@ -559,7 +609,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 <Pressable
                     style={[
                         styles.actionButton,
-                        { backgroundColor: colors.danger },
+                        { backgroundColor: colors.success },
                     ]}
                     onPress={() => openAddModal(TransactionType.DEBIT)}
                 >
@@ -576,10 +626,23 @@ export const CustomerTransactionsScreen: React.FC = () => {
 
             {/* Modal */}
             {showAddModal && (
-                <View style={styles.modalOverlay}>
-                    <KeyboardAvoidingView
-                        behavior={Platform.OS === "ios" ? "padding" : "height"}
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === "ios" ? "padding" : "height"}
+                    keyboardVerticalOffset={insets.top}
+                    style={styles.modalOverlay}
+                >
+                    <ScrollView
                         style={styles.keyboardView}
+                        contentContainerStyle={[
+                            styles.modalScrollContent,
+                            {
+                                paddingTop: insets.top + Spacing.lg,
+                                paddingBottom: insets.bottom + Spacing.lg,
+                            },
+                        ]}
+                        keyboardShouldPersistTaps="handled"
+                        automaticallyAdjustKeyboardInsets
+                        showsVerticalScrollIndicator={false}
                     >
                         <Card style={styles.modal}>
                             <Typography
@@ -596,6 +659,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                 value={amount}
                                 onChangeText={setAmount}
                                 keyboardType="numeric"
+                                autoFocus
                             />
                             <Input
                                 placeholder="Description (optional)"
@@ -606,7 +670,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                 <Button
                                     title="Cancel"
                                     variant="secondary"
-                                    onPress={() => setShowAddModal(false)}
+                                    onPress={closeAddModal}
                                     style={styles.modalButton}
                                 />
                                 <Button
@@ -616,8 +680,8 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                 />
                             </View>
                         </Card>
-                    </KeyboardAvoidingView>
-                </View>
+                    </ScrollView>
+                </KeyboardAvoidingView>
             )}
 
             <View style={styles.transactionsHeader}>
@@ -774,6 +838,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     </View>
                 </Pressable>
             </Modal>
+            {deleteAuthenticationPrompt}
         </View>
     );
 };
@@ -898,6 +963,16 @@ const styles = StyleSheet.create({
     description: {
         marginTop: Spacing.xs,
     },
+    fundingBreakdown: {
+        marginTop: Spacing.sm,
+        gap: Spacing.xs,
+    },
+    fundingBreakdownRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: Spacing.md,
+    },
     center: {
         flex: 1,
         justifyContent: "center",
@@ -919,10 +994,10 @@ const styles = StyleSheet.create({
         padding: Spacing.md,
     },
     statCardReceived: {
-        backgroundColor: "#10B98120",
+        backgroundColor: "#EF444420",
     },
     statCardPaid: {
-        backgroundColor: "#EF444420",
+        backgroundColor: "#10B98120",
     },
     actionButtons: {
         flexDirection: "row",
@@ -945,15 +1020,17 @@ const styles = StyleSheet.create({
     modalOverlay: {
         ...StyleSheet.absoluteFillObject,
         backgroundColor: "rgba(0, 0, 0, 0.7)",
-        justifyContent: "flex-start",
-        alignItems: "center",
-        paddingTop: 100,
-        padding: Spacing.lg,
         zIndex: 1000,
     },
     keyboardView: {
+        flex: 1,
         width: "100%",
+    },
+    modalScrollContent: {
+        flexGrow: 1,
+        justifyContent: "center",
         alignItems: "center",
+        paddingHorizontal: Spacing.lg,
     },
     modal: {
         width: "100%",

@@ -79,6 +79,8 @@ const POLICY_SECTIONS: PolicySection[] = [
     {
         title: "7. Data Retention and Deletion",
         paragraphs: [
+            "On Android and iOS, core records and passcode recovery settings are stored in a SQLCipher-encrypted local database. The database encryption key is device-only and is not derived from your PIN. If that key is lost, the encrypted records cannot be recovered.",
+            "The web version uses plaintext browser SQLite storage and does not provide local database encryption. Do not use the web version for sensitive financial or personal records.",
             "Records remain on your device until you delete them in the app, clear the app's storage, or uninstall the app. Deleting a customer may also delete related accounts and transactions.",
             "Because the current version has no developer-controlled cloud account or server backup, the developer generally cannot retrieve, restore, or remotely delete your local data. Before uninstalling or clearing app storage, preserve any records you are legally or operationally required to keep.",
         ],

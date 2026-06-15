@@ -1,4 +1,4 @@
-import * as SQLite from "expo-sqlite";
+import { SQLiteDatabase } from "../db/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AccountId, Transaction, TransactionId } from "../models";
 import { TransactionService } from "../services/TransactionService";
@@ -11,7 +11,7 @@ export interface DateRange {
 }
 
 export const useTransactions = (
-    db: SQLite.SQLiteDatabase | null,
+    db: SQLiteDatabase | null,
     dateRange?: DateRange | null,
 ) => {
     const { refreshVersions, invalidate } = useDatabaseContext();

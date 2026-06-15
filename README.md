@@ -12,14 +12,16 @@ KhataBook is a private, offline-first credit and ledger management app built wit
 - Protect the app with a passcode and supported device biometrics
 - Switch between English and Urdu
 - Use light, dark, or system themes
-- Store business data locally with SQLite
+- Store native business data locally in a SQLCipher-encrypted SQLite database
 
 ## Tech Stack
 
 - React Native 0.81 and React 19
 - Expo SDK 54 and Expo Router
 - TypeScript
-- SQLite with `expo-sqlite`
+- SQLCipher with `@op-engineering/op-sqlite` on Android/iOS
+- Plaintext `expo-sqlite` on web
+- Argon2id passcode and recovery-answer verifiers
 - React Navigation
 - i18next and react-i18next
 - Expo SecureStore and LocalAuthentication
@@ -38,7 +40,7 @@ KhataBook is a private, offline-first credit and ledger management app built wit
   - Android SDK Platform-Tools
   - Android SDK Build-Tools
   - Android Emulator and a configured virtual device
-- Expo Go on a physical device, or an Android/iOS simulator
+- A rebuilt development client on a physical device or simulator
 - Xcode and CocoaPods for iOS development (macOS only)
 - EAS CLI for cloud builds (optional)
 
@@ -62,6 +64,9 @@ npm start
 ```
 
 From the Expo terminal, press `a` for Android, `i` for iOS, or `w` for web.
+
+Native database encryption and Argon2id use native modules and do not work in
+Expo Go. Rebuild the development client after changing native dependencies.
 
 ## Available Scripts
 
@@ -110,7 +115,15 @@ eas.json                EAS build profiles
 
 ## Local Database
 
-KhataBook stores data on the device in SQLite. Its main tables are:
+KhataBook encrypts its Android and iOS database with SQLCipher using a random
+device-only key stored in SecureStore. PINs and recovery answers are one-way
+hashed with Argon2id. If the device-only database key is lost, encrypted records
+cannot be recovered.
+
+The web version intentionally retains plaintext `expo-sqlite` storage. Do not
+use the web version for sensitive financial or personal records.
+
+The main database tables are:
 
 - `customers`
 - `accounts`
@@ -119,6 +132,7 @@ KhataBook stores data on the device in SQLite. Its main tables are:
 - `customer_order`
 - `message_templates`
 - `app_metadata`
+- `security_settings`
 
 ## Quality Checks
 

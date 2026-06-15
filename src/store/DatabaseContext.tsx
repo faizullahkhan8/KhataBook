@@ -1,13 +1,13 @@
 import React, { createContext, useContext, ReactNode } from 'react';
-import * as SQLite from 'expo-sqlite';
 import { useDatabase } from '../hooks/useDatabase';
+import { DatabaseSecurityError, SQLiteDatabase } from "../db/types";
 
 export type InvalidationDomain = "customers" | "accounts" | "transactions" | "all";
 
 interface DatabaseContextType {
-    db: SQLite.SQLiteDatabase | null;
+    db: SQLiteDatabase | null;
     isInitialized: boolean;
-    error: Error | null;
+    error: Error | DatabaseSecurityError | null;
     initDatabase: () => Promise<void>;
     refreshVersions: Record<InvalidationDomain, number>;
     invalidate: (domain?: InvalidationDomain) => void;

@@ -11,9 +11,12 @@ import React, {
     useState,
 } from "react";
 import { AppState, Platform } from "react-native";
+import { ARGON2_PARAMETERS, hashStrongValue } from "../security/kdf";
+import { useDatabaseContext } from "./DatabaseContext";
 
 const STORAGE_KEY = "khatabook.passcode";
 const FAILURE_LIMIT = 5;
+type KdfType = "argon2id" | "legacy_sha256";
 export type PasscodeLength = 4 | 6;
 type StoredPasscodeLength = PasscodeLength | 8;
 export type AutoLockDelay = 0 | 60_000 | 180_000 | 300_000 | 600_000;
@@ -30,6 +33,26 @@ interface StoredPasscode {
     lockedUntil: number;
     biometricEnabled?: boolean;
     autoLockDelay?: AutoLockDelay;
+    requireDeleteAuth?: boolean;
+    pinKdf?: KdfType;
+    answerKdf?: KdfType;
+}
+
+interface SecuritySettingsRow {
+    pin_hash: string;
+    pin_salt: string;
+    pin_kdf: KdfType;
+    pin_length: StoredPasscodeLength;
+    recovery_question: string;
+    answer_hash: string;
+    answer_salt: string;
+    answer_kdf: KdfType;
+    failures: number;
+    cooldown_level: number;
+    locked_until: number;
+    biometric_enabled: number;
+    auto_lock_delay: AutoLockDelay;
+    require_delete_auth: number;
 }
 
 interface OperationResult {
@@ -57,6 +80,7 @@ interface PasscodeContextType {
     biometricTypes: LocalAuthentication.AuthenticationType[];
     isBiometricAuthenticating: boolean;
     autoLockDelay: AutoLockDelay;
+    requireDeleteAuth: boolean;
     setupPasscode: (
         pin: string,
         pinLength: PasscodeLength,
@@ -87,6 +111,7 @@ interface PasscodeContextType {
     ) => Promise<BiometricOperationResult>;
     setAutoLockSuspended: (suspended: boolean) => void;
     setAutoLockDelay: (delay: AutoLockDelay) => Promise<void>;
+    setRequireDeleteAuth: (enabled: boolean) => Promise<void>;
 }
 
 const PasscodeContext = createContext<PasscodeContextType | undefined>(
@@ -100,17 +125,53 @@ const createSalt = async () => {
     );
 };
 
-const hashValue = (value: string, salt: string) =>
+const hashLegacyValue = (value: string, salt: string) =>
     Crypto.digestStringAsync(
         Crypto.CryptoDigestAlgorithm.SHA256,
         `${salt}:${value}`,
     );
 
+const constantTimeEqual = (left: string, right: string) => {
+    let difference = left.length ^ right.length;
+    const length = Math.max(left.length, right.length);
+    for (let index = 0; index < length; index += 1) {
+        difference |=
+            (left.charCodeAt(index) || 0) ^ (right.charCodeAt(index) || 0);
+    }
+    return difference === 0;
+};
+
+const verifyValue = async (
+    value: string,
+    salt: string,
+    expected: string,
+    kdf: KdfType,
+) =>
+    constantTimeEqual(
+        kdf === "argon2id"
+            ? await hashStrongValue(value, salt)
+            : await hashLegacyValue(value, salt),
+        expected,
+    );
+
 const normalizeAnswer = (answer: string) => answer.trim().toLocaleLowerCase();
+
+const retainLegacyVerifiers = (stored: StoredPasscode) =>
+    SecureStore.setItemAsync(
+        STORAGE_KEY,
+        JSON.stringify({
+            pinHash: stored.pinHash,
+            pinSalt: stored.pinSalt,
+            answerHash: stored.answerHash,
+            answerSalt: stored.answerSalt,
+        }),
+        { keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY },
+    );
 
 export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
     children,
 }) => {
+    const { db } = useDatabaseContext();
     const isSupported = Platform.OS !== "web";
     const [stored, setStored] = useState<StoredPasscode | null>(null);
     const [isReady, setIsReady] = useState(false);
@@ -133,18 +194,63 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const persist = useCallback(
         async (next: StoredPasscode | null) => {
-            setStored(next);
             if (!isSupported) return;
+            if (!db) throw new Error("Encrypted database is not initialized");
             if (next) {
-                await SecureStore.setItemAsync(
-                    STORAGE_KEY,
-                    JSON.stringify(next),
+                await db.runAsync(
+                    `INSERT INTO security_settings (
+                        id, pin_hash, pin_salt, pin_kdf, pin_length,
+                        recovery_question, answer_hash, answer_salt, answer_kdf,
+                        kdf_params, failures, cooldown_level, locked_until,
+                        biometric_enabled, auto_lock_delay, require_delete_auth
+                    ) VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(id) DO UPDATE SET
+                        pin_hash = excluded.pin_hash,
+                        pin_salt = excluded.pin_salt,
+                        pin_kdf = excluded.pin_kdf,
+                        pin_length = excluded.pin_length,
+                        recovery_question = excluded.recovery_question,
+                        answer_hash = excluded.answer_hash,
+                        answer_salt = excluded.answer_salt,
+                        answer_kdf = excluded.answer_kdf,
+                        kdf_params = excluded.kdf_params,
+                        failures = excluded.failures,
+                        cooldown_level = excluded.cooldown_level,
+                        locked_until = excluded.locked_until,
+                        biometric_enabled = excluded.biometric_enabled,
+                        auto_lock_delay = excluded.auto_lock_delay,
+                        require_delete_auth = excluded.require_delete_auth`,
+                    [
+                        next.pinHash,
+                        next.pinSalt,
+                        next.pinKdf ?? "legacy_sha256",
+                        next.pinLength ?? 8,
+                        next.question,
+                        next.answerHash,
+                        next.answerSalt,
+                        next.answerKdf ?? "legacy_sha256",
+                        JSON.stringify(ARGON2_PARAMETERS),
+                        next.failures,
+                        next.cooldownLevel,
+                        next.lockedUntil,
+                        next.biometricEnabled ? 1 : 0,
+                        next.autoLockDelay ?? 0,
+                        next.requireDeleteAuth ? 1 : 0,
+                    ],
                 );
+                if (
+                    next.pinKdf === "argon2id" &&
+                    next.answerKdf === "argon2id"
+                ) {
+                    await SecureStore.deleteItemAsync(STORAGE_KEY);
+                }
             } else {
+                await db.runAsync("DELETE FROM security_settings WHERE id = 1");
                 await SecureStore.deleteItemAsync(STORAGE_KEY);
             }
+            setStored(next);
         },
-        [isSupported],
+        [db, isSupported],
     );
 
     useEffect(() => {
@@ -154,9 +260,50 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
                 return;
             }
             try {
-                const value = await SecureStore.getItemAsync(STORAGE_KEY);
-                if (value) {
-                    setStored(JSON.parse(value));
+                if (!db) return;
+                const row = await db.getFirstAsync<SecuritySettingsRow>(
+                    "SELECT * FROM security_settings WHERE id = 1",
+                );
+                if (row) {
+                    const loaded = {
+                        pinHash: row.pin_hash,
+                        pinSalt: row.pin_salt,
+                        pinKdf: row.pin_kdf,
+                        pinLength: row.pin_length,
+                        question: row.recovery_question,
+                        answerHash: row.answer_hash,
+                        answerSalt: row.answer_salt,
+                        answerKdf: row.answer_kdf,
+                        failures: row.failures,
+                        cooldownLevel: row.cooldown_level,
+                        lockedUntil: row.locked_until,
+                        biometricEnabled: Boolean(row.biometric_enabled),
+                        autoLockDelay: row.auto_lock_delay,
+                        requireDeleteAuth: Boolean(row.require_delete_auth),
+                    };
+                    setStored(loaded);
+                    if (
+                        row.pin_kdf === "legacy_sha256" ||
+                        row.answer_kdf === "legacy_sha256"
+                    ) {
+                        await retainLegacyVerifiers(loaded);
+                    } else {
+                        await SecureStore.deleteItemAsync(STORAGE_KEY);
+                    }
+                    setIsLocked(true);
+                    return;
+                }
+                const legacyValue =
+                    await SecureStore.getItemAsync(STORAGE_KEY);
+                if (legacyValue) {
+                    const legacy = JSON.parse(legacyValue) as StoredPasscode;
+                    const migrated = {
+                        ...legacy,
+                        pinKdf: "legacy_sha256" as const,
+                        answerKdf: "legacy_sha256" as const,
+                    };
+                    await persist(migrated);
+                    await retainLegacyVerifiers(migrated);
                     setIsLocked(true);
                 }
             } catch (error) {
@@ -166,7 +313,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             }
         };
         load();
-    }, [isSupported]);
+    }, [db, isSupported, persist]);
 
     const refreshBiometricAvailability = useCallback(async () => {
         if (!isSupported) {
@@ -306,23 +453,29 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             question: string,
             answer: string,
         ) => {
+            if (pinLength !== 6 || pin.length !== 6) {
+                throw new Error("New PINs must contain exactly 6 digits");
+            }
             const pinSalt = await createSalt();
             const answerSalt = await createSalt();
             await persist({
-                pinHash: await hashValue(pin, pinSalt),
+                pinHash: await hashStrongValue(pin, pinSalt),
                 pinSalt,
+                pinKdf: "argon2id",
                 pinLength,
                 question: question.trim(),
-                answerHash: await hashValue(
+                answerHash: await hashStrongValue(
                     normalizeAnswer(answer),
                     answerSalt,
                 ),
                 answerSalt,
+                answerKdf: "argon2id",
                 failures: 0,
                 cooldownLevel: 0,
                 lockedUntil: 0,
                 biometricEnabled: false,
                 autoLockDelay: 0,
+                requireDeleteAuth: false,
             });
             setIsLocked(false);
         },
@@ -334,14 +487,32 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             if (!stored || Date.now() < stored.lockedUntil) {
                 return { success: false, cooldownUntil: stored?.lockedUntil };
             }
-            const matches =
-                (await hashValue(pin, stored.pinSalt)) === stored.pinHash;
+            const pinKdf = stored.pinKdf ?? "legacy_sha256";
+            const matches = await verifyValue(
+                pin,
+                stored.pinSalt,
+                stored.pinHash,
+                pinKdf,
+            );
             if (!matches) return registerFailure();
-            await clearFailures();
+            if (pinKdf === "legacy_sha256") {
+                const pinSalt = await createSalt();
+                await persist({
+                    ...stored,
+                    pinHash: await hashStrongValue(pin, pinSalt),
+                    pinSalt,
+                    pinKdf: "argon2id",
+                    failures: 0,
+                    cooldownLevel: 0,
+                    lockedUntil: 0,
+                });
+            } else {
+                await clearFailures();
+            }
             setIsLocked(false);
             return { success: true };
         },
-        [clearFailures, registerFailure, stored],
+        [clearFailures, persist, registerFailure, stored],
     );
 
     const verifyRecoveryAnswer = useCallback(
@@ -349,26 +520,46 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             if (!stored || Date.now() < stored.lockedUntil) {
                 return { success: false, cooldownUntil: stored?.lockedUntil };
             }
-            const matches =
-                (await hashValue(
-                    normalizeAnswer(answer),
-                    stored.answerSalt,
-                )) === stored.answerHash;
+            const answerKdf = stored.answerKdf ?? "legacy_sha256";
+            const normalized = normalizeAnswer(answer);
+            const matches = await verifyValue(
+                normalized,
+                stored.answerSalt,
+                stored.answerHash,
+                answerKdf,
+            );
             if (!matches) return registerFailure();
-            await clearFailures();
+            if (answerKdf === "legacy_sha256") {
+                const answerSalt = await createSalt();
+                await persist({
+                    ...stored,
+                    answerHash: await hashStrongValue(normalized, answerSalt),
+                    answerSalt,
+                    answerKdf: "argon2id",
+                    failures: 0,
+                    cooldownLevel: 0,
+                    lockedUntil: 0,
+                });
+            } else {
+                await clearFailures();
+            }
             return { success: true };
         },
-        [clearFailures, registerFailure, stored],
+        [clearFailures, persist, registerFailure, stored],
     );
 
     const resetPinAfterRecovery = useCallback(
         async (pin: string, pinLength: PasscodeLength) => {
             if (!stored) return;
+            if (pinLength !== 6 || pin.length !== 6) {
+                throw new Error("New PINs must contain exactly 6 digits");
+            }
             const pinSalt = await createSalt();
             await persist({
                 ...stored,
-                pinHash: await hashValue(pin, pinSalt),
+                pinHash: await hashStrongValue(pin, pinSalt),
                 pinSalt,
+                pinKdf: "argon2id",
                 pinLength,
                 failures: 0,
                 cooldownLevel: 0,
@@ -389,6 +580,9 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
         ): Promise<OperationResult> => {
             const result = await verifyPin(currentPin);
             if (!result.success || !stored) return result;
+            if (pinLength !== 6 || newPin.length !== 6) {
+                throw new Error("New PINs must contain exactly 6 digits");
+            }
             const pinSalt = await createSalt();
             const hasNewAnswer = Boolean(answer?.trim());
             const answerSalt = hasNewAnswer
@@ -396,14 +590,19 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
                 : stored.answerSalt;
             await persist({
                 ...stored,
-                pinHash: await hashValue(newPin, pinSalt),
+                pinHash: await hashStrongValue(newPin, pinSalt),
                 pinSalt,
+                pinKdf: "argon2id",
                 pinLength,
                 question: question.trim(),
                 answerHash: hasNewAnswer
-                    ? await hashValue(normalizeAnswer(answer!), answerSalt)
+                    ? await hashStrongValue(
+                          normalizeAnswer(answer!),
+                          answerSalt,
+                      )
                     : stored.answerHash,
                 answerSalt,
+                answerKdf: hasNewAnswer ? "argon2id" : stored.answerKdf,
                 failures: 0,
                 cooldownLevel: 0,
                 lockedUntil: 0,
@@ -512,6 +711,14 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
         [persist, stored],
     );
 
+    const setRequireDeleteAuth = useCallback(
+        async (enabled: boolean) => {
+            if (!stored) return;
+            await persist({ ...stored, requireDeleteAuth: enabled });
+        },
+        [persist, stored],
+    );
+
     const value = useMemo(
         () => ({
             isReady,
@@ -528,6 +735,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             biometricTypes,
             isBiometricAuthenticating,
             autoLockDelay: stored?.autoLockDelay ?? 0,
+            requireDeleteAuth: Boolean(stored?.requireDeleteAuth),
             setupPasscode,
             verifyPin,
             verifyRecoveryAnswer,
@@ -539,6 +747,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             authenticateWithBiometrics,
             setAutoLockSuspended,
             setAutoLockDelay,
+            setRequireDeleteAuth,
         }),
         [
             changePin,
@@ -556,6 +765,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             refreshBiometricAvailability,
             setAutoLockSuspended,
             setAutoLockDelay,
+            setRequireDeleteAuth,
             setBiometricEnabled,
             setupPasscode,
             stored,

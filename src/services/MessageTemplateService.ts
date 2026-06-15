@@ -1,8 +1,8 @@
-import * as SQLite from "expo-sqlite";
+import { SQLiteDatabase } from "../db/types";
 import { MessageTemplate } from "../models";
 
 export class MessageTemplateService {
-    constructor(private db: SQLite.SQLiteDatabase) {}
+    constructor(private db: SQLiteDatabase) {}
 
     async getAll(): Promise<MessageTemplate[]> {
         return this.db.getAllAsync<MessageTemplate>(

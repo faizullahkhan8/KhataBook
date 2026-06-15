@@ -34,11 +34,14 @@ export const PasscodePinInput: React.FC<PasscodePinInputProps> = ({
     showVisibilityToggle = true,
     error = false,
     shakeTrigger = 0,
+    onFocus,
+    onBlur,
     ...props
 }) => {
     const { colors } = useTheme();
     const inputRef = useRef<TextInput>(null);
     const [isVisible] = useState(visibleByDefault);
+    const [isFocused, setIsFocused] = useState(false);
     const shake = useRef(new Animated.Value(0)).current;
     const pin = String(value).slice(0, length);
 
@@ -99,7 +102,7 @@ export const PasscodePinInput: React.FC<PasscodePinInputProps> = ({
                 >
                     {Array.from({ length }, (_, index) => {
                         const digit = pin[index];
-                        const isActive = pin.length === index;
+                        const isActive = isFocused && pin.length === index;
                         return (
                             <View
                                 key={index}
@@ -144,6 +147,14 @@ export const PasscodePinInput: React.FC<PasscodePinInputProps> = ({
                         keyboardType="number-pad"
                         maxLength={length}
                         autoFocus={autoFocus}
+                        onFocus={(event) => {
+                            setIsFocused(true);
+                            onFocus?.(event);
+                        }}
+                        onBlur={(event) => {
+                            setIsFocused(false);
+                            onBlur?.(event);
+                        }}
                         style={styles.hiddenInput}
                         caretHidden
                         {...props}

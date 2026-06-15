@@ -1,6 +1,6 @@
-import * as SQLite from "expo-sqlite";
+import { bootstrapDatabase } from "./bootstrap";
+import { SQLiteDatabase } from "./types";
 
-const DB_NAME = "credit_management.db";
 const DEFAULT_MESSAGE_TEMPLATES_SEED_KEY = "default_message_templates_seeded";
 
 const DEFAULT_MESSAGE_TEMPLATES = [
@@ -28,10 +28,10 @@ const DEFAULT_MESSAGE_TEMPLATES = [
 
 const sqlString = (value: string): string => `'${value.replace(/'/g, "''")}'`;
 
-export const getDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
-    let db: SQLite.SQLiteDatabase | null = null;
+export const getDatabase = async (): Promise<SQLiteDatabase> => {
+    let db: SQLiteDatabase | null = null;
     try {
-        db = await SQLite.openDatabaseAsync(DB_NAME);
+        db = await bootstrapDatabase();
 
         // Apply pragmas individually so an unsupported optimization cannot
         // invalidate the remaining database setup.
@@ -58,7 +58,7 @@ export const getDatabase = async (): Promise<SQLite.SQLiteDatabase> => {
 };
 
 export const initializeDatabase = async (
-    db: SQLite.SQLiteDatabase,
+    db: SQLiteDatabase,
 ): Promise<void> => {
     try {
         // 1. Create tables with updated schema
@@ -144,7 +144,39 @@ export const initializeDatabase = async (
                 created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
                 updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
             );
+
+            CREATE TABLE IF NOT EXISTS security_settings (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                pin_hash TEXT NOT NULL,
+                pin_salt TEXT NOT NULL,
+                pin_kdf TEXT NOT NULL,
+                pin_length INTEGER NOT NULL,
+                recovery_question TEXT NOT NULL,
+                answer_hash TEXT NOT NULL,
+                answer_salt TEXT NOT NULL,
+                answer_kdf TEXT NOT NULL,
+                kdf_params TEXT NOT NULL,
+                failures INTEGER NOT NULL DEFAULT 0,
+                cooldown_level INTEGER NOT NULL DEFAULT 0,
+                locked_until INTEGER NOT NULL DEFAULT 0,
+                biometric_enabled INTEGER NOT NULL DEFAULT 0,
+                auto_lock_delay INTEGER NOT NULL DEFAULT 0,
+                require_delete_auth INTEGER NOT NULL DEFAULT 0
+            );
         `);
+
+        const securitySettingsColumns = await db.getAllAsync<{ name: string }>(
+            "PRAGMA table_info(security_settings)",
+        );
+        if (
+            !securitySettingsColumns.some(
+                (column) => column.name === "require_delete_auth",
+            )
+        ) {
+            await db.execAsync(
+                "ALTER TABLE security_settings ADD COLUMN require_delete_auth INTEGER NOT NULL DEFAULT 0;",
+            );
+        }
 
         const customerColumns = await db.getAllAsync<{ name: string }>(
             "PRAGMA table_info(customers)",

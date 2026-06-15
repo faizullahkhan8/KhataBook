@@ -1,11 +1,11 @@
-import * as SQLite from "expo-sqlite";
+import { SQLiteDatabase } from "../db/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Customer } from "../models";
 import { CustomerService } from "../services/CustomerService";
 import { useDatabaseContext } from "../store";
 import { usePagination } from "./usePagination";
 
-export const useCustomers = (db: SQLite.SQLiteDatabase | null) => {
+export const useCustomers = (db: SQLiteDatabase | null) => {
     const { refreshVersion, invalidate } = useDatabaseContext();
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(false);

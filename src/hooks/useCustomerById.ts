@@ -1,4 +1,4 @@
-import * as SQLite from "expo-sqlite";
+import { SQLiteDatabase } from "../db/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CustomerWithAccounts, CustomerId } from "../models";
 import { AccountService } from "../services/AccountService";
@@ -7,7 +7,7 @@ import { CustomerService } from "../services/CustomerService";
 import { useDatabaseContext } from "../store";
 
 export const useCustomerById = (
-    db: SQLite.SQLiteDatabase | null,
+    db: SQLiteDatabase | null,
     customerId: CustomerId,
 ) => {
     const { refreshVersions } = useDatabaseContext();

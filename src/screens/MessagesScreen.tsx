@@ -12,12 +12,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { Button, Card, Input, Typography } from "../components";
+import { Button, Card, Input, LoadingScreen, Typography } from "../components";
 import { Spacing } from "../constants";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
+import { useDeleteAuthentication } from "../hooks/useDeleteAuthentication";
 import { CustomerId, CustomerWithAccounts, MessageTemplate } from "../models";
 import { MessageTemplateService } from "../services/MessageTemplateService";
-import { useDatabaseContext, useTheme } from "../store";
+import { useDatabaseContext, usePasscode, useTheme } from "../store";
 import {
     getUnsupportedPlaceholders,
     hasValidSmsPhone,
@@ -37,6 +38,9 @@ export const MessagesScreen: React.FC = () => {
     const { colors } = useTheme();    const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const { customers, loading } = useCustomersWithAccounts(db);
+    const { setAutoLockSuspended } = usePasscode();
+    const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
+        useDeleteAuthentication();
     const service = useMemo(() => (db ? new MessageTemplateService(db) : null), [db]);
     const [section, setSection] = useState<Section>("send");
     const [templates, setTemplates] = useState<MessageTemplate[]>([]);
@@ -274,21 +278,35 @@ export const MessagesScreen: React.FC = () => {
 
     const deleteTemplate = (template: MessageTemplate) => {
         if (!service || !template.id) return;
-        Alert.alert(t("messageTemplates.deleteTitle"), template.name, [
-            { text: t("messageTemplates.cancel"), style: "cancel" },
-            {
-                text: t("messageTemplates.delete"),
-                style: "destructive",
-                onPress: async () => {
-                    await service.delete(template.id!);
-                    if (selectedTemplateId === template.id) {
-                        setSelectedTemplateId(undefined);
-                        setMessage("");
-                    }
-                    await loadTemplates();
+        setAutoLockSuspended(true);
+        Alert.alert(
+            t("messageTemplates.deleteTitle"),
+            template.name,
+            [
+                {
+                    text: t("messageTemplates.cancel"),
+                    style: "cancel",
+                    onPress: () => setAutoLockSuspended(false),
                 },
+                {
+                    text: t("messageTemplates.delete"),
+                    style: "destructive",
+                    onPress: () => {
+                        void requestDeleteAuthentication(async () => {
+                            await service.delete(template.id!);
+                            if (selectedTemplateId === template.id) {
+                                setSelectedTemplateId(undefined);
+                                setMessage("");
+                            }
+                            await loadTemplates();
+                        });
+                    },
+                },
+            ],
+            {
+                onDismiss: () => setAutoLockSuspended(false),
             },
-        ]);
+        );
     };
 
     const renderSkipped = () =>
@@ -304,33 +322,44 @@ export const MessagesScreen: React.FC = () => {
         ) : null;
 
     const renderRecipientsStep = () => (
-        <>
-            <View style={[styles.sectionTitleRow, false && styles.rowRTL]}>
-                <Typography variant="heading-small" color="primary">
-                    {t("customerMessages.recipients")}
-                </Typography>
-                <Pressable onPress={selectAll}>
-                    <Typography variant="body-small" color="primary">
-                        {t("customerMessages.selectAll")}
+        <View style={styles.recipientsStep}>
+            <View style={styles.recipientsHeader}>
+                <View style={[styles.sectionTitleRow, false && styles.rowRTL]}>
+                    <Typography variant="heading-small" color="primary">
+                        {t("customerMessages.recipients")}
                     </Typography>
-                </Pressable>
+                    <Pressable onPress={selectAll}>
+                        <Typography variant="body-small" color="primary">
+                            {t("customerMessages.selectAll")}
+                        </Typography>
+                    </Pressable>
+                </View>
+                <Input
+                    value={recipientSearch}
+                    onChangeText={setRecipientSearch}
+                    placeholder={t("customerMessages.recipientSearchPlaceholder")}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    returnKeyType="search"
+                    containerStyle={styles.recipientSearch}
+                />
             </View>
-            <Input
-                value={recipientSearch}
-                onChangeText={setRecipientSearch}
-                placeholder={t("customerMessages.recipientSearchPlaceholder")}
-                autoCapitalize="none"
-                autoCorrect={false}
-                returnKeyType="search"
-                containerStyle={styles.recipientSearch}
-            />
-            <View>
-                {filteredCustomers.map((item) => {
+            <FlatList
+                data={filteredCustomers}
+                keyExtractor={(item) => item.id?.toString() || item.name}
+                style={styles.recipientList}
+                contentContainerStyle={[
+                    styles.recipientListContent,
+                    filteredCustomers.length === 0 &&
+                        styles.recipientListEmptyContent,
+                ]}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                renderItem={({ item }) => {
                     const isSelected =
                         item.id !== undefined && selectedIds.has(item.id);
                     return (
                         <Pressable
-                            key={item.id?.toString() || item.name}
                             onPress={() => item.id && toggleCustomer(item.id)}
                         >
                             <Card
@@ -368,36 +397,45 @@ export const MessagesScreen: React.FC = () => {
                             </Card>
                         </Pressable>
                     );
-                })}
-                {!loading && customers.length === 0 && (
+                }}
+                ListEmptyComponent={
                     <View style={styles.empty}>
-                        <Typography variant="body-small" color="muted">
-                            {t("customers.emptyTitle")}
-                        </Typography>
-                    </View>
-                )}
-                {!loading &&
-                    customers.length > 0 &&
-                    filteredCustomers.length === 0 && (
-                        <View style={styles.empty}>
+                        {customers.length > 0 && (
                             <Ionicons
                                 name="search-outline"
                                 size={36}
                                 color={colors.text.muted}
                             />
-                            <Typography variant="body-small" color="muted">
-                                {t("customerMessages.noRecipientsFound")}
-                            </Typography>
-                        </View>
-                    )}
+                        )}
+                        <Typography variant="body-small" color="muted">
+                            {customers.length === 0
+                                ? t("customers.emptyTitle")
+                                : t("customerMessages.noRecipientsFound")}
+                        </Typography>
+                    </View>
+                }
+            />
+            <View
+                style={[
+                    styles.recipientSummary,
+                    {
+                        backgroundColor: colors.surface,
+                        borderTopColor: colors.border,
+                    },
+                ]}
+            >
+                <Ionicons
+                    name="people-outline"
+                    size={20}
+                    color={colors.primary}
+                />
+                <Typography variant="body-small" color="muted">
+                    {t("customerMessages.selectedCount", {
+                        count: selectedCustomers.length,
+                    })}
+                </Typography>
             </View>
-            <Typography variant="body-small" color="muted">
-                {t("customerMessages.selectedCount", {
-                    count: selectedCustomers.length,
-                })}
-            </Typography>
-            {renderSkipped()}
-        </>
+        </View>
     );
 
     const renderMessageStep = () => (
@@ -601,7 +639,10 @@ export const MessagesScreen: React.FC = () => {
                 style={[
                     styles.stickyActions,
                     {
-                        paddingBottom: insets.bottom + Spacing.md,
+                        paddingBottom:
+                            sendStep === "recipients"
+                                ? Spacing.sm
+                                : insets.bottom + Spacing.md,
                         backgroundColor: colors.surface,
                         borderTopColor: colors.border,
                     },
@@ -696,7 +737,10 @@ export const MessagesScreen: React.FC = () => {
         );
     };
 
-    const renderSendSection = () => (
+    const renderSendSection = () =>
+        sendStep === "recipients" ? (
+            renderRecipientsStep()
+        ) : (
         <ScrollView
             style={styles.sendContent}
             contentContainerStyle={[
@@ -705,11 +749,10 @@ export const MessagesScreen: React.FC = () => {
             ]}
             refreshControl={undefined}
         >
-            {sendStep === "recipients" && renderRecipientsStep()}
             {sendStep === "message" && renderMessageStep()}
             {sendStep === "send" && renderSendStep()}
         </ScrollView>
-    );
+        );
 
     const renderTemplatesSection = () => (
         <FlatList
@@ -749,6 +792,10 @@ export const MessagesScreen: React.FC = () => {
             }
         />
     );
+
+    if (!db || loading) {
+        return <LoadingScreen />;
+    }
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -856,6 +903,7 @@ export const MessagesScreen: React.FC = () => {
                     </Card>
                 </View>
             </Modal>
+            {deleteAuthenticationPrompt}
         </View>
     );
 };
@@ -891,6 +939,28 @@ const styles = StyleSheet.create({
     rowRTL: { flexDirection: "row-reverse" },
     sendContent: { flex: 1 },
     content: { padding: Spacing.md, gap: Spacing.md },
+    recipientsStep: { flex: 1 },
+    recipientsHeader: {
+        paddingHorizontal: Spacing.md,
+        paddingTop: Spacing.md,
+        paddingBottom: Spacing.sm,
+        gap: Spacing.md,
+    },
+    recipientList: { flex: 1 },
+    recipientListContent: {
+        paddingHorizontal: Spacing.md,
+        paddingTop: Spacing.sm,
+        paddingBottom: Spacing.md,
+    },
+    recipientListEmptyContent: { flexGrow: 1 },
+    recipientSummary: {
+        minHeight: 48,
+        borderTopWidth: 1,
+        paddingHorizontal: Spacing.md,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.sm,
+    },
     sectionTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     recipientSearch: { marginBottom: 0 },
     customerCard: { padding: Spacing.md, marginBottom: Spacing.sm },

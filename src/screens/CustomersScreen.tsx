@@ -16,10 +16,18 @@ import {
 import DraggableFlatList from "react-native-draggable-flatlist";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Card, ErrorScreen, TouchableAmount, Typography, ViewPhoto } from "../components";
+import {
+    Card,
+    ErrorScreen,
+    LoadingScreen,
+    TouchableAmount,
+    Typography,
+    ViewPhoto,
+} from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useDebounce } from "../hooks/useDebounce";
+import { useDeleteAuthentication } from "../hooks/useDeleteAuthentication";
 import { AccountStatus, CustomerId, CustomerWithAccounts } from "../models";
 
 import { useDatabaseContext, useTheme } from "../store";
@@ -37,6 +45,8 @@ export const CustomersScreen: React.FC = () => {
         refresh,
         bulkDeleteCustomers,
     } = useCustomersWithAccounts(db);
+    const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
+        useDeleteAuthentication();
     const [searchText, setSearchText] = useState("");
     const [isSearchActive, setIsSearchActive] = useState(false);
     const [isReorderMode, setIsReorderMode] = useState(false);
@@ -157,24 +167,33 @@ export const CustomersScreen: React.FC = () => {
     }, [closeSelectionMode]);
 
     const confirmSelectionMode = useCallback(async () => {
-        try {
-            if (pendingDeleteIds.size > 0) {
-                await bulkDeleteCustomers(Array.from(pendingDeleteIds));
+        const completeSelection = async () => {
+            try {
+                if (pendingDeleteIds.size > 0) {
+                    await bulkDeleteCustomers(Array.from(pendingDeleteIds));
+                }
+                await persistCustomerOrder(orderedCustomers);
+                closeSelectionMode();
+            } catch {
+                Alert.alert(
+                    t("customers.deleteError"),
+                    t("customers.deleteErrorMessage"),
+                );
             }
-            await persistCustomerOrder(orderedCustomers);
-            closeSelectionMode();
-        } catch {
-            Alert.alert(
-                t("customers.deleteError"),
-                t("customers.deleteErrorMessage"),
-            );
+        };
+
+        if (pendingDeleteIds.size > 0) {
+            await requestDeleteAuthentication(completeSelection);
+            return;
         }
+        await completeSelection();
     }, [
         pendingDeleteIds,
         bulkDeleteCustomers,
         persistCustomerOrder,
         orderedCustomers,
         closeSelectionMode,
+        requestDeleteAuthentication,
         t,
     ]);
 
@@ -253,7 +272,8 @@ export const CustomersScreen: React.FC = () => {
             isActive: boolean;
         }) => {
             const balance = item.accounts?.[0]?.current_balance || 0;
-            const accountNumber = item.accounts?.[0]?.account_number || "N/A";
+            const contactNumber =
+                item.phone?.trim() || t("customers.noPhoneNumber");
             const isInactive =
                 item.accounts?.[0]?.status === AccountStatus.INACTIVE;
             const isSelected =
@@ -444,8 +464,10 @@ export const CustomersScreen: React.FC = () => {
                                             variant="heading-medium"
                                             color={
                                                 balance > 0
-                                                    ? "danger"
-                                                    : "success"
+                                                    ? "success"
+                                                    : balance < 0
+                                                      ? "danger"
+                                                      : "primary"
                                             }
                                             style={styles.balanceText}
                                         />
@@ -459,8 +481,8 @@ export const CustomersScreen: React.FC = () => {
                                                 : undefined
                                         }
                                     >
-                                        {t("customers.account", {
-                                            number: accountNumber,
+                                        {t("customers.contact", {
+                                            number: contactNumber,
                                         })}
                                     </Typography>
                                 </View>
@@ -486,15 +508,7 @@ export const CustomersScreen: React.FC = () => {
     );
 
     if (!db) {
-        return (
-            <View
-                style={[styles.center, { backgroundColor: colors.background }]}
-            >
-                <Typography variant="body-medium" color="muted">
-                    {t("customers.loading")}
-                </Typography>
-            </View>
-        );
+        return <LoadingScreen />;
     }
 
     return (
@@ -503,7 +517,6 @@ export const CustomersScreen: React.FC = () => {
             type="database"
             onRetry={refresh}
             isLoading={loading}
-            loadingText={t("customers.loading")}
         >
             <View
                 style={[
@@ -939,6 +952,7 @@ export const CustomersScreen: React.FC = () => {
                         />
                     </Pressable>
                 )}
+                {deleteAuthenticationPrompt}
             </View>
         </ErrorScreen>
     );

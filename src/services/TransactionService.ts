@@ -1,11 +1,11 @@
-import * as SQLite from "expo-sqlite";
+import { SQLiteDatabase } from "../db/types";
 import { Transaction, TransactionType } from "../models/Transaction";
 import { AccountId, TransactionId } from "../models/types";
 
 export class TransactionService {
-    private db: SQLite.SQLiteDatabase;
+    private db: SQLiteDatabase;
 
-    constructor(db: SQLite.SQLiteDatabase) {
+    constructor(db: SQLiteDatabase) {
         this.db = db;
     }
 
