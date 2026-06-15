@@ -2,6 +2,9 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+    AppState,
+    AppStateStatus,
+    Keyboard,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -20,6 +23,8 @@ import { PasscodePinInput } from "./PasscodePinInput";
 import { Typography } from "./Typography";
 
 type RecoveryStep = "pin" | "answer" | "newPin";
+
+const AUTO_BIOMETRIC_PROMPT_DELAY = Platform.OS === "android" ? 350 : 120;
 
 interface PasscodeUnlockScreenProps {
     onVerified?: (pin: string) => void;
@@ -58,6 +63,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
         resetPinAfterRecovery,
         authenticateWithBiometrics,
     } = usePasscode();
+
     const [step, setStep] = useState<RecoveryStep>("pin");
     const [value, setValue] = useState("");
     const [confirmPin, setConfirmPin] = useState("");
@@ -66,9 +72,20 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
     const [selectedLength, setSelectedLength] = useState<PasscodeLength>(6);
     const [pinHasError, setPinHasError] = useState(false);
     const [shakeTrigger, setShakeTrigger] = useState(0);
+    const [foregroundSession, setForegroundSession] = useState(0);
+
     const isSubmittingPin = useRef(false);
-    const biometricPromptedForLock = useRef(false);
+    const biometricPromptedForForeground = useRef(false);
+    const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+
     const isAuthenticationActive = authenticationActive ?? isLocked;
+    const biometricPreferred =
+        isAuthenticationActive &&
+        allowBiometrics &&
+        step === "pin" &&
+        biometricEnabled;
+    const canAutomaticallyPromptBiometrics =
+        biometricPreferred && biometricAvailable;
 
     useEffect(() => {
         setStep("pin");
@@ -78,14 +95,44 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
         setSelectedLength(6);
         setPinHasError(false);
         isSubmittingPin.current = false;
-        biometricPromptedForLock.current = false;
+        biometricPromptedForForeground.current = false;
     }, [isAuthenticationActive]);
 
+    useEffect(() => {
+        const handleAppStateChange = (nextState: AppStateStatus) => {
+            const previousState = appStateRef.current;
+            appStateRef.current = nextState;
+
+            if (nextState !== "active") {
+                biometricPromptedForForeground.current = false;
+                return;
+            }
+
+            if (previousState !== "active") {
+                biometricPromptedForForeground.current = false;
+                setForegroundSession((session) => session + 1);
+            }
+        };
+
+        const subscription = AppState.addEventListener(
+            "change",
+            handleAppStateChange,
+        );
+
+        return () => subscription.remove();
+    }, []);
+
     const unlockWithBiometrics = useCallback(async () => {
-        if (isBiometricAuthenticating) return;
+        if (isBiometricAuthenticating || AppState.currentState !== "active") {
+            return;
+        }
+
+        Keyboard.dismiss();
+
         const result = await authenticateWithBiometrics(
             biometricPromptMessage ?? t("passcode.biometricPrompt"),
         );
+
         if (result.success) {
             setValue("");
             setConfirmPin("");
@@ -103,22 +150,31 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
 
     useEffect(() => {
         if (
-            isAuthenticationActive &&
-            allowBiometrics &&
-            step === "pin" &&
-            biometricEnabled &&
-            biometricAvailable &&
-            !biometricPromptedForLock.current
+            !canAutomaticallyPromptBiometrics ||
+            isBiometricAuthenticating ||
+            AppState.currentState !== "active" ||
+            biometricPromptedForForeground.current
         ) {
-            biometricPromptedForLock.current = true;
-            unlockWithBiometrics();
+            return;
         }
+
+        const timer = setTimeout(() => {
+            if (
+                AppState.currentState !== "active" ||
+                biometricPromptedForForeground.current
+            ) {
+                return;
+            }
+
+            biometricPromptedForForeground.current = true;
+            void unlockWithBiometrics();
+        }, AUTO_BIOMETRIC_PROMPT_DELAY);
+
+        return () => clearTimeout(timer);
     }, [
-        biometricAvailable,
-        biometricEnabled,
-        isAuthenticationActive,
-        allowBiometrics,
-        step,
+        canAutomaticallyPromptBiometrics,
+        foregroundSession,
+        isBiometricAuthenticating,
         unlockWithBiometrics,
     ]);
 
@@ -127,6 +183,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
             setSecondsLeft(
                 Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000)),
             );
+
         update();
         const timer = setInterval(update, 1000);
         return () => clearInterval(timer);
@@ -135,32 +192,38 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
     const submit = useCallback(async () => {
         setError("");
         if (secondsLeft > 0) return;
+
         if (step === "pin") {
             if (isSubmittingPin.current) return;
+
             isSubmittingPin.current = true;
             const submittedPin = value;
             const result = await verifyPin(submittedPin);
+
             if (result.success) {
                 setValue("");
                 setConfirmPin("");
                 setError("");
                 setPinHasError(false);
+                isSubmittingPin.current = false;
                 onVerified?.(submittedPin);
-            } else {
-                setError(t("passcode.incorrectPin"));
-                setPinHasError(true);
-                setShakeTrigger((trigger) => trigger + 1);
-                setTimeout(() => {
-                    setValue("");
-                    setPinHasError(false);
-                    isSubmittingPin.current = false;
-                }, 350);
+                return;
             }
-            if (result.success) isSubmittingPin.current = false;
+
+            setError(t("passcode.incorrectPin"));
+            setPinHasError(true);
+            setShakeTrigger((trigger) => trigger + 1);
+            setTimeout(() => {
+                setValue("");
+                setPinHasError(false);
+                isSubmittingPin.current = false;
+            }, 350);
             return;
         }
+
         if (step === "answer") {
             const result = await verifyRecoveryAnswer(value);
+
             if (result.success) {
                 setStep("newPin");
                 setValue("");
@@ -169,6 +232,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
             }
             return;
         }
+
         if (value.length !== selectedLength) {
             setError(t("passcode.pinExactLength", { count: selectedLength }));
         } else if (value !== confirmPin) {
@@ -195,17 +259,23 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
 
     useEffect(() => {
         const unlockLength = pinLength ?? 8;
+
         if (
             step === "pin" &&
             value.length === unlockLength &&
             secondsLeft === 0 &&
             !pinHasError
         ) {
-            submit();
+            void submit();
         }
     }, [pinHasError, pinLength, secondsLeft, step, submit, value]);
 
     const isPinStep = step === "pin" || step === "newPin";
+
+    const handleBiometricPress = useCallback(() => {
+        biometricPromptedForForeground.current = true;
+        void unlockWithBiometrics();
+    }, [unlockWithBiometrics]);
 
     return (
         <KeyboardAvoidingView
@@ -235,18 +305,21 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                         color={colors.primary}
                     />
                 </View>
+
                 <Typography variant="heading-large" style={styles.center}>
                     {step === "pin" && title
                         ? title
                         : step === "pin"
-                        ? t("passcode.unlockTitle")
-                        : t("passcode.recoverTitle")}
+                          ? t("passcode.unlockTitle")
+                          : t("passcode.recoverTitle")}
                 </Typography>
+
                 <Typography color="muted" style={styles.center}>
                     {step === "answer"
                         ? recoveryQuestion
-                        : subtitle ?? t("passcode.unlockSubtitle")}
+                        : (subtitle ?? t("passcode.unlockSubtitle"))}
                 </Typography>
+
                 <View style={styles.form}>
                     {isPinStep ? (
                         <>
@@ -261,6 +334,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                                     }}
                                 />
                             )}
+
                             <PasscodePinInput
                                 length={
                                     step === "pin"
@@ -272,7 +346,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                                     setValue(text.replace(/\D/g, ""))
                                 }
                                 placeholder={t("passcode.pinPlaceholder")}
-                                autoFocus
+                                autoFocus={!biometricPreferred}
                                 error={step === "pin" && pinHasError}
                                 shakeTrigger={step === "pin" ? shakeTrigger : 0}
                             />
@@ -285,6 +359,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                             autoFocus
                         />
                     )}
+
                     {step === "newPin" && (
                         <PasscodePinInput
                             length={selectedLength}
@@ -295,9 +370,11 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                             placeholder={t("passcode.confirmPin")}
                         />
                     )}
+
                     {Boolean(error) && (
                         <Typography color="danger">{error}</Typography>
                     )}
+
                     {secondsLeft > 0 && (
                         <Typography color="warning">
                             {t("passcode.tryAgainIn", {
@@ -305,6 +382,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                             })}
                         </Typography>
                     )}
+
                     {step === "pin" &&
                         allowBiometrics &&
                         biometricEnabled &&
@@ -313,7 +391,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                                 accessibilityRole="button"
                                 accessibilityLabel={t("passcode.useBiometric")}
                                 disabled={isBiometricAuthenticating}
-                                onPress={unlockWithBiometrics}
+                                onPress={handleBiometricPress}
                                 style={[
                                     styles.biometricButton,
                                     { borderColor: colors.border },
@@ -331,6 +409,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                                 </Typography>
                             </Pressable>
                         )}
+
                     {step !== "pin" && (
                         <Button
                             title={
@@ -342,9 +421,11 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                             disabled={!value || secondsLeft > 0}
                         />
                     )}
+
                     {step === "pin" && allowRecovery && (
                         <Pressable
                             onPress={() => {
+                                Keyboard.dismiss();
                                 setStep("answer");
                                 setValue("");
                                 setError("");
@@ -355,6 +436,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                             </Typography>
                         </Pressable>
                     )}
+
                     {step !== "pin" && (
                         <Pressable
                             onPress={() => {
@@ -414,6 +496,7 @@ export const PasscodeVerificationModal: React.FC<
                         color={colors.text.primary}
                     />
                 </Pressable>
+
                 {visible && (
                     <PasscodeUnlockScreen
                         authenticationActive={visible}
@@ -452,6 +535,7 @@ export const PasscodeGate: React.FC<{ children: React.ReactNode }> = ({
             >
                 {children}
             </View>
+
             {isLocked && (
                 <View style={styles.lockOverlay}>
                     <PasscodeUnlockScreen />

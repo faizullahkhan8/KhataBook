@@ -37,7 +37,8 @@ export const CustomersScreen: React.FC = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { t } = useTranslation();    const {
+    const { t } = useTranslation();
+    const {
         customers,
         loading,
         error,
@@ -371,11 +372,18 @@ export const CustomersScreen: React.FC = () => {
                                 {item.image_uri ? (
                                     <ViewPhoto
                                         source={{ uri: item.image_uri }}
-                                        enabled={!isSelectionMode && !isReorderMode}
-                                        accessibilityLabel={t("photoViewer.openCustomer", {
-                                            name: item.name,
-                                        })}
-                                        closeAccessibilityLabel={t("photoViewer.close")}
+                                        enabled={
+                                            !isSelectionMode && !isReorderMode
+                                        }
+                                        accessibilityLabel={t(
+                                            "photoViewer.openCustomer",
+                                            {
+                                                name: item.name,
+                                            },
+                                        )}
+                                        closeAccessibilityLabel={t(
+                                            "photoViewer.close",
+                                        )}
                                     >
                                         <Image
                                             source={{ uri: item.image_uri }}
@@ -383,7 +391,10 @@ export const CustomersScreen: React.FC = () => {
                                                 styles.customerImage,
                                                 false
                                                     ? { marginLeft: Spacing.sm }
-                                                    : { marginRight: Spacing.sm },
+                                                    : {
+                                                          marginRight:
+                                                              Spacing.sm,
+                                                      },
                                             ]}
                                             contentFit="cover"
                                             transition={isReorderMode ? 0 : 200}
@@ -446,7 +457,10 @@ export const CustomersScreen: React.FC = () => {
                                                     <View
                                                         style={[
                                                             styles.inactiveDot,
-                                                            { backgroundColor: colors.warning },
+                                                            {
+                                                                backgroundColor:
+                                                                    colors.warning,
+                                                            },
                                                         ]}
                                                     />
                                                     <Typography
@@ -454,7 +468,9 @@ export const CustomersScreen: React.FC = () => {
                                                         color="warning"
                                                         numberOfLines={1}
                                                     >
-                                                        {t("customers.inactive")}
+                                                        {t(
+                                                            "customers.inactive",
+                                                        )}
                                                     </Typography>
                                                 </View>
                                             )}
@@ -464,9 +480,9 @@ export const CustomersScreen: React.FC = () => {
                                             variant="heading-medium"
                                             color={
                                                 balance > 0
-                                                    ? "success"
+                                                    ? "danger"
                                                     : balance < 0
-                                                      ? "danger"
+                                                      ? "success"
                                                       : "primary"
                                             }
                                             style={styles.balanceText}
@@ -906,11 +922,7 @@ export const CustomersScreen: React.FC = () => {
                                 },
                             ]}
                         >
-                            <Ionicons
-                                name="close"
-                                size={28}
-                                color="#FFFFFF"
-                            />
+                            <Ionicons name="close" size={28} color="#FFFFFF" />
                         </Pressable>
                         <Pressable
                             accessibilityLabel={t("customers.done")}
@@ -945,11 +957,7 @@ export const CustomersScreen: React.FC = () => {
                         ]}
                         onPress={() => router.push("/add-customer" as any)}
                     >
-                        <Ionicons
-                            name="add"
-                            size={28}
-                            color="#FFFFFF"
-                        />
+                        <Ionicons name="add" size={28} color="#FFFFFF" />
                     </Pressable>
                 )}
                 {deleteAuthenticationPrompt}

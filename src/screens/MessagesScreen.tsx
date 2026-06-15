@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as SMS from "expo-sms";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
     Alert,
     FlatList,
@@ -11,7 +12,6 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTranslation } from "react-i18next";
 import { Button, Card, Input, LoadingScreen, Typography } from "../components";
 import { Spacing } from "../constants";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
@@ -35,13 +35,17 @@ const MESSAGE_PLACEHOLDER_PATTERN = /{{\s*[^{}]+?\s*}}/;
 
 export const MessagesScreen: React.FC = () => {
     const { db } = useDatabaseContext();
-    const { colors } = useTheme();    const { t } = useTranslation();
+    const { colors } = useTheme();
+    const { t } = useTranslation();
     const insets = useSafeAreaInsets();
     const { customers, loading } = useCustomersWithAccounts(db);
     const { setAutoLockSuspended } = usePasscode();
     const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
         useDeleteAuthentication();
-    const service = useMemo(() => (db ? new MessageTemplateService(db) : null), [db]);
+    const service = useMemo(
+        () => (db ? new MessageTemplateService(db) : null),
+        [db],
+    );
     const [section, setSection] = useState<Section>("send");
     const [templates, setTemplates] = useState<MessageTemplate[]>([]);
     const [selectedIds, setSelectedIds] = useState<Set<CustomerId>>(new Set());
@@ -88,16 +92,24 @@ export const MessagesScreen: React.FC = () => {
                 customer.name,
                 customer.phone,
                 customer.cnic,
-                ...(customer.accounts?.map((account) => account.account_number) || []),
+                ...(customer.accounts?.map(
+                    (account) => account.account_number,
+                ) || []),
             ].some((value) => value?.toLowerCase().includes(query)),
         );
     }, [customers, recipientSearch]);
     const validCustomers = useMemo<MessageRecipient[]>(
-        () => selectedCustomers.filter((customer) => hasValidSmsPhone(customer.phone)),
+        () =>
+            selectedCustomers.filter((customer) =>
+                hasValidSmsPhone(customer.phone),
+            ),
         [selectedCustomers],
     );
     const skippedCustomers = useMemo(
-        () => selectedCustomers.filter((customer) => !hasValidSmsPhone(customer.phone)),
+        () =>
+            selectedCustomers.filter(
+                (customer) => !hasValidSmsPhone(customer.phone),
+            ),
         [selectedCustomers],
     );
     const hasPlaceholders = useMemo(
@@ -166,7 +178,11 @@ export const MessagesScreen: React.FC = () => {
         }
         const unsupported = getUnsupportedPlaceholders(message);
         if (unsupported.length > 0) {
-            setSendError(t("messageTemplates.unsupported", { placeholders: unsupported.join(", ") }));
+            setSendError(
+                t("messageTemplates.unsupported", {
+                    placeholders: unsupported.join(", "),
+                }),
+            );
             return false;
         }
         if (sendMode === "group" && hasPlaceholders) {
@@ -202,7 +218,9 @@ export const MessagesScreen: React.FC = () => {
                 validCustomers.map((customer) => customer.phone.trim()),
                 message.trim(),
             );
-            setOpenedRecipientIds(new Set(validCustomers.map((customer) => customer.id)));
+            setOpenedRecipientIds(
+                new Set(validCustomers.map((customer) => customer.id)),
+            );
             setSendError("");
         } catch {
             setSendError(t("customerMessages.openError"));
@@ -258,7 +276,11 @@ export const MessagesScreen: React.FC = () => {
         }
         const unsupported = getUnsupportedPlaceholders(templateBody);
         if (unsupported.length > 0) {
-            setTemplateError(t("messageTemplates.unsupported", { placeholders: unsupported.join(", ") }));
+            setTemplateError(
+                t("messageTemplates.unsupported", {
+                    placeholders: unsupported.join(", "),
+                }),
+            );
             return;
         }
         if (editing?.id) {
@@ -311,11 +333,18 @@ export const MessagesScreen: React.FC = () => {
 
     const renderSkipped = () =>
         skippedCustomers.length > 0 ? (
-            <Card style={[styles.notice, { backgroundColor: `${colors.warning}15` }]}>
+            <Card
+                style={[
+                    styles.notice,
+                    { backgroundColor: `${colors.warning}15` },
+                ]}
+            >
                 <Typography variant="body-small" color="warning">
                     {t("customerMessages.skipped", {
                         count: skippedCustomers.length,
-                        names: skippedCustomers.map((customer) => customer.name).join(", "),
+                        names: skippedCustomers
+                            .map((customer) => customer.name)
+                            .join(", "),
                     })}
                 </Typography>
             </Card>
@@ -337,7 +366,9 @@ export const MessagesScreen: React.FC = () => {
                 <Input
                     value={recipientSearch}
                     onChangeText={setRecipientSearch}
-                    placeholder={t("customerMessages.recipientSearchPlaceholder")}
+                    placeholder={t(
+                        "customerMessages.recipientSearchPlaceholder",
+                    )}
                     autoCapitalize="none"
                     autoCorrect={false}
                     returnKeyType="search"
@@ -375,9 +406,18 @@ export const MessagesScreen: React.FC = () => {
                                         : []),
                                 ]}
                             >
-                                <View style={[styles.customerRow, false && styles.rowRTL]}>
+                                <View
+                                    style={[
+                                        styles.customerRow,
+                                        false && styles.rowRTL,
+                                    ]}
+                                >
                                     <Ionicons
-                                        name={isSelected ? "checkbox" : "square-outline"}
+                                        name={
+                                            isSelected
+                                                ? "checkbox"
+                                                : "square-outline"
+                                        }
                                         size={24}
                                         color={
                                             isSelected
@@ -386,11 +426,18 @@ export const MessagesScreen: React.FC = () => {
                                         }
                                     />
                                     <View style={styles.customerText}>
-                                        <Typography variant="body-medium" color="primary">
+                                        <Typography
+                                            variant="body-medium"
+                                            color="primary"
+                                        >
                                             {item.name}
                                         </Typography>
-                                        <Typography variant="body-small" color="muted">
-                                            {item.phone || t("customerMessages.noPhone")}
+                                        <Typography
+                                            variant="body-small"
+                                            color="muted"
+                                        >
+                                            {item.phone ||
+                                                t("customerMessages.noPhone")}
                                         </Typography>
                                     </View>
                                 </View>
@@ -477,7 +524,9 @@ export const MessagesScreen: React.FC = () => {
                         <View style={styles.modeText}>
                             <Typography
                                 variant="body-medium"
-                                color={sendMode === mode ? "primary" : "secondary"}
+                                color={
+                                    sendMode === mode ? "primary" : "secondary"
+                                }
                             >
                                 {t(`customerMessages.${mode}Mode`)}
                             </Typography>
@@ -593,7 +642,12 @@ export const MessagesScreen: React.FC = () => {
                                     : []),
                             ]}
                         >
-                            <View style={[styles.customerRow, false && styles.rowRTL]}>
+                            <View
+                                style={[
+                                    styles.customerRow,
+                                    false && styles.rowRTL,
+                                ]}
+                            >
                                 <Ionicons
                                     name={
                                         isOpened
@@ -608,10 +662,16 @@ export const MessagesScreen: React.FC = () => {
                                     }
                                 />
                                 <View style={styles.customerText}>
-                                    <Typography variant="body-medium" color="primary">
+                                    <Typography
+                                        variant="body-medium"
+                                        color="primary"
+                                    >
                                         {customer.name}
                                     </Typography>
-                                    <Typography variant="body-small" color="muted">
+                                    <Typography
+                                        variant="body-small"
+                                        color="muted"
+                                    >
                                         {customer.phone}
                                     </Typography>
                                 </View>
@@ -684,12 +744,19 @@ export const MessagesScreen: React.FC = () => {
                 {sendStep === "send" && (
                     <>
                         {!isSendComplete && (
-                            <View style={[styles.stepActions, false && styles.rowRTL]}>
+                            <View
+                                style={[
+                                    styles.stepActions,
+                                    false && styles.rowRTL,
+                                ]}
+                            >
                                 <Button
                                     title={
                                         openedCount === 0
                                             ? t("customerMessages.back")
-                                            : t("customerMessages.cancelRemaining")
+                                            : t(
+                                                  "customerMessages.cancelRemaining",
+                                              )
                                     }
                                     variant="secondary"
                                     onPress={() => {
@@ -702,22 +769,30 @@ export const MessagesScreen: React.FC = () => {
                                     <Button
                                         title={
                                             currentIndex === 0
-                                                ? t("customerMessages.openFirstMessage")
-                                                : t("customerMessages.openNextMessage")
+                                                ? t(
+                                                      "customerMessages.openFirstMessage",
+                                                  )
+                                                : t(
+                                                      "customerMessages.openNextMessage",
+                                                  )
                                         }
                                         onPress={openNextMessage}
                                         disabled={
                                             isOpening ||
-                                            currentIndex >= validCustomers.length
+                                            currentIndex >=
+                                                validCustomers.length
                                         }
                                         style={styles.actionButton}
                                     />
                                 )}
                                 {sendMode === "group" && (
                                     <Button
-                                        title={t("customerMessages.openGroupMessage", {
-                                            count: validCustomers.length,
-                                        })}
+                                        title={t(
+                                            "customerMessages.openGroupMessage",
+                                            {
+                                                count: validCustomers.length,
+                                            },
+                                        )}
                                         onPress={openGroupMessage}
                                         disabled={isOpening || openedCount > 0}
                                         style={styles.actionButton}
@@ -741,51 +816,72 @@ export const MessagesScreen: React.FC = () => {
         sendStep === "recipients" ? (
             renderRecipientsStep()
         ) : (
-        <ScrollView
-            style={styles.sendContent}
-            contentContainerStyle={[
-                styles.content,
-                { paddingBottom: Spacing.lg },
-            ]}
-            refreshControl={undefined}
-        >
-            {sendStep === "message" && renderMessageStep()}
-            {sendStep === "send" && renderSendStep()}
-        </ScrollView>
+            <ScrollView
+                style={styles.sendContent}
+                contentContainerStyle={[
+                    styles.content,
+                    { paddingBottom: Spacing.lg },
+                ]}
+                refreshControl={undefined}
+            >
+                {sendStep === "message" && renderMessageStep()}
+                {sendStep === "send" && renderSendStep()}
+            </ScrollView>
         );
 
     const renderTemplatesSection = () => (
         <FlatList
             data={templates}
             keyExtractor={(item) => item.id?.toString() || item.name}
-            contentContainerStyle={[styles.templateList, { paddingBottom: insets.bottom + 100 }]}
+            contentContainerStyle={[
+                styles.templateList,
+                { paddingBottom: insets.bottom + 100 },
+            ]}
             renderItem={({ item }) => (
                 <Pressable onPress={() => openTemplateEditor(item)}>
                     <Card style={styles.templateCard}>
-                        <View style={[styles.sectionTitleRow, false && styles.rowRTL]}>
+                        <View
+                            style={[
+                                styles.sectionTitleRow,
+                                false && styles.rowRTL,
+                            ]}
+                        >
                             <Typography variant="heading-small" color="primary">
                                 {item.name}
                             </Typography>
                             <Pressable onPress={() => deleteTemplate(item)}>
-                                <Ionicons name="trash-outline" size={20} color={colors.danger} />
+                                <Ionicons
+                                    name="trash-outline"
+                                    size={20}
+                                    color={colors.danger}
+                                />
                             </Pressable>
                         </View>
-                        <Typography variant="body-small" color="muted" numberOfLines={3}>
+                        <Typography
+                            variant="body-small"
+                            color="muted"
+                            numberOfLines={3}
+                        >
                             {item.body}
                         </Typography>
                     </Card>
                 </Pressable>
             )}
-            ListHeaderComponent={
-                <Button title={t("messageTemplates.create")} onPress={() => openTemplateEditor()} />
-            }
             ListEmptyComponent={
                 <View style={styles.empty}>
-                    <Ionicons name="chatbox-ellipses-outline" size={48} color={colors.text.muted} />
+                    <Ionicons
+                        name="chatbox-ellipses-outline"
+                        size={48}
+                        color={colors.text.muted}
+                    />
                     <Typography variant="heading-small" color="secondary">
                         {t("messageTemplates.emptyTitle")}
                     </Typography>
-                    <Typography variant="body-small" color="muted" style={styles.centerText}>
+                    <Typography
+                        variant="body-small"
+                        color="muted"
+                        style={styles.centerText}
+                    >
                         {t("messageTemplates.emptyMessage")}
                     </Typography>
                 </View>
@@ -798,7 +894,9 @@ export const MessagesScreen: React.FC = () => {
     }
 
     return (
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View
+            style={[styles.container, { backgroundColor: colors.background }]}
+        >
             <View
                 style={[
                     styles.header,
@@ -809,17 +907,9 @@ export const MessagesScreen: React.FC = () => {
                     },
                 ]}
             >
-                <View
-                    style={[
-                        styles.headerTopRow,
-                        false && styles.rowRTL,
-                    ]}
-                >
+                <View style={[styles.headerTopRow, false && styles.rowRTL]}>
                     <View
-                        style={[
-                            styles.headerTitleRow,
-                            false && styles.rowRTL,
-                        ]}
+                        style={[styles.headerTitleRow, false && styles.rowRTL]}
                     >
                         <View
                             style={[
@@ -833,7 +923,7 @@ export const MessagesScreen: React.FC = () => {
                                 color={colors.primary}
                             />
                         </View>
-                        <View>
+                        <View style={styles.headerText}>
                             <Typography variant="heading-large" color="primary">
                                 {t("customerMessages.tabTitle")}
                             </Typography>
@@ -842,47 +932,91 @@ export const MessagesScreen: React.FC = () => {
                             </Typography>
                         </View>
                     </View>
+
+                    <Pressable
+                        onPress={() =>
+                            setSection((currentSection) =>
+                                currentSection === "send"
+                                    ? "templates"
+                                    : "send",
+                            )
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel={
+                            section === "send"
+                                ? t("customerMessages.templatesTab")
+                                : t("customerMessages.sendTab")
+                        }
+                        hitSlop={8}
+                        style={({ pressed }) => [
+                            styles.sectionSwitchButton,
+                            {
+                                backgroundColor: `${colors.primary}15`,
+                                borderColor: colors.border,
+                            },
+                            pressed && styles.sectionSwitchButtonPressed,
+                        ]}
+                    >
+                        <Ionicons
+                            name={
+                                section === "send"
+                                    ? "document-text-outline"
+                                    : "send-outline"
+                            }
+                            size={23}
+                            color={colors.primary}
+                        />
+                    </Pressable>
                 </View>
             </View>
-            <View
-                style={[
-                    styles.tabBar,
-                    {
-                        backgroundColor: colors.background,
-                    },
-                ]}
-            >
-                <View style={[styles.tabs, false && styles.rowRTL]}>
-                    {(["send", "templates"] as const).map((item) => (
-                        <Pressable
-                            key={item}
-                            onPress={() => setSection(item)}
-                            style={[
-                                styles.tab,
-                                section === item && {
-                                    backgroundColor: `${colors.primary}15`,
-                                    borderColor: colors.primary,
-                                },
-                                { borderColor: section === item ? colors.primary : colors.border },
-                            ]}
-                        >
-                            <Typography variant="body-small" color={section === item ? "primary" : "muted"}>
-                                {t(`customerMessages.${item}Tab`)}
-                            </Typography>
-                        </Pressable>
-                    ))}
-                </View>
-            </View>
-            {section === "send" ? renderSendSection() : renderTemplatesSection()}
+            {section === "send"
+                ? renderSendSection()
+                : renderTemplatesSection()}
             {renderSendActions()}
 
-            <Modal visible={!!editing} transparent animationType="fade" onRequestClose={closeTemplateEditor}>
+            {section === "templates" && (
+                <Pressable
+                    onPress={() => openTemplateEditor()}
+                    accessibilityRole="button"
+                    accessibilityLabel={t("messageTemplates.create")}
+                    hitSlop={8}
+                    style={({ pressed }) => [
+                        styles.templateFab,
+                        {
+                            bottom: insets.bottom + Spacing.lg,
+                            backgroundColor: colors.primary,
+                            shadowColor: colors.primary,
+                        },
+                        pressed && styles.templateFabPressed,
+                    ]}
+                >
+                    <Ionicons name="add" size={30} color="#FFFFFF" />
+                </Pressable>
+            )}
+
+            <Modal
+                visible={!!editing}
+                transparent
+                animationType="fade"
+                onRequestClose={closeTemplateEditor}
+            >
                 <View style={styles.backdrop}>
-                    <Card style={[styles.editor, { backgroundColor: colors.surface }]}>
+                    <Card
+                        style={[
+                            styles.editor,
+                            { backgroundColor: colors.surface },
+                        ]}
+                    >
                         <Typography variant="heading-large" color="primary">
-                            {editing?.id ? t("messageTemplates.edit") : t("messageTemplates.create")}
+                            {editing?.id
+                                ? t("messageTemplates.edit")
+                                : t("messageTemplates.create")}
                         </Typography>
-                        <Input placeholder={t("messageTemplates.namePlaceholder")} value={templateName} onChangeText={setTemplateName} />
+                        <Input
+                            placeholder={t("messageTemplates.namePlaceholder")}
+                            value={templateName}
+                            onChangeText={setTemplateName}
+                        />
                         <Input
                             placeholder={t("messageTemplates.bodyPlaceholder")}
                             value={templateBody}
@@ -892,13 +1026,33 @@ export const MessagesScreen: React.FC = () => {
                         />
                         <Typography variant="small-small" color="muted">
                             {t("messageTemplates.placeholders", {
-                                placeholders: MESSAGE_TEMPLATE_PLACEHOLDERS.map((item) => `{{${item}}}`).join(", "),
+                                placeholders: MESSAGE_TEMPLATE_PLACEHOLDERS.map(
+                                    (item) => `{{${item}}}`,
+                                ).join(", "),
                             })}
                         </Typography>
-                        {!!templateError && <Typography variant="body-small" color="danger">{templateError}</Typography>}
-                        <View style={[styles.editorActions, false && styles.rowRTL]}>
-                            <Button title={t("messageTemplates.cancel")} variant="secondary" onPress={closeTemplateEditor} style={styles.actionButton} />
-                            <Button title={t("messageTemplates.save")} onPress={saveTemplate} style={styles.actionButton} />
+                        {!!templateError && (
+                            <Typography variant="body-small" color="danger">
+                                {templateError}
+                            </Typography>
+                        )}
+                        <View
+                            style={[
+                                styles.editorActions,
+                                false && styles.rowRTL,
+                            ]}
+                        >
+                            <Button
+                                title={t("messageTemplates.cancel")}
+                                variant="secondary"
+                                onPress={closeTemplateEditor}
+                                style={styles.actionButton}
+                            />
+                            <Button
+                                title={t("messageTemplates.save")}
+                                onPress={saveTemplate}
+                                style={styles.actionButton}
+                            />
                         </View>
                     </Card>
                 </View>
@@ -910,7 +1064,11 @@ export const MessagesScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
     container: { flex: 1 },
-    header: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, borderBottomWidth: 1 },
+    header: {
+        paddingHorizontal: Spacing.lg,
+        paddingBottom: Spacing.md,
+        borderBottomWidth: 1,
+    },
     headerTopRow: {
         flexDirection: "row",
         alignItems: "center",
@@ -918,9 +1076,14 @@ const styles = StyleSheet.create({
     },
     headerTitleRow: {
         flex: 1,
+        minWidth: 0,
         flexDirection: "row",
         alignItems: "center",
         gap: Spacing.md,
+    },
+    headerText: {
+        flex: 1,
+        minWidth: 0,
     },
     headerIconContainer: {
         width: 48,
@@ -929,13 +1092,18 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
     },
-    tabBar: {
-        paddingHorizontal: Spacing.lg,
-        paddingTop: Spacing.md,
-        paddingBottom: Spacing.md,
+    sectionSwitchButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        borderWidth: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        marginLeft: Spacing.sm,
     },
-    tabs: { flexDirection: "row", gap: Spacing.sm },
-    tab: { flex: 1, alignItems: "center", padding: Spacing.sm, borderWidth: 1, borderRadius: 8 },
+    sectionSwitchButtonPressed: {
+        opacity: 0.65,
+    },
     rowRTL: { flexDirection: "row-reverse" },
     sendContent: { flex: 1 },
     content: { padding: Spacing.md, gap: Spacing.md },
@@ -961,10 +1129,18 @@ const styles = StyleSheet.create({
         alignItems: "center",
         gap: Spacing.sm,
     },
-    sectionTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+    sectionTitleRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+    },
     recipientSearch: { marginBottom: 0 },
     customerCard: { padding: Spacing.md, marginBottom: Spacing.sm },
-    customerRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
+    customerRow: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.md,
+    },
     customerText: { flex: 1 },
     notice: { padding: Spacing.md },
     modeRow: { flexDirection: "row", gap: Spacing.sm },
@@ -979,7 +1155,12 @@ const styles = StyleSheet.create({
     },
     modeText: { flex: 1 },
     templateRow: { flexDirection: "row", gap: Spacing.sm },
-    templateChip: { borderWidth: 1, borderRadius: 18, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md },
+    templateChip: {
+        borderWidth: 1,
+        borderRadius: 18,
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.md,
+    },
     messageInput: { minHeight: 150, textAlignVertical: "top" },
     progressCard: { padding: Spacing.lg, gap: Spacing.sm },
     reviewRecipientCard: { padding: Spacing.md, marginBottom: Spacing.sm },
@@ -987,8 +1168,37 @@ const styles = StyleSheet.create({
     centerText: { textAlign: "center" },
     templateList: { flexGrow: 1, padding: Spacing.md, gap: Spacing.sm },
     templateCard: { padding: Spacing.md },
-    empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: Spacing.sm, padding: Spacing.xxl },
-    backdrop: { flex: 1, justifyContent: "center", padding: Spacing.lg, backgroundColor: "#00000080" },
+    templateFab: {
+        position: "absolute",
+        right: Spacing.lg,
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 20,
+        elevation: 8,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+    },
+    templateFabPressed: {
+        opacity: 0.88,
+        transform: [{ scale: 0.96 }],
+    },
+    empty: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        gap: Spacing.sm,
+        padding: Spacing.xxl,
+    },
+    backdrop: {
+        flex: 1,
+        justifyContent: "center",
+        padding: Spacing.lg,
+        backgroundColor: "#00000080",
+    },
     editor: { padding: Spacing.lg, gap: Spacing.sm },
     templateBodyInput: { minHeight: 130, textAlignVertical: "top" },
     stepActions: { flexDirection: "row", gap: Spacing.sm },

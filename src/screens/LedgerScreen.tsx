@@ -46,7 +46,8 @@ export const LedgerScreen: React.FC = () => {
     const { db, error: dbError, initDatabase } = useDatabaseContext();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { t } = useTranslation();    const [selectedFilter, setSelectedFilter] = useState<DateFilterType>("all");
+    const { t } = useTranslation();
+    const [selectedFilter, setSelectedFilter] = useState<DateFilterType>("all");
     const [customRange, setCustomRange] = useState<DateRange | undefined>(
         undefined,
     );
@@ -159,8 +160,7 @@ export const LedgerScreen: React.FC = () => {
                 balanceFundedAmount: entry.balance_funded_amount,
                 pocketFundedAmount: entry.pocket_funded_amount,
                 customerName: entry.customer_name || t("ledger.unknown"),
-                accountNumber:
-                    entry.account_number || t("ledger.notAvailable"),
+                accountNumber: entry.account_number || t("ledger.notAvailable"),
             }));
     }, [transactionEntries, dateRange, t]);
 
@@ -180,105 +180,105 @@ export const LedgerScreen: React.FC = () => {
             const isBalanceFunded = item.fundingSource === "balance";
             const isMixedFunded = item.fundingSource === "mixed";
             const label = isReceived
-                ? t("ledger.receivedFrom")
+                ? t("ledger.received")
                 : isBalanceFunded
                   ? t("ledger.paidFromBalance")
                   : isMixedFunded
                     ? t("ledger.paidFromBalanceAndPocket")
                     : t("ledger.paidFromPocket");
             const semanticColor: "success" | "danger" | "warning" = isReceived
-                ? "danger"
+                ? "success"
                 : isMixedFunded
                   ? "warning"
-                  : "success";
+                  : "danger";
 
             return (
-            <Card style={styles.entryCard}>
-                <View
-                    style={[
-                        styles.entryHeader,
-                        false && { flexDirection: "row-reverse" },
-                    ]}
-                >
-                    <Typography variant="body-medium" color="secondary">
-                        {t("ledger.transaction")}
-                    </Typography>
-                    <Typography variant="small-small" color="muted">
-                        {formatDateTime(item.date)}
-                    </Typography>
-                </View>
-                <View
-                    style={{
-                        flexDirection: "row",
-                        justifyContent: "space-between",
-                    }}
-                >
-                    <View style={styles.entryContent}>
-                        <Typography
-                            variant="heading-small"
-                            color={semanticColor}
-                            style={styles.description}
-                            numberOfLines={1}
-                        >
-                            {label}
+                <Card style={styles.entryCard}>
+                    <View
+                        style={[
+                            styles.entryHeader,
+                            false && { flexDirection: "row-reverse" },
+                        ]}
+                    >
+                        <Typography variant="body-medium" color="secondary">
+                            {t("ledger.transaction")}
                         </Typography>
-                        <Typography
-                            variant="heading-small"
-                            numberOfLines={1}
-                            style={styles.customerName}
-                        >
-                            {item.customerName}
+                        <Typography variant="small-small" color="muted">
+                            {formatDateTime(item.date)}
                         </Typography>
-                        <Typography
-                            variant="small-small"
-                            color="muted"
-                            style={styles.accountNumber}
-                            numberOfLines={1}
-                        >
-                            {item.accountNumber}
-                        </Typography>
-                        {isMixedFunded && (
-                            <View style={styles.fundingBreakdown}>
-                                <View style={styles.fundingBreakdownRow}>
-                                    <Typography
-                                        variant="body-small"
-                                        color="muted"
-                                    >
-                                        {t("ledger.fromCustomerBalance")}
-                                    </Typography>
-                                    <TouchableAmount
-                                        amount={item.balanceFundedAmount}
-                                        variant="body-small"
-                                        color="primary"
-                                        style={{ color: colors.info }}
-                                    />
-                                </View>
-                                <View style={styles.fundingBreakdownRow}>
-                                    <Typography
-                                        variant="body-small"
-                                        color="muted"
-                                    >
-                                        {t("ledger.fromPocketBusiness")}
-                                    </Typography>
-                                    <TouchableAmount
-                                        amount={item.pocketFundedAmount}
-                                        variant="body-small"
-                                        color="warning"
-                                    />
-                                </View>
-                            </View>
-                        )}
                     </View>
-                    <View style={styles.amountContainer}>
-                        <TouchableAmount
-                            amount={item.amount}
-                            variant="heading-large"
-                            color={semanticColor}
-                            style={styles.amount}
-                        />
+                    <View
+                        style={{
+                            flexDirection: "row",
+                            justifyContent: "space-between",
+                        }}
+                    >
+                        <View style={styles.entryContent}>
+                            <Typography
+                                variant="heading-small"
+                                color={semanticColor}
+                                style={styles.description}
+                                numberOfLines={1}
+                            >
+                                {label}
+                            </Typography>
+                            <Typography
+                                variant="heading-small"
+                                numberOfLines={1}
+                                style={styles.customerName}
+                            >
+                                {item.customerName}
+                            </Typography>
+                            <Typography
+                                variant="small-small"
+                                color="muted"
+                                style={styles.accountNumber}
+                                numberOfLines={1}
+                            >
+                                {item.accountNumber}
+                            </Typography>
+                            {isMixedFunded && (
+                                <View style={styles.fundingBreakdown}>
+                                    <View style={styles.fundingBreakdownRow}>
+                                        <Typography
+                                            variant="body-small"
+                                            color="muted"
+                                        >
+                                            {t("ledger.fromCustomerBalance")}
+                                        </Typography>
+                                        <TouchableAmount
+                                            amount={item.balanceFundedAmount}
+                                            variant="body-small"
+                                            color="primary"
+                                            style={{ color: colors.info }}
+                                        />
+                                    </View>
+                                    <View style={styles.fundingBreakdownRow}>
+                                        <Typography
+                                            variant="body-small"
+                                            color="muted"
+                                        >
+                                            {t("ledger.fromPocketBusiness")}
+                                        </Typography>
+                                        <TouchableAmount
+                                            amount={item.pocketFundedAmount}
+                                            variant="body-small"
+                                            color="warning"
+                                        />
+                                    </View>
+                                </View>
+                            )}
+                        </View>
+                        <View style={styles.amountContainer}>
+                            <TouchableAmount
+                                amount={item.amount}
+                                variant="heading-large"
+                                color={semanticColor}
+                                style={styles.amount}
+                            />
+                        </View>
                     </View>
-                </View>
-            </Card>
+                </Card>
             );
         },
         [colors.info, false, t],

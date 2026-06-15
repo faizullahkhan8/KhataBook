@@ -330,25 +330,22 @@ export const CustomerTransactionsScreen: React.FC = () => {
         const isBalanceFunded = fundingSource === "balance";
         const isMixedFunded = fundingSource === "mixed";
         const label = isReceived
-            ? t("ledger.receivedFrom")
+            ? t("ledger.received")
             : isBalanceFunded
               ? t("ledger.paidFromBalance")
               : isMixedFunded
                 ? t("ledger.paidFromBalanceAndPocket")
                 : t("ledger.paidFromPocket");
         const semanticColor: "success" | "danger" | "warning" = isReceived
-            ? "danger"
+            ? "success"
             : isMixedFunded
               ? "warning"
-              : "success";
+              : "danger";
 
         return (
             <Card style={styles.transactionCard}>
                 <View style={styles.transactionHeader}>
-                    <Typography
-                        variant="body-medium"
-                        color={semanticColor}
-                    >
+                    <Typography variant="body-medium" color={semanticColor}>
                         {label}
                     </Typography>
                     <View style={styles.transactionActions}>
@@ -514,13 +511,15 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                     </View>
                                 )}
                             </View>
-                            <Typography
-                                variant="body-small"
-                                color="muted"
-                                numberOfLines={1}
-                            >
-                                {customer?.phone || ""}
-                            </Typography>
+                            {customer?.phone && (
+                                <Typography
+                                    variant="body-small"
+                                    color="muted"
+                                    numberOfLines={1}
+                                >
+                                    {customer?.phone || ""}
+                                </Typography>
+                            )}
                         </View>
                     </View>
                 </View>
@@ -553,7 +552,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <TouchableAmount
                         amount={stats.totalReceived}
                         variant="heading-medium"
-                        color="danger"
+                        color="success"
                     />
                 </Card>
                 <Card style={{ ...styles.statCard, ...styles.statCardPaid }}>
@@ -563,7 +562,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <TouchableAmount
                         amount={stats.totalPaid}
                         variant="heading-medium"
-                        color="success"
+                        color="danger"
                     />
                 </Card>
             </View>
@@ -579,9 +578,9 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         variant="heading-large"
                         color={
                             stats.balance > 0
-                                ? "success"
+                                ? "danger"
                                 : stats.balance < 0
-                                  ? "danger"
+                                  ? "success"
                                   : "primary"
                         }
                     />
@@ -593,7 +592,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 <Pressable
                     style={[
                         styles.actionButton,
-                        { backgroundColor: colors.danger },
+                        { backgroundColor: colors.success },
                     ]}
                     onPress={() => openAddModal(TransactionType.CREDIT)}
                 >
@@ -609,7 +608,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 <Pressable
                     style={[
                         styles.actionButton,
-                        { backgroundColor: colors.success },
+                        { backgroundColor: colors.danger },
                     ]}
                     onPress={() => openAddModal(TransactionType.DEBIT)}
                 >
@@ -619,7 +618,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         color="primary"
                         style={styles.filledActionText}
                     >
-                        Pay
+                        Give
                     </Typography>
                 </Pressable>
             </View>
@@ -994,10 +993,10 @@ const styles = StyleSheet.create({
         padding: Spacing.md,
     },
     statCardReceived: {
-        backgroundColor: "#EF444420",
+        backgroundColor: "#10B98120",
     },
     statCardPaid: {
-        backgroundColor: "#10B98120",
+        backgroundColor: "#EF444420",
     },
     actionButtons: {
         flexDirection: "row",

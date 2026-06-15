@@ -8,14 +8,12 @@ import {
     CustomersScreen,
     LedgerScreen,
     MessagesScreen,
-    ReportsScreen,
     SettingsScreen,
 } from "../screens";
 import { useTheme } from "../store";
 
 export type AppTabParamList = {
     Customers: undefined;
-    Reports: undefined;
     Messages: undefined;
     Ledger: undefined;
     Settings: undefined;
@@ -72,16 +70,7 @@ export const AppNavigator: React.FC = () => {
                     ),
                 }}
             />
-            <Tab.Screen
-                name="Reports"
-                component={ReportsScreen}
-                options={{
-                    tabBarLabel: t("navigation.reports"),
-                    tabBarIcon: ({ color }) => (
-                        <Ionicons name="bar-chart" size={22} color={color} />
-                    ),
-                }}
-            />
+
             <Tab.Screen
                 name="Messages"
                 component={MessagesScreen}
@@ -96,6 +85,7 @@ export const AppNavigator: React.FC = () => {
                     ),
                 }}
             />
+
             <Tab.Screen
                 name="Ledger"
                 component={LedgerScreen}
@@ -106,6 +96,7 @@ export const AppNavigator: React.FC = () => {
                     ),
                 }}
             />
+
             <Tab.Screen
                 name="Settings"
                 component={SettingsScreen}
