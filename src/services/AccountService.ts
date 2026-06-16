@@ -1,6 +1,7 @@
 import { SQLiteDatabase } from "../db/types";
 import { Account, AccountStatus } from "../models/Account";
 import { AccountId, CustomerId } from "../models/types";
+import { logger } from "./LogService";
 
 export class AccountService {
     private db: SQLiteDatabase;
@@ -29,7 +30,7 @@ export class AccountService {
             );
             return result.lastInsertRowId as AccountId;
         } catch (error) {
-            console.error("Error creating account:", error);
+            void logger.error("customers", "Error creating account", error);
             throw error;
         }
     }
@@ -48,7 +49,10 @@ export class AccountService {
         }
         try {
             // Always create account with 0 balance initially
-            const accountWithZeroBalance = { ...account, current_balance: 0 };
+            const accountWithZeroBalance = {
+                ...account,
+                current_balance: 0 as Account["current_balance"],
+            };
 
             // If no initial balance, just create account normally
             if (!initialBalance || initialBalance === 0) {
@@ -89,8 +93,9 @@ export class AccountService {
 
             return accountId as AccountId;
         } catch (error) {
-            console.error(
-                "Error creating account with opening balance:",
+            void logger.error(
+                "customers",
+                "Error creating account with opening balance",
                 error,
             );
             throw error;
@@ -108,7 +113,7 @@ export class AccountService {
             );
             return account || null;
         } catch (error) {
-            console.error("Error fetching account:", error);
+            void logger.error("customers", "Error fetching account", error);
             throw error;
         }
     }
@@ -124,7 +129,11 @@ export class AccountService {
             );
             return accounts;
         } catch (error) {
-            console.error("Error fetching accounts by customer:", error);
+            void logger.error(
+                "customers",
+                "Error fetching accounts by customer",
+                error,
+            );
             throw error;
         }
     }
@@ -143,7 +152,7 @@ export class AccountService {
             );
             return accounts;
         } catch (error) {
-            console.error("Error fetching accounts:", error);
+            void logger.error("customers", "Error fetching accounts", error);
             throw error;
         }
     }
@@ -162,7 +171,11 @@ export class AccountService {
                 [amount, accountId],
             );
         } catch (error) {
-            console.error("Error updating account balance:", error);
+            void logger.error(
+                "transactions",
+                "Error updating account balance",
+                error,
+            );
             throw error;
         }
     }
@@ -180,7 +193,7 @@ export class AccountService {
                 [status, accountId],
             );
         } catch (error) {
-            console.error("Error updating account status:", error);
+            void logger.error("customers", "Error updating account status", error);
             throw error;
         }
     }
@@ -225,7 +238,7 @@ export class AccountService {
                 values,
             );
         } catch (error) {
-            console.error("Error updating account:", error);
+            void logger.error("customers", "Error updating account", error);
             throw error;
         }
     }
@@ -237,7 +250,7 @@ export class AccountService {
         try {
             await this.db.runAsync("DELETE FROM accounts WHERE id = ?", [id]);
         } catch (error) {
-            console.error("Error deleting account:", error);
+            void logger.error("customers", "Error deleting account", error);
             throw error;
         }
     }
@@ -252,7 +265,7 @@ export class AccountService {
             );
             return result?.count || 0;
         } catch (error) {
-            console.error("Error getting account count:", error);
+            void logger.error("customers", "Error getting account count", error);
             throw error;
         }
     }
@@ -268,7 +281,7 @@ export class AccountService {
             );
             return accounts;
         } catch (error) {
-            console.error("Error fetching active accounts:", error);
+            void logger.error("customers", "Error fetching active accounts", error);
             throw error;
         }
     }

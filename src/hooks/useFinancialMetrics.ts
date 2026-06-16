@@ -1,6 +1,7 @@
 import { SQLiteDatabase } from "../db/types";
 import { useCallback, useEffect, useState } from "react";
 import { useDatabaseContext } from "../store";
+import { logger } from "../services/LogService";
 
 export interface FinancialMetrics {
     totalCredits: number;
@@ -250,7 +251,11 @@ export const useFinancialMetrics = (
                 totalTransactions,
             });
         } catch (error) {
-            console.error("Error fetching financial metrics:", error);
+            void logger.error(
+                "transactions",
+                "Error fetching financial metrics",
+                error,
+            );
         } finally {
             setLoading(false);
         }

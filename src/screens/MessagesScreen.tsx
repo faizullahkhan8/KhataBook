@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import {
     Alert,
     FlatList,
+    LayoutAnimation,
     Modal,
     Pressable,
     ScrollView,
@@ -18,6 +19,7 @@ import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useDeleteAuthentication } from "../hooks/useDeleteAuthentication";
 import { CustomerId, CustomerWithAccounts, MessageTemplate } from "../models";
 import { MessageTemplateService } from "../services/MessageTemplateService";
+import { logger } from "../services/LogService";
 import { useDatabaseContext, usePasscode, useTheme } from "../store";
 import {
     getUnsupportedPlaceholders,
@@ -32,6 +34,24 @@ type SendMode = "individual" | "group";
 type MessageRecipient = CustomerWithAccounts & { id: CustomerId };
 
 const MESSAGE_PLACEHOLDER_PATTERN = /{{\s*[^{}]+?\s*}}/;
+const SECTION_SWITCH_ANIMATION = {
+    duration: 180,
+    create: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+    },
+    update: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+    },
+    delete: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+    },
+};
+
+const animateSectionSwitch = () => {
+    LayoutAnimation.configureNext(SECTION_SWITCH_ANIMATION);
+};
 
 export const MessagesScreen: React.FC = () => {
     const { db } = useDatabaseContext();
@@ -171,6 +191,13 @@ export const MessagesScreen: React.FC = () => {
         setSendStep("recipients");
     };
 
+    const toggleSection = () => {
+        animateSectionSwitch();
+        setSection((currentSection) =>
+            currentSection === "send" ? "templates" : "send",
+        );
+    };
+
     const validateMessage = async () => {
         if (!message.trim()) {
             setSendError(t("customerMessages.messageRequired"));
@@ -196,7 +223,9 @@ export const MessagesScreen: React.FC = () => {
         let isAvailable = false;
         try {
             isAvailable = await SMS.isAvailableAsync();
-        } catch {}
+        } catch (error) {
+            void logger.error("messages", "Failed to check SMS availability", error);
+        }
         if (!isAvailable) {
             setSendError(t("customerMessages.unavailable"));
             return false;
@@ -222,7 +251,8 @@ export const MessagesScreen: React.FC = () => {
                 new Set(validCustomers.map((customer) => customer.id)),
             );
             setSendError("");
-        } catch {
+        } catch (error) {
+            void logger.error("messages", "SMS group composer open failed", error);
             setSendError(t("customerMessages.openError"));
         } finally {
             setIsOpening(false);
@@ -247,7 +277,12 @@ export const MessagesScreen: React.FC = () => {
             });
             setCurrentIndex(nextIndex);
             setSendError("");
-        } catch {
+        } catch (error) {
+            void logger.error(
+                "messages",
+                "SMS individual composer open failed",
+                error,
+            );
             setSendError(t("customerMessages.openError"));
         } finally {
             setIsOpening(false);
@@ -934,13 +969,7 @@ export const MessagesScreen: React.FC = () => {
                     </View>
 
                     <Pressable
-                        onPress={() =>
-                            setSection((currentSection) =>
-                                currentSection === "send"
-                                    ? "templates"
-                                    : "send",
-                            )
-                        }
+                        onPress={toggleSection}
                         accessibilityRole="button"
                         accessibilityLabel={
                             section === "send"

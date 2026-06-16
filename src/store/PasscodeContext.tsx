@@ -12,6 +12,7 @@ import React, {
 } from "react";
 import { AppState, AppStateStatus, Platform } from "react-native";
 import { ARGON2_PARAMETERS, hashStrongValue } from "../security/kdf";
+import { logger } from "../services/LogService";
 import { useDatabaseContext } from "./DatabaseContext";
 
 const STORAGE_KEY = "khatabook.passcode";
@@ -340,7 +341,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
                     setStored(null);
                 }
             } catch (error) {
-                console.error("Failed to load passcode", error);
+                void logger.error("passcode", "Failed to load passcode", error);
             } finally {
                 setIsReady(true);
             }
@@ -378,7 +379,11 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
 
             return available;
         } catch (error) {
-            console.error("Failed to check biometric availability", error);
+            void logger.error(
+                "security",
+                "Failed to check biometric availability",
+                error,
+            );
             setBiometricAvailable(false);
             setBiometricHardwareAvailable(false);
             setBiometricEnrolled(false);
@@ -465,7 +470,8 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
         const cancelAndroidBiometricPrompt = () => {
             if (Platform.OS === "android" && biometricPromptActive.current) {
                 void LocalAuthentication.cancelAuthenticate().catch((error) => {
-                    console.error(
+                    void logger.error(
+                        "security",
                         "Failed to cancel biometric authentication",
                         error,
                     );
@@ -834,7 +840,11 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
 
                 return { success: false, error: result.error };
             } catch (error) {
-                console.error("Biometric authentication failed", error);
+                void logger.error(
+                    "security",
+                    "Biometric authentication failed",
+                    error,
+                );
                 return { success: false, error: "unknown" };
             } finally {
                 biometricAttemptGeneration.current = null;

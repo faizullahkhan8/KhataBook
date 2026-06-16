@@ -1,7 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
-import React, { useState } from "react";
-import { FlatList, Pressable, StyleSheet, View, } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import {
+    FlatList,
+    LayoutAnimation,
+    Pressable,
+    StyleSheet,
+    View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 import { Card, Typography } from "../components";
@@ -13,8 +20,29 @@ interface SettingItem {
     subtitle: string;
     icon: keyof typeof Ionicons.glyphMap;
     type: "navigation" | "toggle" | "action";
-    section: "General" | "Security" | "Support";
+    section: "General" | "Security" | "Support" | "Developer";
 }
+const DEVELOPER_OPTIONS_KEY = "khatabook.developerOptionsUnlocked";
+const DEVELOPER_UNLOCK_HOLD_MS = 5000;
+const DISCLOSURE_ANIMATION = {
+    duration: 180,
+    create: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+    },
+    update: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+    },
+    delete: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+    },
+};
+
+const animateDisclosure = () => {
+    LayoutAnimation.configureNext(DISCLOSURE_ANIMATION);
+};
+
 export const SettingsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const router = useRouter();
@@ -24,6 +52,17 @@ export const SettingsScreen: React.FC = () => {
     const { isEnabled: isPasscodeEnabled, isSupported: isPasscodeSupported } = usePasscode();
     const [showThemeOptions, setShowThemeOptions] = useState(false);
     const [showLanguageOptions, setShowLanguageOptions] = useState(false);
+    const [developerOptionsUnlocked, setDeveloperOptionsUnlocked] = useState(false);
+    const suppressNextAboutPress = useRef(false);
+
+    useEffect(() => {
+        const loadDeveloperOptionsState = async () => {
+            const stored = await AsyncStorage.getItem(DEVELOPER_OPTIONS_KEY);
+            setDeveloperOptionsUnlocked(stored === "true");
+        };
+
+        void loadDeveloperOptionsState();
+    }, []);
     const SETTINGS_DATA: SettingItem[] = [
         {
             id: "theme",
@@ -93,18 +132,46 @@ export const SettingsScreen: React.FC = () => {
             type: "navigation",
             section: "Support",
         },
+        ...(developerOptionsUnlocked
+            ? [
+                {
+                    id: "developer-options",
+                    title: "Developer Options",
+                    subtitle: "Logs and diagnostics",
+                    icon: "code-slash-outline" as const,
+                    type: "navigation" as const,
+                    section: "Developer" as const,
+                },
+            ]
+            : []),
     ];
+    const unlockDeveloperOptions = async () => {
+        suppressNextAboutPress.current = true;
+        await AsyncStorage.setItem(DEVELOPER_OPTIONS_KEY, "true");
+        setDeveloperOptionsUnlocked(true);
+    };
+
+    const handleAboutPress = () => {
+        if (suppressNextAboutPress.current) {
+            suppressNextAboutPress.current = false;
+            return;
+        }
+        router.push("/about");
+    };
+
     const handlePress = (item: SettingItem) => {
         if (item.id === "theme") {
+            animateDisclosure();
             setShowThemeOptions(!showThemeOptions);
             setShowLanguageOptions(false);
         }
         else if (item.id === "language") {
+            animateDisclosure();
             setShowLanguageOptions(!showLanguageOptions);
             setShowThemeOptions(false);
         }
         else if (item.id === "about") {
-            router.push("/about");
+            handleAboutPress();
         }
         else if (item.id === "feedback") {
             router.push("/feedback");
@@ -118,13 +185,16 @@ export const SettingsScreen: React.FC = () => {
         else if (item.id === "terms") {
             router.push("/terms-of-use");
         }
+        else if (item.id === "developer-options") {
+            router.push("/developer-options" as any);
+        }
     };
     const renderItem = ({ item, index }: {
         item: SettingItem;
         index: number;
     }) => {
         const isFirstInSection = index === 0 || SETTINGS_DATA[index - 1].section !== item.section;
-        const sectionTitle = item.section === "General" ? t('settings.general') : item.section === "Security" ? t('settings.security') : t('settings.support');
+        const sectionTitle = item.section === "General" ? t('settings.general') : item.section === "Security" ? t('settings.security') : item.section === "Support" ? t('settings.support') : "DEVELOPER";
         return (<View>
                 {isFirstInSection && (<Typography variant="subheading-small" color="muted" style={[styles.sectionHeader]}>
                         {sectionTitle}
@@ -132,7 +202,9 @@ export const SettingsScreen: React.FC = () => {
                 <Pressable style={({ pressed }) => [
                 styles.itemContainer,
                 pressed && styles.itemPressed,
-            ]} onPress={() => handlePress(item)}>
+            ]} onPress={() => handlePress(item)} delayLongPress={item.id === "about" ? DEVELOPER_UNLOCK_HOLD_MS : undefined} onLongPress={item.id === "about" && !developerOptionsUnlocked
+                ? () => void unlockDeveloperOptions()
+                : undefined}>
                     <Card style={[styles.itemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                         <View style={styles.itemContent}>
                             <View style={[styles.iconBox, { backgroundColor: `${colors.primary}25` }]}>

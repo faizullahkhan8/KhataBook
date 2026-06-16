@@ -207,18 +207,13 @@ export const LedgerScreen: React.FC = () => {
                             {formatDateTime(item.date)}
                         </Typography>
                     </View>
-                    <View
-                        style={{
-                            flexDirection: "row",
-                            justifyContent: "space-between",
-                        }}
-                    >
+                    <View style={styles.entryBody}>
                         <View style={styles.entryContent}>
                             <Typography
                                 variant="heading-small"
                                 color={semanticColor}
                                 style={styles.description}
-                                numberOfLines={1}
+                                numberOfLines={2}
                             >
                                 {label}
                             </Typography>
@@ -243,28 +238,42 @@ export const LedgerScreen: React.FC = () => {
                                         <Typography
                                             variant="body-small"
                                             color="muted"
+                                            style={styles.fundingLabel}
+                                            numberOfLines={2}
                                         >
                                             {t("ledger.fromCustomerBalance")}
                                         </Typography>
-                                        <TouchableAmount
-                                            amount={item.balanceFundedAmount}
-                                            variant="body-small"
-                                            color="primary"
-                                            style={{ color: colors.info }}
-                                        />
+                                        <View style={styles.fundingAmount}>
+                                            <TouchableAmount
+                                                amount={
+                                                    item.balanceFundedAmount
+                                                }
+                                                variant="body-small"
+                                                color="primary"
+                                                style={{
+                                                    color: colors.info,
+                                                    textAlign: "right",
+                                                }}
+                                            />
+                                        </View>
                                     </View>
                                     <View style={styles.fundingBreakdownRow}>
                                         <Typography
                                             variant="body-small"
                                             color="muted"
+                                            style={styles.fundingLabel}
+                                            numberOfLines={2}
                                         >
                                             {t("ledger.fromPocketBusiness")}
                                         </Typography>
-                                        <TouchableAmount
-                                            amount={item.pocketFundedAmount}
-                                            variant="body-small"
-                                            color="warning"
-                                        />
+                                        <View style={styles.fundingAmount}>
+                                            <TouchableAmount
+                                                amount={item.pocketFundedAmount}
+                                                variant="body-small"
+                                                color="warning"
+                                                style={styles.fundingAmountText}
+                                            />
+                                        </View>
                                     </View>
                                 </View>
                             )}
@@ -281,7 +290,7 @@ export const LedgerScreen: React.FC = () => {
                 </Card>
             );
         },
-        [colors.info, false, t],
+        [colors.info, t],
     );
 
     if (!db || (loadingEntries && transactionEntries.length === 0)) {
@@ -562,11 +571,17 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         alignItems: "center",
         marginBottom: Spacing.xs,
+        gap: Spacing.sm,
+    },
+    entryBody: {
+        flexDirection: "row",
+        alignItems: "flex-start",
+        gap: Spacing.sm,
     },
     entryContent: {
         flex: 1,
         flexShrink: 1,
-        marginRight: Spacing.sm,
+        minWidth: 0,
     },
     customerName: {
         flex: 1,
@@ -574,7 +589,7 @@ const styles = StyleSheet.create({
     amountContainer: {
         alignSelf: "flex-end",
         flexShrink: 0,
-        maxWidth: 140,
+        maxWidth: 132,
     },
     description: {
         marginTop: Spacing.sm,
@@ -588,9 +603,20 @@ const styles = StyleSheet.create({
     },
     fundingBreakdownRow: {
         flexDirection: "row",
-        alignItems: "center",
+        alignItems: "flex-start",
         justifyContent: "space-between",
-        gap: Spacing.md,
+        gap: Spacing.sm,
+    },
+    fundingLabel: {
+        flex: 1,
+        minWidth: 0,
+    },
+    fundingAmount: {
+        flexShrink: 0,
+        maxWidth: 112,
+    },
+    fundingAmountText: {
+        textAlign: "right",
     },
     amount: {
         textAlign: "right",

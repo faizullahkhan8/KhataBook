@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getDatabase, initializeDatabase } from "../db/database";
 import { SQLiteDatabase } from "../db/types";
+import { logger } from "../services/LogService";
 
 export const useDatabase = () => {
     const [db, setDb] = useState<SQLiteDatabase | null>(null);
@@ -17,7 +18,7 @@ export const useDatabase = () => {
         initializationRef.current = (async () => {
             let database: SQLiteDatabase | null = null;
             try {
-                console.log("Initializing database...");
+                void logger.info("database", "Initializing database");
                 database = await getDatabase();
                 await initializeDatabase(database);
                 if (!mountedRef.current) {
@@ -28,14 +29,18 @@ export const useDatabase = () => {
                 setDb(database);
                 setIsInitialized(true);
                 setError(null);
-                console.log("Database initialized successfully");
+                void logger.info("database", "Database initialized successfully");
             } catch (err) {
-                console.error("Database initialization error:", err);
+                void logger.error("database", "Database initialization error", err);
                 if (database) {
                     try {
                         await database.closeAsync();
                     } catch (closeError) {
-                        console.error("Failed to close database after initialization error:", closeError);
+                        void logger.error(
+                            "database",
+                            "Failed to close database after initialization error",
+                            closeError,
+                        );
                     }
                 }
                 if (mountedRef.current) {
@@ -59,7 +64,11 @@ export const useDatabase = () => {
             dbRef.current = null;
             if (database) {
                 database.closeAsync().catch((closeError) => {
-                    console.error("Failed to close database:", closeError);
+                    void logger.error(
+                        "database",
+                        "Failed to close database",
+                        closeError,
+                    );
                 });
             }
         };

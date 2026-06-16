@@ -1,6 +1,7 @@
 import { SQLiteDatabase } from "../db/types";
 import { Transaction, TransactionType } from "../models/Transaction";
 import { AccountId, TransactionId } from "../models/types";
+import { logger } from "./LogService";
 
 export class TransactionService {
     private db: SQLiteDatabase;
@@ -30,7 +31,7 @@ export class TransactionService {
             // Note: Account balance and Customer summary updates are now handled by database triggers
             return result.lastInsertRowId as TransactionId;
         } catch (error) {
-            console.error("Error creating transaction:", error);
+            void logger.error("transactions", "Error creating transaction", error);
             throw error;
         }
     }
@@ -61,7 +62,11 @@ export class TransactionService {
             // Note: Account balance and Customer summary updates are now handled by database triggers
             return result.lastInsertRowId as TransactionId;
         } catch (error) {
-            console.error("Error creating transaction with timestamp:", error);
+            void logger.error(
+                "transactions",
+                "Error creating transaction with timestamp",
+                error,
+            );
             throw error;
         }
     }
@@ -77,7 +82,7 @@ export class TransactionService {
             );
             return transaction || null;
         } catch (error) {
-            console.error("Error fetching transaction:", error);
+            void logger.error("transactions", "Error fetching transaction", error);
             throw error;
         }
     }
@@ -97,7 +102,11 @@ export class TransactionService {
             );
             return transactions;
         } catch (error) {
-            console.error("Error fetching transactions by account:", error);
+            void logger.error(
+                "transactions",
+                "Error fetching transactions by account",
+                error,
+            );
             throw error;
         }
     }
@@ -116,7 +125,7 @@ export class TransactionService {
             );
             return transactions;
         } catch (error) {
-            console.error("Error fetching transactions:", error);
+            void logger.error("transactions", "Error fetching transactions", error);
             throw error;
         }
     }
@@ -136,7 +145,11 @@ export class TransactionService {
             );
             return transactions;
         } catch (error) {
-            console.error("Error fetching transactions by type:", error);
+            void logger.error(
+                "transactions",
+                "Error fetching transactions by type",
+                error,
+            );
             throw error;
         }
     }
@@ -151,7 +164,7 @@ export class TransactionService {
                 id,
             ]);
         } catch (error) {
-            console.error("Error deleting transaction:", error);
+            void logger.error("transactions", "Error deleting transaction", error);
             throw error;
         }
     }
@@ -166,7 +179,11 @@ export class TransactionService {
                 [accountId],
             );
         } catch (error) {
-            console.error("Error deleting transactions by account:", error);
+            void logger.error(
+                "transactions",
+                "Error deleting transactions by account",
+                error,
+            );
             throw error;
         }
     }
@@ -181,7 +198,11 @@ export class TransactionService {
             );
             return result?.count || 0;
         } catch (error) {
-            console.error("Error getting transaction count:", error);
+            void logger.error(
+                "transactions",
+                "Error getting transaction count",
+                error,
+            );
             throw error;
         }
     }
@@ -212,7 +233,11 @@ export class TransactionService {
                 }
             });
         } catch (error) {
-            console.error("Error creating batch transactions:", error);
+            void logger.error(
+                "transactions",
+                "Error creating batch transactions",
+                error,
+            );
             throw error;
         }
     }

@@ -1,5 +1,6 @@
 import { bootstrapDatabase } from "./bootstrap";
 import { SQLiteDatabase } from "./types";
+import { logger } from "../services/LogService";
 
 const DEFAULT_MESSAGE_TEMPLATES_SEED_KEY = "default_message_templates_seeded";
 
@@ -42,13 +43,14 @@ export const getDatabase = async (): Promise<SQLiteDatabase> => {
 
         return db;
     } catch (error) {
-        console.error("Error opening database:", error);
+        void logger.error("database", "Error opening database", error);
         if (db) {
             try {
                 await db.closeAsync();
             } catch (closeError) {
-                console.error(
-                    "Failed to close database after open error:",
+                void logger.error(
+                    "database",
+                    "Failed to close database after open error",
                     closeError,
                 );
             }
@@ -214,7 +216,7 @@ export const initializeDatabase = async (
             "SELECT status FROM accounts LIMIT 1",
         );
         if (sampleAccount && typeof sampleAccount.status === "string") {
-            console.log("Migrating database data to new format...");
+            void logger.info("database", "Migrating database data to new format");
             await db.withTransactionAsync(async () => {
                 // Convert Account Status
                 await db.runAsync(
@@ -297,9 +299,9 @@ export const initializeDatabase = async (
             END;
         `);
 
-        console.log("Database initialized and migrated successfully");
+        void logger.info("database", "Database initialized and migrated successfully");
     } catch (error) {
-        console.error("Error initializing database:", error);
+        void logger.error("database", "Error initializing database", error);
         throw error;
     }
 };

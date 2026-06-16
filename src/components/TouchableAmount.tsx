@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import { LayoutAnimation, Pressable, TextStyle } from "react-native";
 import { Colors } from "../constants";
 import { formatCompactCurrency, formatCurrency, fromInteger } from "../utils";
@@ -26,7 +32,7 @@ interface TouchableAmountProps {
     numberOfLines?: number;
 }
 
-export const TouchableAmount: React.FC<TouchableAmountProps> = React.memo(({
+const TouchableAmountComponent: React.FC<TouchableAmountProps> = ({
     amount,
     variant = "body-medium",
     color = "primary",
@@ -36,12 +42,10 @@ export const TouchableAmount: React.FC<TouchableAmountProps> = React.memo(({
     const [isExpanded, setIsExpanded] = useState(false);
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    // Only allow expansion if amount is large enough to be compacted
     const decimal = useMemo(() => fromInteger(amount), [amount]);
     const absAmount = useMemo(() => Math.abs(decimal), [decimal]);
-    const shouldAllowToggle = useMemo(() => absAmount >= 1_000_000, [absAmount]);
+    const shouldAllowToggle = absAmount >= 1_000_000;
 
-    // Clear timer on unmount
     useEffect(() => {
         return () => {
             if (timerRef.current) {
@@ -51,30 +55,36 @@ export const TouchableAmount: React.FC<TouchableAmountProps> = React.memo(({
     }, []);
 
     const handlePress = useCallback(() => {
-        if (shouldAllowToggle) {
-            // Clear any existing timer
-            if (timerRef.current) {
-                clearTimeout(timerRef.current);
-            }
+        if (!shouldAllowToggle) return;
 
-            // Expand with animation
-            LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-            setIsExpanded(true);
-
-            // Auto-collapse after 5 seconds
-            timerRef.current = setTimeout(() => {
-                LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-                setIsExpanded(false);
-            }, 5000);
+        if (timerRef.current) {
+            clearTimeout(timerRef.current);
         }
+
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+        setIsExpanded(true);
+
+        timerRef.current = setTimeout(() => {
+            LayoutAnimation.configureNext(
+                LayoutAnimation.Presets.easeInEaseOut,
+            );
+            setIsExpanded(false);
+            timerRef.current = null;
+        }, 5000);
     }, [shouldAllowToggle]);
 
-    const displayValue = useMemo(() => 
-        isExpanded ? formatCurrency(amount) : formatCompactCurrency(amount),
-    [isExpanded, amount]);
+    const displayValue = useMemo(
+        () =>
+            isExpanded ? formatCurrency(amount) : formatCompactCurrency(amount),
+        [amount, isExpanded],
+    );
 
     return (
-        <Pressable onPressOut={handlePress} disabled={!shouldAllowToggle}>
+        <Pressable
+            onPress={handlePress}
+            disabled={!shouldAllowToggle}
+            accessibilityRole={shouldAllowToggle ? "button" : undefined}
+        >
             <Typography
                 variant={variant}
                 color={color}
@@ -85,4 +95,10 @@ export const TouchableAmount: React.FC<TouchableAmountProps> = React.memo(({
             </Typography>
         </Pressable>
     );
-});
+};
+
+TouchableAmountComponent.displayName = "TouchableAmount";
+
+export const TouchableAmount = React.memo(TouchableAmountComponent);
+
+TouchableAmount.displayName = "TouchableAmount";

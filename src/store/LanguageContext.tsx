@@ -7,7 +7,9 @@ import React, {
     useState,
 } from "react";
 import { I18nManager } from "react-native";
+import { STORAGE_KEYS } from "../constants";
 import i18n from "../i18n";
+import { logger } from "../services/LogService";
 
 type LanguageType = "en" | "ur";
 
@@ -32,13 +34,15 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({
 
         const loadLanguage = async () => {
             try {
-                const savedLang = await AsyncStorage.getItem("appLanguage");
+                const savedLang = await AsyncStorage.getItem(
+                    STORAGE_KEYS.appLanguage,
+                );
                 if (savedLang === "en" || savedLang === "ur") {
                     setLangState(savedLang);
                     i18n.changeLanguage(savedLang);
                 }
             } catch (error) {
-                console.error("Failed to load language", error);
+                void logger.error("navigation", "Failed to load language", error);
             } finally {
                 setIsReady(true);
             }
@@ -48,11 +52,11 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const setLanguage = async (lang: LanguageType) => {
         try {
-            await AsyncStorage.setItem("appLanguage", lang);
+            await AsyncStorage.setItem(STORAGE_KEYS.appLanguage, lang);
             setLangState(lang);
             i18n.changeLanguage(lang);
         } catch (error) {
-            console.error("Failed to set language", error);
+            void logger.error("navigation", "Failed to set language", error);
         }
     };
 

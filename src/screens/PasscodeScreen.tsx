@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -8,6 +8,7 @@ import {
     BackHandler,
     Keyboard,
     KeyboardAvoidingView,
+    LayoutAnimation,
     Platform,
     Pressable,
     ScrollView,
@@ -33,9 +34,28 @@ type SetupStep = 1 | 2 | 3;
 const AUTO_LOCK_OPTIONS: AutoLockDelay[] = [
     0, 60_000, 180_000, 300_000, 600_000,
 ];
+const DISCLOSURE_ANIMATION = {
+    duration: 180,
+    create: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+    },
+    update: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+    },
+    delete: {
+        type: LayoutAnimation.Types.easeInEaseOut,
+        property: LayoutAnimation.Properties.opacity,
+    },
+};
+
+const animateDisclosure = () => {
+    LayoutAnimation.configureNext(DISCLOSURE_ANIMATION);
+};
 
 export const PasscodeScreen: React.FC = () => {
     const router = useRouter();
+    const params = useLocalSearchParams<{ returnTo?: string }>();
     const insets = useSafeAreaInsets();
     const { t } = useTranslation();
     const { colors } = useTheme();
@@ -157,6 +177,10 @@ export const PasscodeScreen: React.FC = () => {
         await setupPasscode(pin, selectedLength, question, answer);
         setCurrentPin(pin);
         resetEditFields();
+        if (params.returnTo === "onboarding") {
+            router.replace("/onboarding?step=security" as any);
+            return;
+        }
         setMode("menu");
     };
 
@@ -460,11 +484,12 @@ export const PasscodeScreen: React.FC = () => {
                                     accessibilityState={{
                                         expanded: showAutoLockOptions,
                                     }}
-                                    onPress={() =>
+                                    onPress={() => {
+                                        animateDisclosure();
                                         setShowAutoLockOptions(
                                             (visible) => !visible,
-                                        )
-                                    }
+                                        );
+                                    }}
                                     style={[
                                         styles.biometricRow,
                                         { borderColor: colors.border },
@@ -514,6 +539,7 @@ export const PasscodeScreen: React.FC = () => {
                                                     <Pressable
                                                         key={delay}
                                                         onPress={() => {
+                                                            animateDisclosure();
                                                             void setAutoLockDelay(
                                                                 delay,
                                                             );
@@ -854,7 +880,10 @@ export const PasscodeScreen: React.FC = () => {
                             {
                                 backgroundColor: colors.surface,
                                 borderTopColor: colors.border,
-                                paddingBottom: 0,
+                                paddingBottom: Math.max(
+                                    insets.bottom,
+                                    Spacing.md,
+                                ),
                             },
                         ]}
                     >

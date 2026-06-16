@@ -15,9 +15,19 @@ export default function RootLayout() {
                     <DatabaseSecurityGate>
                         <PasscodeProvider>
                             <PasscodeGate>
-                                <Stack screenOptions={{ headerShown: false }}>
+                                <Stack
+                                    screenOptions={{
+                                        headerShown: false,
+                                        animation: "slide_from_right",
+                                        gestureEnabled: true,
+                                    }}
+                                >
                                     <Stack.Screen
                                         name="index"
+                                        options={{ headerShown: false }}
+                                    />
+                                    <Stack.Screen
+                                        name="onboarding"
                                         options={{ headerShown: false }}
                                     />
                                     <Stack.Screen
@@ -46,6 +56,14 @@ export default function RootLayout() {
                                     />
                                     <Stack.Screen
                                         name="feedback"
+                                        options={{ headerShown: false }}
+                                    />
+                                    <Stack.Screen
+                                        name="developer-options"
+                                        options={{ headerShown: false }}
+                                    />
+                                    <Stack.Screen
+                                        name="logs"
                                         options={{ headerShown: false }}
                                     />
                                 </Stack>

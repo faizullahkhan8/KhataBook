@@ -1,6 +1,7 @@
 import { SQLiteDatabase } from "../db/types";
 import { Customer, CustomerSummary } from "../models/Customer";
 import { CustomerId } from "../models/types";
+import { logger } from "./LogService";
 
 export class CustomerService {
     private db: SQLiteDatabase;
@@ -38,7 +39,7 @@ export class CustomerService {
             );
             return result.lastInsertRowId as CustomerId;
         } catch (error) {
-            console.error("Error creating customer:", error);
+            void logger.error("customers", "Error creating customer", error);
             throw error;
         }
     }
@@ -54,7 +55,7 @@ export class CustomerService {
             );
             return customer || null;
         } catch (error) {
-            console.error("Error fetching customer:", error);
+            void logger.error("customers", "Error fetching customer", error);
             throw error;
         }
     }
@@ -73,7 +74,7 @@ export class CustomerService {
             );
             return customers;
         } catch (error) {
-            console.error("Error fetching customers:", error);
+            void logger.error("customers", "Error fetching customers", error);
             throw error;
         }
     }
@@ -96,7 +97,11 @@ export class CustomerService {
             );
             return summaries;
         } catch (error) {
-            console.error("Error fetching customer summaries:", error);
+            void logger.error(
+                "customers",
+                "Error fetching customer summaries",
+                error,
+            );
             throw error;
         }
     }
@@ -117,7 +122,7 @@ export class CustomerService {
             );
             return customers;
         } catch (error) {
-            console.error("Error searching customers:", error);
+            void logger.error("customers", "Error searching customers", error);
             throw error;
         }
     }
@@ -172,7 +177,7 @@ export class CustomerService {
                 values,
             );
         } catch (error) {
-            console.error("Error updating customer:", error);
+            void logger.error("customers", "Error updating customer", error);
             throw error;
         }
     }
@@ -184,7 +189,7 @@ export class CustomerService {
         try {
             await this.db.runAsync("DELETE FROM customers WHERE id = ?", [id]);
         } catch (error) {
-            console.error("Error deleting customer:", error);
+            void logger.error("customers", "Error deleting customer", error);
             throw error;
         }
     }
@@ -199,7 +204,7 @@ export class CustomerService {
             );
             return result?.count || 0;
         } catch (error) {
-            console.error("Error getting customer count:", error);
+            void logger.error("customers", "Error getting customer count", error);
             throw error;
         }
     }
