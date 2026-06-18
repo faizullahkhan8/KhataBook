@@ -37,7 +37,9 @@ export class CustomerService {
                     customer.notes || null,
                 ],
             );
-            return result.lastInsertRowId as CustomerId;
+            const customerId = result.lastInsertRowId as CustomerId;
+            void logger.info("customers", "Customer created", { customerId, name: customer.name });
+            return customerId;
         } catch (error) {
             void logger.error("customers", "Error creating customer", error);
             throw error;
@@ -90,7 +92,6 @@ export class CustomerService {
             throw new Error("Database is not initialized");
         }
         try {
-            // We use the denormalized fields directly for maximum speed
             const summaries = await this.db.getAllAsync<CustomerSummary>(
                 "SELECT id, name, phone, image_uri, total_receivable, total_payable, last_transaction_at FROM customers ORDER BY name ASC LIMIT ? OFFSET ?",
                 [limit, offset],
@@ -176,6 +177,7 @@ export class CustomerService {
                 `UPDATE customers SET ${fields.join(", ")} WHERE id = ?`,
                 values,
             );
+            void logger.info("customers", "Customer updated", { customerId: id });
         } catch (error) {
             void logger.error("customers", "Error updating customer", error);
             throw error;
@@ -188,6 +190,7 @@ export class CustomerService {
         }
         try {
             await this.db.runAsync("DELETE FROM customers WHERE id = ?", [id]);
+            void logger.info("customers", "Customer deleted", { customerId: id });
         } catch (error) {
             void logger.error("customers", "Error deleting customer", error);
             throw error;

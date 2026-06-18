@@ -380,6 +380,11 @@
         "paidFromPocket": "اپنی جیب سے ادا",
         "unknown": "نامعلوم",
         "paidFromBalanceAndPocket": "بیلنس اور جیب سے ادا",
+        "settled": "تصفیہ شدہ",
+        "settledAndAdded": "تصفیہ + اضافی بیلنس",
+        "addedBalance": "اضافی بیلنس",
+        "settledAmount": "تصفیہ شدہ",
+        "addedBalanceAmount": "اضافی بیلنس",
         "fromCustomerBalance": "گاہک کے بیلنس سے",
         "fromPocketBusiness": "جیب/کاروبار سے",
         "notAvailable": "N/A"

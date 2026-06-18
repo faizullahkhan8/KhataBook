@@ -1,5 +1,5 @@
 import { SQLiteDatabase } from "../db/types";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     AccountStatus,
     AccountType,
@@ -19,9 +19,11 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
-    const { page, pageSize, offset, resetPage } = usePagination({
+    const { page, pageSize, offset, hasMore, markFetched, nextPage, resetPage } = usePagination({
         pageSize: 20,
     });
+
+    const fetchGen = useRef(0);
 
     const customerService = useMemo(
         () => (db ? new CustomerService(db) : null),
@@ -37,22 +39,31 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
     );
 
     const fetchCustomersWithAccounts = useCallback(
-        async (isManualRefresh = false) => {
+        async (targetPage: number, query: string, append: boolean) => {
             if (!customerService || !accountService) return;
 
-            if (isManualRefresh || customers.length === 0) {
+            const gen = ++fetchGen.current;
+
+            if (!append) {
                 setLoading(true);
             }
 
             setError(null);
             try {
-                const customerData = searchQuery
+                const currentOffset = targetPage * pageSize;
+                const customerData = query
                     ? await customerService.searchCustomers(
-                          searchQuery,
+                          query,
                           pageSize,
-                          offset,
+                          currentOffset,
                       )
-                    : await customerService.getAllCustomers(pageSize, offset);
+                    : await customerService.getAllCustomers(pageSize, currentOffset);
+
+                if (gen !== fetchGen.current) return;
+
+                if (customerData.length < pageSize) {
+                    markFetched(customerData.length);
+                }
 
                 const customersWithAccounts = await Promise.all(
                     customerData.map(async (customer) => {
@@ -64,22 +75,36 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
                     }),
                 );
 
-                setCustomers(customersWithAccounts);
+                if (gen !== fetchGen.current) return;
+
+                setCustomers(prev =>
+                    append ? [...prev, ...customersWithAccounts] : customersWithAccounts,
+                );
             } catch (err) {
-                setError(err as Error);
+                if (gen === fetchGen.current) {
+                    setError(err as Error);
+                }
             } finally {
-                setLoading(false);
+                if (gen === fetchGen.current) {
+                    setLoading(false);
+                }
             }
         },
-        [
-            customerService,
-            accountService,
-            searchQuery,
-            pageSize,
-            offset,
-            customers.length,
-        ],
+        [customerService, accountService, pageSize, markFetched],
     );
+
+    // Initial load + search query changes → page 0, replace
+    useEffect(() => {
+        resetPage();
+        void fetchCustomersWithAccounts(0, searchQuery, false);
+    }, [refreshVersions.customers, searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Pagination: page increments via nextPage → append
+    useEffect(() => {
+        if (page > 0) {
+            void fetchCustomersWithAccounts(page, searchQuery, true);
+        }
+    }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const createCustomer = useCallback(
         async (
@@ -107,8 +132,6 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
                     await customerService.createCustomer(customer);
                 if (customerId) {
                     const initialBalance = options?.initialBalance || 0;
-                    // If initial balance provided, create account with opening balance transaction
-                    // This ensures the ledger has a matching transaction (audit trail completeness)
                     if (initialBalance > 0) {
                         await accountService.createAccountWithOpeningBalance(
                             {
@@ -117,13 +140,12 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
                                 account_type: AccountType.CREDIT,
                                 credit_limit: (options?.creditLimit ||
                                     0) as any,
-                                current_balance: 0, // Will be set by opening balance transaction
+                                current_balance: 0,
                                 status: AccountStatus.ACTIVE,
                             },
                             initialBalance,
                         );
                     } else {
-                        // No initial balance, create account normally
                         await accountService.createAccount({
                             customer_id: customerId,
                             account_number: `ACC-${Date.now()}`,
@@ -153,8 +175,6 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
             setLoading(true);
             setError(null);
             try {
-                // Wrap entire deletion in a transaction for atomicity
-                // SQLite CASCADE will automatically delete related accounts and transactions
                 await db.withTransactionAsync(async () => {
                     for (const id of ids) {
                         await customerService.deleteCustomer(id);
@@ -184,14 +204,15 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
     const handleSearch = useCallback(
         (query: string) => {
             setSearchQuery(query);
-            resetPage();
         },
-        [resetPage],
+        [],
     );
 
-    useEffect(() => {
-        fetchCustomersWithAccounts();
-    }, [fetchCustomersWithAccounts, refreshVersions.customers]);
+    const refresh = useCallback(() => {
+        resetPage();
+        setSearchQuery("");
+        invalidate("customers");
+    }, [resetPage, invalidate]);
 
     return {
         customers,
@@ -200,10 +221,12 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
         searchQuery,
         page,
         pageSize,
+        hasMore,
+        nextPage,
         createCustomer,
         deleteCustomer,
         bulkDeleteCustomers,
         handleSearch,
-        refresh: () => fetchCustomersWithAccounts(true),
+        refresh,
     };
 };

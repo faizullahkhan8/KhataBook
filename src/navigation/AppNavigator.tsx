@@ -29,10 +29,14 @@ export const AppNavigator: React.FC = () => {
     return (
         <Tab.Navigator
             tabBarPosition="bottom"
+            offscreenPageLimit={1}
+            overdrag={false}
+            pageMargin={12}
             screenOptions={{
                 swipeEnabled: true,
                 animationEnabled: true,
                 lazy: false,
+                lazyPreloadDistance: 1,
                 tabBarShowIcon: true,
                 tabBarActiveTintColor: colors.primary,
                 tabBarInactiveTintColor: colors.text.muted,

@@ -55,6 +55,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({
             await AsyncStorage.setItem(STORAGE_KEYS.appLanguage, lang);
             setLangState(lang);
             i18n.changeLanguage(lang);
+            void logger.info("navigation", "Language changed", { language: lang });
         } catch (error) {
             void logger.error("navigation", "Failed to set language", error);
         }

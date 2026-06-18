@@ -2,17 +2,18 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker, {
     DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+    Animated,
+    Easing,
     Modal,
     Pressable,
     StyleSheet,
-    TouchableWithoutFeedback,
     View,
 } from "react-native";
 import { Spacing } from "../constants";
-import { useTheme } from "../store";
+import { usePasscode, useTheme } from "../store";
 import { Button } from "./Button";
 import { Card } from "./Card";
 import { Typography } from "./Typography";
@@ -38,18 +39,58 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
     initialRange,
 }) => {
     const { colors } = useTheme();
+    const { setAutoLockSuspended } = usePasscode();
     const { t } = useTranslation();
     const [startDate, setStartDate] = useState<Date | null>(null);
     const [endDate, setEndDate] = useState<Date | null>(null);
     const [activePicker, setActivePicker] = useState<PickerMode>(null);
+    const scaleAnim = useRef(new Animated.Value(0)).current;
+    const opacityAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (!visible) return;
+        setAutoLockSuspended(true);
+        return () => setAutoLockSuspended(false);
+    }, [setAutoLockSuspended, visible]);
 
     // Reset state when modal opens with initial values
     useEffect(() => {
         if (visible) {
             setStartDate(initialRange?.startDate || null);
             setEndDate(initialRange?.endDate || null);
+            scaleAnim.setValue(0);
+            opacityAnim.setValue(0);
+            Animated.parallel([
+                Animated.timing(opacityAnim, {
+                    toValue: 1,
+                    duration: 200,
+                    easing: Easing.out(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+                Animated.spring(scaleAnim, {
+                    toValue: 1,
+                    friction: 8,
+                    tension: 80,
+                    useNativeDriver: true,
+                }),
+            ]).start();
         }
-    }, [visible, initialRange]);
+    }, [visible, initialRange, scaleAnim, opacityAnim]);
+
+    const handleAnimatedClose = () => {
+        Animated.parallel([
+            Animated.timing(opacityAnim, {
+                toValue: 0,
+                duration: 150,
+                useNativeDriver: true,
+            }),
+            Animated.timing(scaleAnim, {
+                toValue: 0.85,
+                duration: 150,
+                useNativeDriver: true,
+            }),
+        ]).start(() => onClose());
+    };
 
     const handleStartDateChange = (event: DateTimePickerEvent, date?: Date) => {
         setActivePicker(null);
@@ -72,7 +113,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
     const handleApply = () => {
         if (startDate && endDate) {
             onApply({ startDate, endDate });
-            onClose();
+            handleAnimatedClose();
         }
     };
 
@@ -104,21 +145,38 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
         <Modal
             visible={visible}
             transparent
-            animationType="fade"
-            onRequestClose={onClose}
+            animationType="none"
+            onRequestClose={handleAnimatedClose}
         >
-            <TouchableWithoutFeedback onPress={onClose}>
-                <View style={[styles.overlay, ,]}>
-                    <TouchableWithoutFeedback
-                        onPress={(e) => e.stopPropagation()}
-                    >
-                        <View>
-                            <Card
-                                style={[
-                                    styles.container,
-                                    { backgroundColor: colors.surface },
-                                ]}
+            <View style={styles.modalContainer}>
+                <Animated.View
+                    style={[
+                        styles.overlay,
+                        {
+                            opacity: opacityAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [0, 1],
+                            }),
+                        },
+                    ]}
+                />
+                <Pressable
+                    onPress={handleAnimatedClose}
+                    style={styles.backdropPressable}
+                >
+                    <View style={styles.centeredContent}>
+                        <Pressable onPress={(e) => e.stopPropagation()}>
+                            <Animated.View
+                                style={{
+                                    transform: [{ scale: scaleAnim }],
+                                }}
                             >
+                                <Card
+                                    style={[
+                                        styles.container,
+                                        { backgroundColor: colors.surface },
+                                    ]}
+                                >
                                 {/* Header */}
                                 <View style={styles.header}>
                                     <Typography
@@ -128,7 +186,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
                                         {t("reports.dateRange")}
                                     </Typography>
                                     <Pressable
-                                        onPress={onClose}
+                                        onPress={handleAnimatedClose}
                                         style={[
                                             styles.closeButton,
                                             {
@@ -341,22 +399,35 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
                                     />
                                 </View>
                             </Card>
-                        </View>
-                    </TouchableWithoutFeedback>
-                </View>
-            </TouchableWithoutFeedback>
+                        </Animated.View>
+                        </Pressable>
+                    </View>
+                </Pressable>
+            </View>
         </Modal>
     );
 };
 
 const styles = StyleSheet.create({
-    overlay: {
+    modalContainer: {
         flex: 1,
-        justifyContent: "flex-end",
+    },
+    overlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: "rgba(0, 0, 0, 0.6)",
+    },
+    backdropPressable: {
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    centeredContent: {
+        width: "100%",
+        alignItems: "center",
     },
     container: {
-        margin: Spacing.md,
-        marginBottom: Spacing.xxxl,
+        width: "90%",
+        maxWidth: 400,
         padding: Spacing.lg,
         borderRadius: 20,
     },

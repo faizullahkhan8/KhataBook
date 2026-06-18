@@ -30,13 +30,14 @@ import { useDebounce } from "../hooks/useDebounce";
 import { useDeleteAuthentication } from "../hooks/useDeleteAuthentication";
 import { AccountStatus, CustomerId, CustomerWithAccounts } from "../models";
 
-import { useDatabaseContext, useTheme } from "../store";
+import { useDatabaseContext, usePasscode, useTheme } from "../store";
 
 export const CustomersScreen: React.FC = () => {
     const { db } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
+    const { setAutoLockSuspended } = usePasscode();
     const { t } = useTranslation();
     const {
         customers,
@@ -44,6 +45,8 @@ export const CustomersScreen: React.FC = () => {
         error,
         handleSearch,
         refresh,
+        hasMore,
+        nextPage,
         bulkDeleteCustomers,
     } = useCustomersWithAccounts(db);
     const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
@@ -63,6 +66,7 @@ export const CustomersScreen: React.FC = () => {
     const searchInputRef = useRef<TextInput>(null);
     const selectionSnapshotRef = useRef<CustomerWithAccounts[]>([]);
     const isDraggingRef = useRef(false);
+    const stageDeleteAlertSuspendedRef = useRef(false);
 
     const debouncedSearch = useDebounce(searchText, 500);
 
@@ -109,6 +113,18 @@ export const CustomersScreen: React.FC = () => {
 
         loadAndSortCustomers();
     }, [customers, db, isSelectionMode]);
+
+    useEffect(() => {
+        if (!isSelectionMenuVisible) return;
+        setAutoLockSuspended(true);
+        return () => setAutoLockSuspended(false);
+    }, [isSelectionMenuVisible, setAutoLockSuspended]);
+
+    const releaseStageDeleteAlertSuspension = useCallback(() => {
+        if (!stageDeleteAlertSuspendedRef.current) return;
+        stageDeleteAlertSuspendedRef.current = false;
+        setAutoLockSuspended(false);
+    }, [setAutoLockSuspended]);
 
     const persistCustomerOrder = useCallback(
         async (data: CustomerWithAccounts[]) => {
@@ -234,11 +250,17 @@ export const CustomersScreen: React.FC = () => {
         if (selectedIds.size === 0) return;
 
         setIsSelectionMenuVisible(false);
+        stageDeleteAlertSuspendedRef.current = true;
+        setAutoLockSuspended(true);
         Alert.alert(
             t("customers.deleteTitle"),
             t("customers.stageDeleteMessage", { count: selectedIds.size }),
             [
-                { text: t("customers.cancel"), style: "cancel" },
+                {
+                    text: t("customers.cancel"),
+                    style: "cancel",
+                    onPress: releaseStageDeleteAlertSuspension,
+                },
                 {
                     text: t("customers.delete"),
                     style: "destructive",
@@ -256,11 +278,18 @@ export const CustomersScreen: React.FC = () => {
                             ),
                         );
                         setSelectedIds(new Set());
+                        releaseStageDeleteAlertSuspension();
                     },
                 },
             ],
+            { onDismiss: releaseStageDeleteAlertSuspension },
         );
-    }, [selectedIds, t]);
+    }, [
+        releaseStageDeleteAlertSuspension,
+        selectedIds,
+        setAutoLockSuspended,
+        t,
+    ]);
 
     const renderCustomer = useCallback(
         ({
@@ -805,6 +834,23 @@ export const CustomersScreen: React.FC = () => {
                         removeClippedSubviews={
                             Platform.OS === "android" && !isReorderMode
                         }
+                        onEndReached={hasMore ? nextPage : undefined}
+                        onEndReachedThreshold={0.5}
+                        ListFooterComponent={
+                            loading && customers.length > 0 ? (
+                                <View style={styles.footer}>
+                                    <Typography variant="body-small" color="muted">
+                                        Loading more...
+                                    </Typography>
+                                </View>
+                            ) : !hasMore && customers.length > 0 ? (
+                                <View style={styles.footer}>
+                                    <Typography variant="body-small" color="muted">
+                                        All customers loaded
+                                    </Typography>
+                                </View>
+                            ) : null
+                        }
                     />
                 </GestureHandlerRootView>
 
@@ -1217,5 +1263,9 @@ const styles = StyleSheet.create({
     },
     customerInfo: {
         flex: 1,
+    },
+    footer: {
+        padding: Spacing.md,
+        alignItems: "center",
     },
 });

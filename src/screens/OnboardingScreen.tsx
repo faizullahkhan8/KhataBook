@@ -125,7 +125,7 @@ export const OnboardingScreen: React.FC = () => {
         <View style={styles.screenContent}>
             <View style={styles.hero}>
                 <Image
-                    source={require("../../assets/images/app-logo.png")}
+                    source={require("../../assets/images/app-logo-without-bg.png")}
                     style={styles.logo}
                     contentFit="contain"
                 />

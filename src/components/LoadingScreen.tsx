@@ -59,7 +59,7 @@ export const LoadingScreen: React.FC<LoadingScreenProps> = ({ message }) => {
                         ]}
                     />
                     <Image
-                        source={require("../../assets/images/app-logo.png")}
+                        source={require("../../assets/images/app-logo-without-bg.png")}
                         style={styles.logo}
                         contentFit="cover"
                     />

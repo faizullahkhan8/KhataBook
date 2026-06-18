@@ -332,11 +332,17 @@ export const AddCustomerScreen: React.FC = () => {
                         false && { flexDirection: "row-reverse" },
                     ]}
                 >
-                    <Pressable onPress={handleCancel} style={styles.backButton}>
+                    <Pressable
+                        onPress={handleCancel}
+                        style={[
+                            styles.backButton,
+                            { backgroundColor: `${colors.primary}15` },
+                        ]}
+                    >
                         <Ionicons
-                            name={false ? "arrow-forward" : "arrow-back"}
+                            name={false ? "chevron-forward" : "chevron-back"}
                             size={24}
-                            color={colors.text.primary}
+                            color={colors.primary}
                         />
                     </Pressable>
                     <Typography variant="heading-large" color="primary">
@@ -873,7 +879,11 @@ const styles = StyleSheet.create({
         borderBottomColor: Colors.border,
     },
     backButton: {
-        padding: Spacing.xs,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: "center",
+        justifyContent: "center",
     },
     placeholder: {
         width: 40,

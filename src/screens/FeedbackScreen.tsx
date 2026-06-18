@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import * as SMS from "expo-sms";
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Alert,
@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Card, Input, Typography } from "../components";
 import { Spacing } from "../constants";
 import { useLanguage, useTheme } from "../store";
+import { formatLogEntry, logService } from "../services/LogService";
 
 type FeedbackCategory = "feedback" | "suggestion" | "bug" | "error" | "other";
 
@@ -42,6 +43,7 @@ export const FeedbackScreen: React.FC = () => {
     const [details, setDetails] = useState("");
     const [categoryError, setCategoryError] = useState(false);
     const [detailsError, setDetailsError] = useState(false);
+    const [includeLogs, setIncludeLogs] = useState(true);
     const [isOpening, setIsOpening] = useState(false);
 
     const diagnosticDetails = useMemo(
@@ -54,6 +56,28 @@ export const FeedbackScreen: React.FC = () => {
         [language],
     );
 
+    const buildLogsSection = useCallback(async (compact = false) => {
+        const entries = await logService.getLogs();
+        if (entries.length === 0) return "";
+        if (compact) {
+            const counts: Record<string, number> = {};
+            for (const entry of entries) {
+                const key = `${entry.level}/${entry.category}`;
+                counts[key] = (counts[key] || 0) + 1;
+            }
+            const summary = Object.entries(counts)
+                .sort()
+                .map(([k, v]) => `${k}: ${v}`)
+                .join(", ");
+            return `\n\nLogs: ${entries.length} total (${summary})`;
+        }
+        const logText = entries
+            .slice(0, 50)
+            .map(formatLogEntry)
+            .join("\n");
+        return `\n\n---\nRecent logs (latest ${Math.min(50, entries.length)} of ${entries.length}):\n${logText}`;
+    }, []);
+
     const validate = () => {
         const hasCategory = Boolean(category);
         const hasDetails = Boolean(details.trim());
@@ -62,10 +86,11 @@ export const FeedbackScreen: React.FC = () => {
         return hasCategory && hasDetails;
     };
 
-    const buildMessage = () => {
+    const buildMessage = useCallback(async (compactLogs = false) => {
         const selectedCategory = category
             ? t(`feedback.categories.${category}`)
             : "";
+        const logsSection = includeLogs ? await buildLogsSection(compactLogs) : "";
         return [
             "KhataBook Feedback & Support",
             "",
@@ -77,8 +102,9 @@ export const FeedbackScreen: React.FC = () => {
             "",
             "App information:",
             ...diagnosticDetails,
+            logsSection,
         ].join("\n");
-    };
+    }, [category, subject, details, diagnosticDetails, t, buildLogsSection, includeLogs]);
 
     const showUnavailable = () =>
         Alert.alert(
@@ -90,8 +116,9 @@ export const FeedbackScreen: React.FC = () => {
         if (!validate()) return;
         setIsOpening(true);
         try {
+            const message = await buildMessage(false);
             await Linking.openURL(
-                `whatsapp://send?phone=${CONTACT_PHONE}&text=${encodeURIComponent(buildMessage())}`,
+                `whatsapp://send?phone=${CONTACT_PHONE}&text=${encodeURIComponent(message)}`,
             );
         } catch {
             showUnavailable();
@@ -104,6 +131,7 @@ export const FeedbackScreen: React.FC = () => {
         if (!validate()) return;
         setIsOpening(true);
         try {
+            const message = await buildMessage(false);
             const emailSubject =
                 subject.trim() ||
                 t("feedback.defaultEmailSubject", {
@@ -111,7 +139,7 @@ export const FeedbackScreen: React.FC = () => {
                         ? t(`feedback.categories.${category}`)
                         : "",
                 });
-            const url = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(buildMessage())}`;
+            const url = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(message)}`;
             if (!(await Linking.canOpenURL(url))) {
                 showUnavailable();
                 return;
@@ -132,7 +160,8 @@ export const FeedbackScreen: React.FC = () => {
                 showUnavailable();
                 return;
             }
-            await SMS.sendSMSAsync(`+${CONTACT_PHONE}`, buildMessage());
+            const message = await buildMessage(true);
+            await SMS.sendSMSAsync(`+${CONTACT_PHONE}`, message);
         } catch {
             showUnavailable();
         } finally {
@@ -156,11 +185,14 @@ export const FeedbackScreen: React.FC = () => {
             >
                 <Pressable
                     onPress={() => router.back()}
-                    style={styles.backButton}
+                    style={[
+                        styles.backButton,
+                        { backgroundColor: `${colors.primary}15` },
+                    ]}
                     hitSlop={Spacing.md}
                 >
                     <Ionicons
-                        name="arrow-back"
+                        name="chevron-back"
                         size={24}
                         color={colors.primary}
                     />
@@ -270,6 +302,22 @@ export const FeedbackScreen: React.FC = () => {
                             </Typography>
                         )}
                     </Card>
+                    <Pressable
+                        onPress={() => setIncludeLogs((prev) => !prev)}
+                        style={styles.logsToggle}
+                    >
+                        <Ionicons
+                            name={includeLogs ? "checkbox" : "square-outline"}
+                            size={22}
+                            color={includeLogs ? colors.primary : colors.text.muted}
+                        />
+                        <Typography variant="body-small" color="primary" style={styles.logsToggleText}>
+                            Include app logs for debugging
+                        </Typography>
+                    </Pressable>
+                    <Typography color="muted" variant="small-small" style={styles.logsNote}>
+                        Logs contain recent app events (navigation, CRUD, errors). Sensitive data like PINs, passwords, and full CNIC numbers are automatically redacted.
+                    </Typography>
                     <Typography variant="subheading-small">
                         {t("feedback.sendUsing")}
                     </Typography>
@@ -314,7 +362,13 @@ const styles = StyleSheet.create({
         paddingBottom: Spacing.md,
         borderBottomWidth: 1,
     },
-    backButton: { padding: Spacing.xs },
+    backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: "center",
+        justifyContent: "center",
+    },
     content: { flex: 1 },
     scrollContent: { padding: Spacing.lg, gap: Spacing.md },
     card: { gap: Spacing.sm, padding: Spacing.lg },
@@ -328,6 +382,18 @@ const styles = StyleSheet.create({
         padding: Spacing.md,
     },
     detailsInput: { minHeight: 150, textAlignVertical: "top" },
+    logsToggle: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: Spacing.sm,
+        marginTop: Spacing.xs,
+    },
+    logsToggleText: {
+        flex: 1,
+    },
+    logsNote: {
+        lineHeight: 16,
+    },
     actions: { gap: Spacing.sm },
     action: { width: "100%" },
 });

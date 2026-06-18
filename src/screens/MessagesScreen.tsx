@@ -1,11 +1,11 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as SMS from "expo-sms";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Alert,
+    Animated,
     FlatList,
-    LayoutAnimation,
     Modal,
     Pressable,
     ScrollView,
@@ -34,31 +34,13 @@ type SendMode = "individual" | "group";
 type MessageRecipient = CustomerWithAccounts & { id: CustomerId };
 
 const MESSAGE_PLACEHOLDER_PATTERN = /{{\s*[^{}]+?\s*}}/;
-const SECTION_SWITCH_ANIMATION = {
-    duration: 180,
-    create: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-    },
-    update: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-    },
-    delete: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-    },
-};
-
-const animateSectionSwitch = () => {
-    LayoutAnimation.configureNext(SECTION_SWITCH_ANIMATION);
-};
 
 export const MessagesScreen: React.FC = () => {
     const { db } = useDatabaseContext();
     const { colors } = useTheme();
     const { t } = useTranslation();
     const insets = useSafeAreaInsets();
-    const { customers, loading } = useCustomersWithAccounts(db);
+    const { customers, loading, hasMore, nextPage } = useCustomersWithAccounts(db);
     const { setAutoLockSuspended } = usePasscode();
     const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
         useDeleteAuthentication();
@@ -84,6 +66,14 @@ export const MessagesScreen: React.FC = () => {
     const [templateName, setTemplateName] = useState("");
     const [templateBody, setTemplateBody] = useState("");
     const [templateError, setTemplateError] = useState("");
+
+    const sectionAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (!editing) return;
+        setAutoLockSuspended(true);
+        return () => setAutoLockSuspended(false);
+    }, [editing, setAutoLockSuspended]);
 
     const loadTemplates = useCallback(async () => {
         if (!service) return;
@@ -192,10 +182,13 @@ export const MessagesScreen: React.FC = () => {
     };
 
     const toggleSection = () => {
-        animateSectionSwitch();
-        setSection((currentSection) =>
-            currentSection === "send" ? "templates" : "send",
-        );
+        const toSection = section === "send" ? "templates" : "send";
+        Animated.timing(sectionAnim, {
+            toValue: toSection === "templates" ? 1 : 0,
+            duration: 200,
+            useNativeDriver: true,
+        }).start();
+        setSection(toSection);
     };
 
     const validateMessage = async () => {
@@ -401,9 +394,7 @@ export const MessagesScreen: React.FC = () => {
                 <Input
                     value={recipientSearch}
                     onChangeText={setRecipientSearch}
-                    placeholder={t(
-                        "customerMessages.recipientSearchPlaceholder",
-                    )}
+                    placeholder={t("customerMessages.recipientSearchPlaceholder")}
                     autoCapitalize="none"
                     autoCorrect={false}
                     returnKeyType="search"
@@ -416,63 +407,43 @@ export const MessagesScreen: React.FC = () => {
                 style={styles.recipientList}
                 contentContainerStyle={[
                     styles.recipientListContent,
-                    filteredCustomers.length === 0 &&
-                        styles.recipientListEmptyContent,
+                    filteredCustomers.length === 0 && styles.recipientListEmptyContent,
                 ]}
                 keyboardShouldPersistTaps="handled"
                 showsVerticalScrollIndicator={false}
+                onEndReached={hasMore ? nextPage : undefined}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={
+                    loading && filteredCustomers.length > 0 ? (
+                        <Typography variant="small-small" color="muted" style={styles.footer}>
+                            Loading more...
+                        </Typography>
+                    ) : null
+                }
                 renderItem={({ item }) => {
-                    const isSelected =
-                        item.id !== undefined && selectedIds.has(item.id);
+                    const isSelected = item.id !== undefined && selectedIds.has(item.id);
                     return (
-                        <Pressable
-                            onPress={() => item.id && toggleCustomer(item.id)}
-                        >
+                        <Pressable onPress={() => item.id && toggleCustomer(item.id)}>
                             <Card
                                 style={[
                                     styles.customerCard,
                                     ...(isSelected
-                                        ? [
-                                              {
-                                                  borderColor: colors.primary,
-                                                  backgroundColor: `${colors.primary}12`,
-                                              },
-                                          ]
+                                        ? [{ borderColor: colors.primary, backgroundColor: `${colors.primary}12` }]
                                         : []),
                                 ]}
                             >
-                                <View
-                                    style={[
-                                        styles.customerRow,
-                                        false && styles.rowRTL,
-                                    ]}
-                                >
+                                <View style={[styles.customerRow, false && styles.rowRTL]}>
                                     <Ionicons
-                                        name={
-                                            isSelected
-                                                ? "checkbox"
-                                                : "square-outline"
-                                        }
+                                        name={isSelected ? "checkbox" : "square-outline"}
                                         size={24}
-                                        color={
-                                            isSelected
-                                                ? colors.primary
-                                                : colors.text.muted
-                                        }
+                                        color={isSelected ? colors.primary : colors.text.muted}
                                     />
                                     <View style={styles.customerText}>
-                                        <Typography
-                                            variant="body-medium"
-                                            color="primary"
-                                        >
+                                        <Typography variant="body-medium" color="primary">
                                             {item.name}
                                         </Typography>
-                                        <Typography
-                                            variant="body-small"
-                                            color="muted"
-                                        >
-                                            {item.phone ||
-                                                t("customerMessages.noPhone")}
+                                        <Typography variant="body-small" color="muted">
+                                            {item.phone || t("customerMessages.noPhone")}
                                         </Typography>
                                     </View>
                                 </View>
@@ -483,38 +454,18 @@ export const MessagesScreen: React.FC = () => {
                 ListEmptyComponent={
                     <View style={styles.empty}>
                         {customers.length > 0 && (
-                            <Ionicons
-                                name="search-outline"
-                                size={36}
-                                color={colors.text.muted}
-                            />
+                            <Ionicons name="search-outline" size={36} color={colors.text.muted} />
                         )}
                         <Typography variant="body-small" color="muted">
-                            {customers.length === 0
-                                ? t("customers.emptyTitle")
-                                : t("customerMessages.noRecipientsFound")}
+                            {customers.length === 0 ? t("customers.emptyTitle") : t("customerMessages.noRecipientsFound")}
                         </Typography>
                     </View>
                 }
             />
-            <View
-                style={[
-                    styles.recipientSummary,
-                    {
-                        backgroundColor: colors.surface,
-                        borderTopColor: colors.border,
-                    },
-                ]}
-            >
-                <Ionicons
-                    name="people-outline"
-                    size={20}
-                    color={colors.primary}
-                />
+            <View style={[styles.recipientSummary, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+                <Ionicons name="people-outline" size={20} color={colors.primary} />
                 <Typography variant="body-small" color="muted">
-                    {t("customerMessages.selectedCount", {
-                        count: selectedCustomers.length,
-                    })}
+                    {t("customerMessages.selectedCount", { count: selectedCustomers.length })}
                 </Typography>
             </View>
         </View>
@@ -530,39 +481,20 @@ export const MessagesScreen: React.FC = () => {
                 {(["individual", "group"] as const).map((mode) => (
                     <Pressable
                         key={mode}
-                        onPress={() => {
-                            resetSendProgress();
-                            setSendMode(mode);
-                        }}
+                        onPress={() => { resetSendProgress(); setSendMode(mode); }}
                         style={[
                             styles.modeOption,
                             { borderColor: colors.border },
-                            sendMode === mode && {
-                                borderColor: colors.primary,
-                                backgroundColor: `${colors.primary}15`,
-                            },
+                            sendMode === mode && { borderColor: colors.primary, backgroundColor: `${colors.primary}15` },
                         ]}
                     >
                         <Ionicons
-                            name={
-                                mode === "individual"
-                                    ? "person-outline"
-                                    : "people-outline"
-                            }
+                            name={mode === "individual" ? "person-outline" : "people-outline"}
                             size={20}
-                            color={
-                                sendMode === mode
-                                    ? colors.primary
-                                    : colors.text.muted
-                            }
+                            color={sendMode === mode ? colors.primary : colors.text.muted}
                         />
                         <View style={styles.modeText}>
-                            <Typography
-                                variant="body-medium"
-                                color={
-                                    sendMode === mode ? "primary" : "secondary"
-                                }
-                            >
+                            <Typography variant="body-medium" color={sendMode === mode ? "primary" : "secondary"}>
                                 {t(`customerMessages.${mode}Mode`)}
                             </Typography>
                             <Typography variant="body-small" color="muted">
@@ -573,12 +505,7 @@ export const MessagesScreen: React.FC = () => {
                 ))}
             </View>
             {sendMode === "group" && (
-                <Card
-                    style={[
-                        styles.notice,
-                        { backgroundColor: `${colors.primary}10` },
-                    ]}
-                >
+                <Card style={[styles.notice, { backgroundColor: `${colors.primary}10` }]}>
                     <Typography variant="body-small" color="muted">
                         {t("customerMessages.groupModeNotice")}
                     </Typography>
@@ -594,10 +521,7 @@ export const MessagesScreen: React.FC = () => {
                         style={[
                             styles.templateChip,
                             { borderColor: colors.border },
-                            selectedTemplateId === undefined && {
-                                borderColor: colors.primary,
-                                backgroundColor: `${colors.primary}15`,
-                            },
+                            selectedTemplateId === undefined && { borderColor: colors.primary, backgroundColor: `${colors.primary}15` },
                         ]}
                     >
                         <Typography variant="body-small" color="secondary">
@@ -611,10 +535,7 @@ export const MessagesScreen: React.FC = () => {
                             style={[
                                 styles.templateChip,
                                 { borderColor: colors.border },
-                                selectedTemplateId === template.id && {
-                                    borderColor: colors.primary,
-                                    backgroundColor: `${colors.primary}15`,
-                                },
+                                selectedTemplateId === template.id && { borderColor: colors.primary, backgroundColor: `${colors.primary}15` },
                             ]}
                         >
                             <Typography variant="body-small" color="secondary">
@@ -631,10 +552,7 @@ export const MessagesScreen: React.FC = () => {
             )}
             <Input
                 value={message}
-                onChangeText={(text) => {
-                    resetSendProgress();
-                    setMessage(text);
-                }}
+                onChangeText={(text) => { resetSendProgress(); setMessage(text); }}
                 placeholder={t("customerMessages.messagePlaceholder")}
                 multiline
                 inputStyle={styles.messageInput}
@@ -650,10 +568,7 @@ export const MessagesScreen: React.FC = () => {
                     {t("customerMessages.reviewRecipients")}
                 </Typography>
                 <Typography variant="body-small" color="muted">
-                    {t("customerMessages.sendProgress", {
-                        current: openedCount,
-                        total: validCustomers.length,
-                    })}
+                    {t("customerMessages.sendProgress", { current: openedCount, total: validCustomers.length })}
                 </Typography>
                 <Typography variant="body-small" color="muted">
                     {t("customerMessages.composerOpenedNote")}
@@ -667,56 +582,25 @@ export const MessagesScreen: React.FC = () => {
                             key={customer.id.toString()}
                             style={[
                                 styles.reviewRecipientCard,
-                                ...(isOpened
-                                    ? [
-                                          {
-                                              borderColor: colors.success,
-                                              backgroundColor: `${colors.success}12`,
-                                          },
-                                      ]
-                                    : []),
+                                ...(isOpened ? [{ borderColor: colors.success, backgroundColor: `${colors.success}12` }] : []),
                             ]}
                         >
-                            <View
-                                style={[
-                                    styles.customerRow,
-                                    false && styles.rowRTL,
-                                ]}
-                            >
+                            <View style={[styles.customerRow, false && styles.rowRTL]}>
                                 <Ionicons
-                                    name={
-                                        isOpened
-                                            ? "checkmark-circle"
-                                            : "ellipse-outline"
-                                    }
+                                    name={isOpened ? "checkmark-circle" : "ellipse-outline"}
                                     size={22}
-                                    color={
-                                        isOpened
-                                            ? colors.success
-                                            : colors.text.muted
-                                    }
+                                    color={isOpened ? colors.success : colors.text.muted}
                                 />
                                 <View style={styles.customerText}>
-                                    <Typography
-                                        variant="body-medium"
-                                        color="primary"
-                                    >
+                                    <Typography variant="body-medium" color="primary">
                                         {customer.name}
                                     </Typography>
-                                    <Typography
-                                        variant="body-small"
-                                        color="muted"
-                                    >
+                                    <Typography variant="body-small" color="muted">
                                         {customer.phone}
                                     </Typography>
                                 </View>
-                                <Typography
-                                    variant="body-small"
-                                    color={isOpened ? "success" : "muted"}
-                                >
-                                    {isOpened
-                                        ? t("customerMessages.opened")
-                                        : t("customerMessages.pending")}
+                                <Typography variant="body-small" color={isOpened ? "success" : "muted"}>
+                                    {isOpened ? t("customerMessages.opened") : t("customerMessages.pending")}
                                 </Typography>
                             </View>
                         </Card>
@@ -734,10 +618,7 @@ export const MessagesScreen: React.FC = () => {
                 style={[
                     styles.stickyActions,
                     {
-                        paddingBottom:
-                            sendStep === "recipients"
-                                ? Spacing.sm
-                                : insets.bottom + Spacing.md,
+                        paddingBottom: sendStep === "recipients" ? Spacing.sm : insets.bottom + Spacing.md,
                         backgroundColor: colors.surface,
                         borderTopColor: colors.border,
                     },
@@ -751,83 +632,37 @@ export const MessagesScreen: React.FC = () => {
                 {sendStep === "recipients" && (
                     <Button
                         title={t("customerMessages.next")}
-                        onPress={() => {
-                            resetSendProgress();
-                            setSendStep("message");
-                        }}
+                        onPress={() => { resetSendProgress(); setSendStep("message"); }}
                         disabled={selectedCustomers.length === 0}
                     />
                 )}
                 {sendStep === "message" && (
                     <View style={[styles.stepActions, false && styles.rowRTL]}>
-                        <Button
-                            title={t("customerMessages.back")}
-                            variant="secondary"
-                            onPress={() => {
-                                resetSendProgress();
-                                setSendStep("recipients");
-                            }}
-                            style={styles.actionButton}
-                        />
-                        <Button
-                            title={t("customerMessages.next")}
-                            onPress={goToSendStep}
-                            style={styles.actionButton}
-                        />
+                        <Button title={t("customerMessages.back")} variant="secondary" onPress={() => { resetSendProgress(); setSendStep("recipients"); }} style={styles.actionButton} />
+                        <Button title={t("customerMessages.next")} onPress={goToSendStep} style={styles.actionButton} />
                     </View>
                 )}
                 {sendStep === "send" && (
                     <>
                         {!isSendComplete && (
-                            <View
-                                style={[
-                                    styles.stepActions,
-                                    false && styles.rowRTL,
-                                ]}
-                            >
+                            <View style={[styles.stepActions, false && styles.rowRTL]}>
                                 <Button
-                                    title={
-                                        openedCount === 0
-                                            ? t("customerMessages.back")
-                                            : t(
-                                                  "customerMessages.cancelRemaining",
-                                              )
-                                    }
+                                    title={openedCount === 0 ? t("customerMessages.back") : t("customerMessages.cancelRemaining")}
                                     variant="secondary"
-                                    onPress={() => {
-                                        resetSendProgress();
-                                        setSendStep("message");
-                                    }}
+                                    onPress={() => { resetSendProgress(); setSendStep("message"); }}
                                     style={styles.actionButton}
                                 />
                                 {sendMode === "individual" && (
                                     <Button
-                                        title={
-                                            currentIndex === 0
-                                                ? t(
-                                                      "customerMessages.openFirstMessage",
-                                                  )
-                                                : t(
-                                                      "customerMessages.openNextMessage",
-                                                  )
-                                        }
+                                        title={currentIndex === 0 ? t("customerMessages.openFirstMessage") : t("customerMessages.openNextMessage")}
                                         onPress={openNextMessage}
-                                        disabled={
-                                            isOpening ||
-                                            currentIndex >=
-                                                validCustomers.length
-                                        }
+                                        disabled={isOpening || currentIndex >= validCustomers.length}
                                         style={styles.actionButton}
                                     />
                                 )}
                                 {sendMode === "group" && (
                                     <Button
-                                        title={t(
-                                            "customerMessages.openGroupMessage",
-                                            {
-                                                count: validCustomers.length,
-                                            },
-                                        )}
+                                        title={t("customerMessages.openGroupMessage", { count: validCustomers.length })}
                                         onPress={openGroupMessage}
                                         disabled={isOpening || openedCount > 0}
                                         style={styles.actionButton}
@@ -836,10 +671,7 @@ export const MessagesScreen: React.FC = () => {
                             </View>
                         )}
                         {isSendComplete && (
-                            <Button
-                                title={t("customerMessages.newMessage")}
-                                onPress={prepareAnotherMessage}
-                            />
+                            <Button title={t("customerMessages.newMessage")} onPress={prepareAnotherMessage} />
                         )}
                     </>
                 )}
@@ -847,56 +679,57 @@ export const MessagesScreen: React.FC = () => {
         );
     };
 
-    const renderSendSection = () =>
-        sendStep === "recipients" ? (
-            renderRecipientsStep()
-        ) : (
-            <ScrollView
-                style={styles.sendContent}
-                contentContainerStyle={[
-                    styles.content,
-                    { paddingBottom: Spacing.lg },
-                ]}
-                refreshControl={undefined}
-            >
-                {sendStep === "message" && renderMessageStep()}
-                {sendStep === "send" && renderSendStep()}
-            </ScrollView>
-        );
+    const sendOpacity = sectionAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] });
+    const templatesOpacity = sectionAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 1] });
+
+    const renderSection = () => (
+        <View style={{ flex: 1 }}>
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: sendOpacity }]} pointerEvents={section === "send" ? "auto" : "none"}>
+                {renderSendSection()}
+            </Animated.View>
+            <Animated.View style={[StyleSheet.absoluteFill, { opacity: templatesOpacity }]} pointerEvents={section === "templates" ? "auto" : "none"}>
+                <View style={{ flex: 1 }}>
+                    {renderTemplatesSection()}
+                </View>
+            </Animated.View>
+        </View>
+    );
+
+    const renderSendSection = () => (
+        <View style={{ flex: 1 }}>
+            {sendStep === "recipients" ? (
+                renderRecipientsStep()
+            ) : (
+                <ScrollView
+                    style={styles.sendContent}
+                    contentContainerStyle={[styles.content, { paddingBottom: Spacing.lg }]}
+                    refreshControl={undefined}
+                >
+                    {sendStep === "message" && renderMessageStep()}
+                    {sendStep === "send" && renderSendStep()}
+                </ScrollView>
+            )}
+        </View>
+    );
 
     const renderTemplatesSection = () => (
-        <FlatList
+        <View style={{ flex: 1 }}>
+            <FlatList
             data={templates}
             keyExtractor={(item) => item.id?.toString() || item.name}
-            contentContainerStyle={[
-                styles.templateList,
-                { paddingBottom: insets.bottom + 100 },
-            ]}
+            contentContainerStyle={[styles.templateList, { paddingBottom: insets.bottom + 100 }]}
             renderItem={({ item }) => (
                 <Pressable onPress={() => openTemplateEditor(item)}>
                     <Card style={styles.templateCard}>
-                        <View
-                            style={[
-                                styles.sectionTitleRow,
-                                false && styles.rowRTL,
-                            ]}
-                        >
+                        <View style={[styles.sectionTitleRow, false && styles.rowRTL]}>
                             <Typography variant="heading-small" color="primary">
                                 {item.name}
                             </Typography>
                             <Pressable onPress={() => deleteTemplate(item)}>
-                                <Ionicons
-                                    name="trash-outline"
-                                    size={20}
-                                    color={colors.danger}
-                                />
+                                <Ionicons name="trash-outline" size={20} color={colors.danger} />
                             </Pressable>
                         </View>
-                        <Typography
-                            variant="body-small"
-                            color="muted"
-                            numberOfLines={3}
-                        >
+                        <Typography variant="body-small" color="muted" numberOfLines={3}>
                             {item.body}
                         </Typography>
                     </Card>
@@ -904,24 +737,17 @@ export const MessagesScreen: React.FC = () => {
             )}
             ListEmptyComponent={
                 <View style={styles.empty}>
-                    <Ionicons
-                        name="chatbox-ellipses-outline"
-                        size={48}
-                        color={colors.text.muted}
-                    />
+                    <Ionicons name="chatbox-ellipses-outline" size={48} color={colors.text.muted} />
                     <Typography variant="heading-small" color="secondary">
                         {t("messageTemplates.emptyTitle")}
                     </Typography>
-                    <Typography
-                        variant="body-small"
-                        color="muted"
-                        style={styles.centerText}
-                    >
+                    <Typography variant="body-small" color="muted" style={styles.centerText}>
                         {t("messageTemplates.emptyMessage")}
                     </Typography>
                 </View>
             }
         />
+    </View>
     );
 
     if (!db || loading) {
@@ -929,34 +755,12 @@ export const MessagesScreen: React.FC = () => {
     }
 
     return (
-        <View
-            style={[styles.container, { backgroundColor: colors.background }]}
-        >
-            <View
-                style={[
-                    styles.header,
-                    {
-                        paddingTop: insets.top + Spacing.md,
-                        backgroundColor: colors.surface,
-                        borderBottomColor: colors.border,
-                    },
-                ]}
-            >
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <View style={[styles.header, { paddingTop: insets.top + Spacing.md, backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
                 <View style={[styles.headerTopRow, false && styles.rowRTL]}>
-                    <View
-                        style={[styles.headerTitleRow, false && styles.rowRTL]}
-                    >
-                        <View
-                            style={[
-                                styles.headerIconContainer,
-                                { backgroundColor: `${colors.primary}20` },
-                            ]}
-                        >
-                            <Ionicons
-                                name="chatbubble-ellipses"
-                                size={28}
-                                color={colors.primary}
-                            />
+                    <View style={[styles.headerTitleRow, false && styles.rowRTL]}>
+                        <View style={[styles.headerIconContainer, { backgroundColor: `${colors.primary}20` }]}>
+                            <Ionicons name="chatbubble-ellipses" size={28} color={colors.primary} />
                         </View>
                         <View style={styles.headerText}>
                             <Typography variant="heading-large" color="primary">
@@ -967,40 +771,26 @@ export const MessagesScreen: React.FC = () => {
                             </Typography>
                         </View>
                     </View>
-
                     <Pressable
                         onPress={toggleSection}
                         accessibilityRole="button"
-                        accessibilityLabel={
-                            section === "send"
-                                ? t("customerMessages.templatesTab")
-                                : t("customerMessages.sendTab")
-                        }
+                        accessibilityLabel={section === "send" ? t("customerMessages.templatesTab") : t("customerMessages.sendTab")}
                         hitSlop={8}
                         style={({ pressed }) => [
                             styles.sectionSwitchButton,
-                            {
-                                backgroundColor: `${colors.primary}15`,
-                                borderColor: colors.border,
-                            },
+                            { backgroundColor: `${colors.primary}15`, borderColor: colors.border },
                             pressed && styles.sectionSwitchButtonPressed,
                         ]}
                     >
-                        <Ionicons
-                            name={
-                                section === "send"
-                                    ? "document-text-outline"
-                                    : "send-outline"
-                            }
-                            size={23}
-                            color={colors.primary}
-                        />
+                        <Ionicons name={section === "send" ? "document-text-outline" : "send-outline"} size={23} color={colors.primary} />
                     </Pressable>
                 </View>
             </View>
-            {section === "send"
-                ? renderSendSection()
-                : renderTemplatesSection()}
+
+            <View style={styles.sectionContainer}>
+                {renderSection()}
+            </View>
+
             {renderSendActions()}
 
             {section === "templates" && (
@@ -1011,11 +801,7 @@ export const MessagesScreen: React.FC = () => {
                     hitSlop={8}
                     style={({ pressed }) => [
                         styles.templateFab,
-                        {
-                            bottom: insets.bottom + Spacing.lg,
-                            backgroundColor: colors.primary,
-                            shadowColor: colors.primary,
-                        },
+                        { bottom: insets.bottom + Spacing.lg, backgroundColor: colors.primary, shadowColor: colors.primary },
                         pressed && styles.templateFabPressed,
                     ]}
                 >
@@ -1023,65 +809,25 @@ export const MessagesScreen: React.FC = () => {
                 </Pressable>
             )}
 
-            <Modal
-                visible={!!editing}
-                transparent
-                animationType="fade"
-                onRequestClose={closeTemplateEditor}
-            >
+            <Modal visible={!!editing} transparent animationType="fade" onRequestClose={closeTemplateEditor}>
                 <View style={styles.backdrop}>
-                    <Card
-                        style={[
-                            styles.editor,
-                            { backgroundColor: colors.surface },
-                        ]}
-                    >
+                    <Card style={[styles.editor, { backgroundColor: colors.surface }]}>
                         <Typography variant="heading-large" color="primary">
-                            {editing?.id
-                                ? t("messageTemplates.edit")
-                                : t("messageTemplates.create")}
+                            {editing?.id ? t("messageTemplates.edit") : t("messageTemplates.create")}
                         </Typography>
-                        <Input
-                            placeholder={t("messageTemplates.namePlaceholder")}
-                            value={templateName}
-                            onChangeText={setTemplateName}
-                        />
-                        <Input
-                            placeholder={t("messageTemplates.bodyPlaceholder")}
-                            value={templateBody}
-                            onChangeText={setTemplateBody}
-                            multiline
-                            inputStyle={styles.templateBodyInput}
-                        />
+                        <Input placeholder={t("messageTemplates.namePlaceholder")} value={templateName} onChangeText={setTemplateName} />
+                        <Input placeholder={t("messageTemplates.bodyPlaceholder")} value={templateBody} onChangeText={setTemplateBody} multiline inputStyle={styles.templateBodyInput} />
                         <Typography variant="small-small" color="muted">
-                            {t("messageTemplates.placeholders", {
-                                placeholders: MESSAGE_TEMPLATE_PLACEHOLDERS.map(
-                                    (item) => `{{${item}}}`,
-                                ).join(", "),
-                            })}
+                            {t("messageTemplates.placeholders", { placeholders: MESSAGE_TEMPLATE_PLACEHOLDERS.map((item) => `{{${item}}}`).join(", ") })}
                         </Typography>
                         {!!templateError && (
                             <Typography variant="body-small" color="danger">
                                 {templateError}
                             </Typography>
                         )}
-                        <View
-                            style={[
-                                styles.editorActions,
-                                false && styles.rowRTL,
-                            ]}
-                        >
-                            <Button
-                                title={t("messageTemplates.cancel")}
-                                variant="secondary"
-                                onPress={closeTemplateEditor}
-                                style={styles.actionButton}
-                            />
-                            <Button
-                                title={t("messageTemplates.save")}
-                                onPress={saveTemplate}
-                                style={styles.actionButton}
-                            />
+                        <View style={[styles.editorActions, false && styles.rowRTL]}>
+                            <Button title={t("messageTemplates.cancel")} variant="secondary" onPress={closeTemplateEditor} style={styles.actionButton} />
+                            <Button title={t("messageTemplates.save")} onPress={saveTemplate} style={styles.actionButton} />
                         </View>
                     </Card>
                 </View>
@@ -1110,10 +856,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         gap: Spacing.md,
     },
-    headerText: {
-        flex: 1,
-        minWidth: 0,
-    },
+    headerText: { flex: 1, minWidth: 0 },
     headerIconContainer: {
         width: 48,
         height: 48,
@@ -1130,66 +873,30 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         marginLeft: Spacing.sm,
     },
-    sectionSwitchButtonPressed: {
-        opacity: 0.65,
-    },
+    sectionSwitchButtonPressed: { opacity: 0.65 },
+    sectionContainer: { flex: 1 },
+    sectionPanel: { ...StyleSheet.absoluteFillObject },
+    sectionPanelHidden: { opacity: 0 },
     rowRTL: { flexDirection: "row-reverse" },
     sendContent: { flex: 1 },
     content: { padding: Spacing.md, gap: Spacing.md },
     recipientsStep: { flex: 1 },
-    recipientsHeader: {
-        paddingHorizontal: Spacing.md,
-        paddingTop: Spacing.md,
-        paddingBottom: Spacing.sm,
-        gap: Spacing.md,
-    },
+    recipientsHeader: { paddingHorizontal: Spacing.md, paddingTop: Spacing.md, paddingBottom: Spacing.sm, gap: Spacing.md },
     recipientList: { flex: 1 },
-    recipientListContent: {
-        paddingHorizontal: Spacing.md,
-        paddingTop: Spacing.sm,
-        paddingBottom: Spacing.md,
-    },
+    recipientListContent: { paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, paddingBottom: Spacing.md, flexGrow: 1 },
     recipientListEmptyContent: { flexGrow: 1 },
-    recipientSummary: {
-        minHeight: 48,
-        borderTopWidth: 1,
-        paddingHorizontal: Spacing.md,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: Spacing.sm,
-    },
-    sectionTitleRow: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-    },
+    recipientSummary: { minHeight: 48, borderTopWidth: 1, paddingHorizontal: Spacing.md, flexDirection: "row", alignItems: "center", gap: Spacing.sm },
+    sectionTitleRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
     recipientSearch: { marginBottom: 0 },
     customerCard: { padding: Spacing.md, marginBottom: Spacing.sm },
-    customerRow: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: Spacing.md,
-    },
+    customerRow: { flexDirection: "row", alignItems: "center", gap: Spacing.md },
     customerText: { flex: 1 },
     notice: { padding: Spacing.md },
     modeRow: { flexDirection: "row", gap: Spacing.sm },
-    modeOption: {
-        flex: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: Spacing.sm,
-        borderWidth: 1,
-        borderRadius: 12,
-        padding: Spacing.md,
-    },
+    modeOption: { flex: 1, flexDirection: "row", alignItems: "center", gap: Spacing.sm, borderWidth: 1, borderRadius: 12, padding: Spacing.md },
     modeText: { flex: 1 },
     templateRow: { flexDirection: "row", gap: Spacing.sm },
-    templateChip: {
-        borderWidth: 1,
-        borderRadius: 18,
-        paddingVertical: Spacing.sm,
-        paddingHorizontal: Spacing.md,
-    },
+    templateChip: { borderWidth: 1, borderRadius: 18, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md },
     messageInput: { minHeight: 150, textAlignVertical: "top" },
     progressCard: { padding: Spacing.lg, gap: Spacing.sm },
     reviewRecipientCard: { padding: Spacing.md, marginBottom: Spacing.sm },
@@ -1211,32 +918,14 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 8,
     },
-    templateFabPressed: {
-        opacity: 0.88,
-        transform: [{ scale: 0.96 }],
-    },
-    empty: {
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-        gap: Spacing.sm,
-        padding: Spacing.xxl,
-    },
-    backdrop: {
-        flex: 1,
-        justifyContent: "center",
-        padding: Spacing.lg,
-        backgroundColor: "#00000080",
-    },
+    templateFabPressed: { opacity: 0.88, transform: [{ scale: 0.96 }] },
+    empty: { flex: 1, alignItems: "center", justifyContent: "center", gap: Spacing.sm, padding: Spacing.xxl },
+    backdrop: { flex: 1, justifyContent: "center", padding: Spacing.lg, backgroundColor: "#00000080" },
     editor: { padding: Spacing.lg, gap: Spacing.sm },
     templateBodyInput: { minHeight: 130, textAlignVertical: "top" },
     stepActions: { flexDirection: "row", gap: Spacing.sm },
-    stickyActions: {
-        borderTopWidth: 1,
-        gap: Spacing.sm,
-        paddingHorizontal: Spacing.md,
-        paddingTop: Spacing.md,
-    },
+    stickyActions: { borderTopWidth: 1, gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingTop: Spacing.md },
     editorActions: { flexDirection: "row", gap: Spacing.sm },
     actionButton: { flex: 1 },
+    footer: { padding: Spacing.md, alignItems: "center" },
 });

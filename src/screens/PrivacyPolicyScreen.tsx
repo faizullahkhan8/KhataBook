@@ -295,9 +295,15 @@ export const PrivacyPolicyScreen: React.FC = () => {
                     },
                 ]}
             >
-                <Pressable onPress={() => router.back()} style={styles.backButton}>
+                <Pressable
+                    onPress={() => router.back()}
+                    style={[
+                        styles.backButton,
+                        { backgroundColor: `${colors.primary}15` },
+                    ]}
+                >
                     <Ionicons
-                        name="arrow-back"
+                        name="chevron-back"
                         size={24}
                         color={colors.primary}
                     />
@@ -501,7 +507,11 @@ const styles = StyleSheet.create({
         flexDirection: "row-reverse",
     },
     backButton: {
-        padding: Spacing.sm,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: "center",
+        justifyContent: "center",
         marginHorizontal: Spacing.sm,
     },
     content: {

@@ -6,6 +6,7 @@ export { ErrorScreen } from "./ErrorScreen";
 export { DatabaseSecurityGate } from "./DatabaseSecurityGate";
 export { Input } from "./Input";
 export { LoadingScreen } from "./LoadingScreen";
+export { OptionModal } from "./OptionModal";
 export {
     PasscodeGate,
     PasscodeUnlockScreen,

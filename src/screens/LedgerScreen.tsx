@@ -96,6 +96,8 @@ export const LedgerScreen: React.FC = () => {
     const {
         entries: transactionEntries,
         loading: loadingEntries,
+        hasMore,
+        nextPage,
         refresh: refreshEntries,
     } = useLedgerEntries(db);
     const isRefreshing = loadingEntries;
@@ -152,7 +154,10 @@ export const LedgerScreen: React.FC = () => {
                 amount: entry.amount,
                 description:
                     entry.description ||
-                    (entry.funding_source === "received"
+                    (entry.funding_source === "received" ||
+                     entry.funding_source === "settled" ||
+                     entry.funding_source === "settledAndAdded" ||
+                     entry.funding_source === "added"
                         ? t("ledger.credit")
                         : t("ledger.debit")),
                 date: entry.created_at,
@@ -177,20 +182,32 @@ export const LedgerScreen: React.FC = () => {
     const renderEntry = useCallback(
         ({ item }: { item: LedgerEntry }) => {
             const isReceived = item.fundingSource === "received";
+            const isSettled = item.fundingSource === "settled";
+            const isSettledAndAdded = item.fundingSource === "settledAndAdded";
+            const isAddedBalance = item.fundingSource === "added";
             const isBalanceFunded = item.fundingSource === "balance";
             const isMixedFunded = item.fundingSource === "mixed";
-            const label = isReceived
-                ? t("ledger.received")
-                : isBalanceFunded
-                  ? t("ledger.paidFromBalance")
-                  : isMixedFunded
-                    ? t("ledger.paidFromBalanceAndPocket")
-                    : t("ledger.paidFromPocket");
-            const semanticColor: "success" | "danger" | "warning" = isReceived
-                ? "success"
-                : isMixedFunded
-                  ? "warning"
-                  : "danger";
+            const label = isSettled
+                ? t("ledger.settled")
+                : isSettledAndAdded
+                  ? t("ledger.settledAndAdded")
+                  : isAddedBalance
+                    ? t("ledger.addedBalance")
+                    : isReceived
+                      ? t("ledger.received")
+                      : isBalanceFunded
+                        ? t("ledger.paidFromBalance")
+                        : isMixedFunded
+                          ? t("ledger.paidFromBalanceAndPocket")
+                          : t("ledger.paidFromPocket");
+            const isCreditVariant =
+                isReceived || isSettled || isSettledAndAdded || isAddedBalance;
+            const semanticColor: "success" | "danger" | "warning" =
+                isCreditVariant
+                    ? "success"
+                    : isMixedFunded
+                      ? "warning"
+                      : "danger";
 
             return (
                 <Card style={styles.entryCard}>
@@ -232,7 +249,7 @@ export const LedgerScreen: React.FC = () => {
                             >
                                 {item.accountNumber}
                             </Typography>
-                            {isMixedFunded && (
+                            {(isMixedFunded || isSettledAndAdded) && (
                                 <View style={styles.fundingBreakdown}>
                                     <View style={styles.fundingBreakdownRow}>
                                         <Typography
@@ -241,7 +258,11 @@ export const LedgerScreen: React.FC = () => {
                                             style={styles.fundingLabel}
                                             numberOfLines={2}
                                         >
-                                            {t("ledger.fromCustomerBalance")}
+                                            {isSettledAndAdded
+                                                ? t("ledger.settledAmount")
+                                                : t(
+                                                      "ledger.fromCustomerBalance",
+                                                  )}
                                         </Typography>
                                         <View style={styles.fundingAmount}>
                                             <TouchableAmount
@@ -264,7 +285,13 @@ export const LedgerScreen: React.FC = () => {
                                             style={styles.fundingLabel}
                                             numberOfLines={2}
                                         >
-                                            {t("ledger.fromPocketBusiness")}
+                                            {isSettledAndAdded
+                                                ? t(
+                                                      "ledger.addedBalanceAmount",
+                                                  )
+                                                : t(
+                                                      "ledger.fromPocketBusiness",
+                                                  )}
                                         </Typography>
                                         <View style={styles.fundingAmount}>
                                             <TouchableAmount
@@ -485,6 +512,23 @@ export const LedgerScreen: React.FC = () => {
                             tintColor={colors.primary}
                         />
                     }
+                    onEndReached={hasMore ? nextPage : undefined}
+                    onEndReachedThreshold={0.5}
+                    ListFooterComponent={
+                        loadingEntries && filteredEntries.length > 0 ? (
+                            <View style={styles.footer}>
+                                <Typography variant="body-small" color="muted">
+                                    Loading more...
+                                </Typography>
+                            </View>
+                        ) : !hasMore && filteredEntries.length > 0 ? (
+                            <View style={styles.footer}>
+                                <Typography variant="body-small" color="muted">
+                                    All entries loaded
+                                </Typography>
+                            </View>
+                        ) : null
+                    }
                 />
             </View>
         </ErrorScreen>
@@ -624,6 +668,10 @@ const styles = StyleSheet.create({
     center: {
         flex: 1,
         justifyContent: "center",
+        alignItems: "center",
+    },
+    footer: {
+        padding: Spacing.md,
         alignItems: "center",
     },
 });

@@ -78,6 +78,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({
         AsyncStorage.setItem(STORAGE_KEYS.themeMode, nextMode).catch((error) => {
             void logger.error("navigation", "Failed to save theme", error);
         });
+        void logger.info("navigation", "Theme changed", { mode: nextMode });
     }, []);
 
     const toggleTheme = useCallback(() => {

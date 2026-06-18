@@ -3,18 +3,25 @@ import * as Clipboard from "expo-clipboard";
 import * as FileSystem from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 import {
     Alert,
+    Animated,
     FlatList,
     Pressable,
     StyleSheet,
-    Switch,
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, Input, Typography } from "../components";
 import { Spacing } from "../constants";
+import { usePagination } from "../hooks/usePagination";
 import {
     formatLogEntry,
     LOG_CATEGORIES,
@@ -24,7 +31,7 @@ import {
     LogLevel,
     logService,
 } from "../services/LogService";
-import { useTheme } from "../store";
+import { usePasscode, useTheme } from "../store";
 
 const levelColors: Record<LogLevel, "muted" | "primary" | "warning" | "danger"> = {
     debug: "muted",
@@ -40,7 +47,7 @@ export const LogsScreen: React.FC = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const listRef = useRef<FlatList<LogEntry>>(null);
+    const { setAutoLockSuspended } = usePasscode();
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [search, setSearch] = useState("");
     const [selectedLevels, setSelectedLevels] = useState<Set<LogLevel>>(
@@ -49,16 +56,48 @@ export const LogsScreen: React.FC = () => {
     const [selectedCategories, setSelectedCategories] = useState<
         Set<LogCategory>
     >(new Set());
-    const [autoScroll, setAutoScroll] = useState(true);
+    const [isReloadingLogs, setIsReloadingLogs] = useState(false);
+    const { page, pageSize, nextPage } = usePagination({ pageSize: 50 });
+    const clearLogsAlertSuspendedRef = React.useRef(false);
+    const reloadInProgressRef = useRef(false);
+    const reloadSpinAnim = useRef(new Animated.Value(0)).current;
 
     const loadLogs = useCallback(async () => {
-        const entries = await logService.getLogs();
-        setLogs(entries);
+        if (reloadInProgressRef.current) return;
+
+        reloadInProgressRef.current = true;
+        setIsReloadingLogs(true);
+        try {
+            const entries = await logService.getLogs();
+            // Newest first
+            setLogs([...entries].reverse());
+        } finally {
+            reloadInProgressRef.current = false;
+            setIsReloadingLogs(false);
+        }
     }, []);
 
     useEffect(() => {
         void loadLogs();
     }, [loadLogs]);
+
+    useEffect(() => {
+        if (!isReloadingLogs) {
+            reloadSpinAnim.stopAnimation();
+            reloadSpinAnim.setValue(0);
+            return;
+        }
+
+        const animation = Animated.loop(
+            Animated.timing(reloadSpinAnim, {
+                toValue: 1,
+                duration: 700,
+                useNativeDriver: true,
+            }),
+        );
+        animation.start();
+        return () => animation.stop();
+    }, [isReloadingLogs, reloadSpinAnim]);
 
     const filteredLogs = useMemo(() => {
         const query = search.trim().toLowerCase();
@@ -89,12 +128,12 @@ export const LogsScreen: React.FC = () => {
         });
     }, [logs, search, selectedCategories, selectedLevels]);
 
-    const scrollToEnd = useCallback(() => {
-        if (!autoScroll || filteredLogs.length === 0) return;
-        requestAnimationFrame(() => {
-            listRef.current?.scrollToEnd({ animated: true });
-        });
-    }, [autoScroll, filteredLogs.length]);
+    const paginatedLogs = useMemo(
+        () => filteredLogs.slice(0, (page + 1) * pageSize),
+        [filteredLogs, page, pageSize],
+    );
+
+    const hasMore = paginatedLogs.length < filteredLogs.length;
 
     const toggleLevel = (level: LogLevel) => {
         setSelectedLevels((previous) => {
@@ -150,17 +189,37 @@ export const LogsScreen: React.FC = () => {
     };
 
     const clearLogs = () => {
-        Alert.alert("Clear logs", "Delete all stored logs?", [
-            { text: "Cancel", style: "cancel" },
+        const releaseAlertSuspension = () => {
+            if (!clearLogsAlertSuspendedRef.current) return;
+            clearLogsAlertSuspendedRef.current = false;
+            setAutoLockSuspended(false);
+        };
+
+        clearLogsAlertSuspendedRef.current = true;
+        setAutoLockSuspended(true);
+        const buttons = [
+            {
+                text: "Cancel",
+                style: "cancel" as const,
+                onPress: releaseAlertSuspension,
+            },
             {
                 text: "Clear",
-                style: "destructive",
+                style: "destructive" as const,
                 onPress: async () => {
-                    await logService.clearLogs();
-                    setLogs([]);
+                    try {
+                        await logService.clearLogs();
+                        setLogs([]);
+                    } finally {
+                        releaseAlertSuspension();
+                    }
                 },
             },
-        ]);
+        ];
+
+        Alert.alert("Clear logs", "Delete all stored logs?", buttons, {
+            onDismiss: releaseAlertSuspension,
+        });
     };
 
     const renderChip = <T extends string>(
@@ -275,12 +334,30 @@ export const LogsScreen: React.FC = () => {
                         onPress={loadLogs}
                         accessibilityRole="button"
                         accessibilityLabel="Refresh logs"
+                        disabled={isReloadingLogs}
                         style={[
                             styles.iconButton,
                             { backgroundColor: `${colors.primary}15` },
                         ]}
                     >
-                        <Ionicons name="refresh" size={22} color={colors.primary} />
+                        <Animated.View
+                            style={{
+                                transform: [
+                                    {
+                                        rotate: reloadSpinAnim.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: ["0deg", "360deg"],
+                                        }),
+                                    },
+                                ],
+                            }}
+                        >
+                            <Ionicons
+                                name="refresh"
+                                size={22}
+                                color={colors.primary}
+                            />
+                        </Animated.View>
                     </Pressable>
                     <Pressable
                         onPress={exportLogs}
@@ -342,34 +419,28 @@ export const LogsScreen: React.FC = () => {
                         )}
                     </View>
                 </View>
-                <View style={styles.autoScrollRow}>
-                    <Typography variant="body-small" color="primary">
-                        Auto-scroll
-                    </Typography>
-                    <Switch
-                        value={autoScroll}
-                        onValueChange={setAutoScroll}
-                        trackColor={{
-                            false: colors.border,
-                            true: `${colors.primary}80`,
-                        }}
-                        thumbColor={autoScroll ? colors.primary : colors.text.muted}
-                    />
-                </View>
             </View>
 
             <FlatList
-                ref={listRef}
-                data={filteredLogs}
+                data={paginatedLogs}
                 keyExtractor={(item) => item.id}
                 renderItem={renderLog}
                 contentContainerStyle={[
                     styles.logList,
                     { paddingBottom: insets.bottom + Spacing.xl },
-                    filteredLogs.length === 0 && styles.emptyList,
+                    paginatedLogs.length === 0 && styles.emptyList,
                 ]}
-                onContentSizeChange={scrollToEnd}
-                onLayout={scrollToEnd}
+                onEndReached={hasMore ? nextPage : undefined}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={
+                    paginatedLogs.length > 0 && paginatedLogs.length < filteredLogs.length ? (
+                        <View style={styles.footer}>
+                            <Typography variant="body-small" color="muted">
+                                Loading more...
+                            </Typography>
+                        </View>
+                    ) : null
+                }
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
                         <Ionicons
@@ -437,12 +508,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
     },
-    autoScrollRow: {
-        minHeight: 44,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-    },
     logList: {
         padding: Spacing.md,
         gap: Spacing.sm,
@@ -486,5 +551,9 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         gap: Spacing.sm,
+    },
+    footer: {
+        padding: Spacing.md,
+        alignItems: "center",
     },
 });

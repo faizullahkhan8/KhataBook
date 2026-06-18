@@ -154,15 +154,29 @@ const readRawLogs = async () => {
 const writeLogs = (entries: LogEntry[]) =>
     AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
 
+// In-memory cache: pruned entries loaded once from AsyncStorage per session
+let cachedLogs: LogEntry[] | null = null;
+
+const ensureCache = async () => {
+    if (cachedLogs) return cachedLogs;
+    const entries = prune(await readRawLogs());
+    await writeLogs(entries);
+    cachedLogs = entries;
+    return cachedLogs;
+};
+
+const invalidateCache = () => {
+    cachedLogs = null;
+};
+
 export const logService = {
     async getLogs() {
-        const entries = prune(await readRawLogs());
-        await writeLogs(entries);
-        return entries;
+        return ensureCache();
     },
 
     async clearLogs() {
         await AsyncStorage.removeItem(STORAGE_KEY);
+        invalidateCache();
     },
 
     async log(input: LogInput) {
@@ -180,8 +194,9 @@ export const logService = {
             ),
         };
 
-        const entries = prune([...(await readRawLogs()), entry], timestamp);
+        const entries = prune([...(await ensureCache()), entry], timestamp);
         await writeLogs(entries);
+        cachedLogs = entries;
         return entry;
     },
 };

@@ -1,5 +1,5 @@
 import { SQLiteDatabase } from "../db/types";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     AccountId,
     CurrencyAmount,
@@ -8,8 +8,9 @@ import {
     TransactionType,
 } from "../models";
 import { useDatabaseContext } from "../store";
+import { usePagination } from "./usePagination";
 
-export type LedgerFundingSource = "received" | "balance" | "pocket" | "mixed";
+export type LedgerFundingSource = "received" | "balance" | "pocket" | "mixed" | "settled" | "settledAndAdded" | "added";
 
 export interface LedgerTransactionEntry {
     id: TransactionId;
@@ -36,54 +37,96 @@ export const useLedgerEntries = (db: SQLiteDatabase | null) => {
     const [entries, setEntries] = useState<LedgerTransactionEntry[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
+    const { page, pageSize, hasMore, markFetched, nextPage, resetPage } = usePagination({
+        pageSize: 50,
+    });
 
-    const fetchEntries = useCallback(async () => {
-        if (!db) return;
+    const cursorRef = useRef<{ created_at: number; id: number } | null>(null);
+    const loadingRef = useRef(false);
 
-        setLoading(true);
-        setError(null);
-        try {
-            const rows = await db.getAllAsync<LedgerTransactionRow>(`
-                SELECT
-                    t.id,
-                    t.account_id,
-                    t.type,
-                    t.amount,
-                    t.description,
-                    t.created_at,
-                    c.name AS customer_name,
-                    a.account_number,
-                    a.current_balance - COALESCE((
-                        SELECT SUM(
-                            CASE
-                                WHEN later.type = 0 THEN later.amount
-                                ELSE -later.amount
-                            END
-                        )
-                        FROM transactions later
-                        WHERE later.account_id = t.account_id
-                          AND (
-                              later.created_at > t.created_at
-                              OR (
-                                  later.created_at = t.created_at
-                                  AND later.id >= t.id
+    const fetchEntries = useCallback(
+        async (append: boolean) => {
+            if (!db || loadingRef.current) return;
+
+            loadingRef.current = true;
+            if (!append) {
+                setLoading(true);
+            }
+            setError(null);
+            try {
+                const cursor = append ? cursorRef.current : null;
+                const cursorClause = cursor
+                    ? `AND (t.created_at < ${cursor.created_at} OR (t.created_at = ${cursor.created_at} AND t.id < ${cursor.id}))`
+                    : "";
+
+                const rows = await db.getAllAsync<LedgerTransactionRow>(
+                    `SELECT
+                        t.id,
+                        t.account_id,
+                        t.type,
+                        t.amount,
+                        t.description,
+                        t.created_at,
+                        c.name AS customer_name,
+                        a.account_number,
+                        a.current_balance - COALESCE((
+                            SELECT SUM(
+                                CASE
+                                    WHEN later.type = 0 THEN later.amount
+                                    ELSE -later.amount
+                                END
+                            )
+                            FROM transactions later
+                            WHERE later.account_id = t.account_id
+                              AND (
+                                  later.created_at > t.created_at
+                                  OR (
+                                      later.created_at = t.created_at
+                                      AND later.id >= t.id
+                                  )
                               )
-                          )
-                    ), 0) AS pre_transaction_balance
-                FROM transactions t
-                JOIN accounts a ON a.id = t.account_id
-                JOIN customers c ON c.id = a.customer_id
-                ORDER BY t.created_at DESC, t.id DESC
-            `);
+                        ), 0) AS pre_transaction_balance
+                    FROM transactions t
+                    JOIN accounts a ON a.id = t.account_id
+                    JOIN customers c ON c.id = a.customer_id
+                    WHERE 1=1 ${cursorClause}
+                    ORDER BY t.created_at DESC, t.id DESC
+                    LIMIT ?`,
+                    [pageSize],
+                );
 
-            setEntries(
-                rows.map((row) => {
+                const hasFewer = rows.length < pageSize;
+                if (hasFewer) {
+                    markFetched(rows.length);
+                }
+
+                if (rows.length > 0) {
+                    const last = rows[rows.length - 1];
+                    cursorRef.current = { created_at: last.created_at, id: last.id };
+                }
+
+                const mapped = rows.map((row) => {
                     if (row.type === TransactionType.CREDIT) {
+                        const settlementAmount = Math.min(
+                            Math.abs(row.pre_transaction_balance),
+                            row.amount,
+                        ) as CurrencyAmount;
+                        const addedAmount = (row.amount - settlementAmount) as CurrencyAmount;
+
+                        let fundingSource: LedgerFundingSource;
+                        if (settlementAmount === row.amount) {
+                            fundingSource = "settled";
+                        } else if (settlementAmount > 0) {
+                            fundingSource = "settledAndAdded";
+                        } else {
+                            fundingSource = "added";
+                        }
+
                         return {
                             ...row,
-                            funding_source: "received",
-                            balance_funded_amount: 0 as CurrencyAmount,
-                            pocket_funded_amount: 0 as CurrencyAmount,
+                            funding_source: fundingSource,
+                            balance_funded_amount: settlementAmount,
+                            pocket_funded_amount: addedAmount,
                         };
                     }
 
@@ -98,30 +141,53 @@ export const useLedgerEntries = (db: SQLiteDatabase | null) => {
                         ...row,
                         funding_source:
                             balanceFundedAmount === row.amount
-                                ? "balance"
+                                ? ("balance" as LedgerFundingSource)
                                 : balanceFundedAmount > 0
-                                  ? "mixed"
-                                  : "pocket",
+                                  ? ("mixed" as LedgerFundingSource)
+                                  : ("pocket" as LedgerFundingSource),
                         balance_funded_amount: balanceFundedAmount,
                         pocket_funded_amount: pocketFundedAmount,
                     };
-                }),
-            );
-        } catch (err) {
-            setError(err as Error);
-        } finally {
-            setLoading(false);
-        }
-    }, [db]);
+                });
 
+                setEntries((prev) =>
+                    append ? [...prev, ...mapped] : mapped,
+                );
+            } catch (err) {
+                setError(err as Error);
+            } finally {
+                loadingRef.current = false;
+                setLoading(false);
+            }
+        },
+        [db, pageSize, markFetched],
+    );
+
+    // Initial load + version changes → replace
     useEffect(() => {
-        fetchEntries();
-    }, [fetchEntries, refreshVersions.transactions, refreshVersions.accounts]);
+        cursorRef.current = null;
+        resetPage();
+        void fetchEntries(false);
+    }, [refreshVersions.transactions, refreshVersions.accounts]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Pagination: page increments via nextPage → append with keyset cursor
+    useEffect(() => {
+        if (page > 0) {
+            void fetchEntries(true);
+        }
+    }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    const refresh = useCallback(() => {
+        cursorRef.current = null;
+        resetPage();
+    }, [resetPage]);
 
     return {
         entries,
         loading,
         error,
-        refresh: fetchEntries,
+        hasMore,
+        nextPage,
+        refresh,
     };
 };

@@ -47,11 +47,12 @@ export const AboutScreen: React.FC = () => {
                     onPress={() => router.back()}
                     style={[
                         styles.backButton,
+                        { backgroundColor: `${colors.primary}15` },
                         false && { marginRight: 0, marginLeft: Spacing.sm },
                     ]}
                 >
                     <Ionicons
-                        name={false ? "arrow-forward" : "arrow-back"}
+                        name={false ? "chevron-forward" : "chevron-back"}
                         size={24}
                         color={colors.primary}
                     />
@@ -75,10 +76,11 @@ export const AboutScreen: React.FC = () => {
                             { backgroundColor: `${colors.primary}15` },
                         ]}
                     >
-                        <Ionicons
-                            name="calculator"
-                            size={48}
-                            color={colors.primary}
+                        <Image
+                            source={require("../../assets/images/app-logo-without-bg.png")}
+                            style={styles.appLogo}
+                            contentFit="contain"
+                            transition={200}
                         />
                     </View>
                     <Typography
@@ -520,7 +522,11 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.surface,
     },
     backButton: {
-        padding: Spacing.sm,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: "center",
+        justifyContent: "center",
         marginRight: Spacing.sm,
     },
     headerTitleContainer: {
@@ -545,6 +551,10 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         marginBottom: Spacing.md,
+    },
+    appLogo: {
+        width: 64,
+        height: 64,
     },
     centerText: {
         textAlign: "center",

@@ -28,8 +28,13 @@ export class TransactionService {
                 ],
             );
 
-            // Note: Account balance and Customer summary updates are now handled by database triggers
-            return result.lastInsertRowId as TransactionId;
+            const transactionId = result.lastInsertRowId as TransactionId;
+            void logger.info("transactions", "Transaction created", {
+                transactionId,
+                type: transaction.type,
+                amount: transaction.amount,
+            });
+            return transactionId;
         } catch (error) {
             void logger.error("transactions", "Error creating transaction", error);
             throw error;
@@ -59,8 +64,13 @@ export class TransactionService {
                 ],
             );
 
-            // Note: Account balance and Customer summary updates are now handled by database triggers
-            return result.lastInsertRowId as TransactionId;
+            const transactionId = result.lastInsertRowId as TransactionId;
+            void logger.info("transactions", "Transaction created with timestamp", {
+                transactionId,
+                type: transaction.type,
+                amount: transaction.amount,
+            });
+            return transactionId;
         } catch (error) {
             void logger.error(
                 "transactions",
@@ -159,10 +169,10 @@ export class TransactionService {
             throw new Error("Database is not initialized");
         }
         try {
-            // Note: Reverting account balance and updating customer summary are now handled by database triggers
             await this.db.runAsync("DELETE FROM transactions WHERE id = ?", [
                 id,
             ]);
+            void logger.info("transactions", "Transaction deleted", { transactionId: id });
         } catch (error) {
             void logger.error("transactions", "Error deleting transaction", error);
             throw error;
@@ -232,6 +242,7 @@ export class TransactionService {
                     await statement.finalizeAsync();
                 }
             });
+            void logger.info("transactions", "Batch transactions created", { count: transactions.length });
         } catch (error) {
             void logger.error(
                 "transactions",

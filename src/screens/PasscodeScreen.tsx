@@ -8,7 +8,6 @@ import {
     BackHandler,
     Keyboard,
     KeyboardAvoidingView,
-    LayoutAnimation,
     Platform,
     Pressable,
     ScrollView,
@@ -21,6 +20,7 @@ import {
     Button,
     Card,
     Input,
+    OptionModal,
     PasscodeLengthSelector,
     PasscodePinInput,
     PasscodeUnlockScreen,
@@ -31,27 +31,14 @@ import { AutoLockDelay, PasscodeLength, usePasscode, useTheme } from "../store";
 
 type Mode = "enable" | "authenticate" | "menu" | "change" | "disable";
 type SetupStep = 1 | 2 | 3;
-const AUTO_LOCK_OPTIONS: AutoLockDelay[] = [
-    0, 60_000, 180_000, 300_000, 600_000,
-];
-const DISCLOSURE_ANIMATION = {
-    duration: 180,
-    create: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-    },
-    update: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-    },
-    delete: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-    },
-};
 
-const animateDisclosure = () => {
-    LayoutAnimation.configureNext(DISCLOSURE_ANIMATION);
-};
+const AUTO_LOCK_OPTIONS = [
+    { value: 0 as AutoLockDelay, label: "Immediately", icon: "time-outline" as const },
+    { value: 60_000 as AutoLockDelay, label: "1 minute", icon: "time-outline" as const },
+    { value: 180_000 as AutoLockDelay, label: "3 minutes", icon: "time-outline" as const },
+    { value: 300_000 as AutoLockDelay, label: "5 minutes", icon: "time-outline" as const },
+    { value: 600_000 as AutoLockDelay, label: "10 minutes", icon: "time-outline" as const },
+];
 
 export const PasscodeScreen: React.FC = () => {
     const router = useRouter();
@@ -90,7 +77,7 @@ export const PasscodeScreen: React.FC = () => {
     const [error, setError] = useState("");
     const [selectedLength, setSelectedLength] = useState<PasscodeLength>(6);
     const [setupStep, setSetupStep] = useState<SetupStep>(1);
-    const [showAutoLockOptions, setShowAutoLockOptions] = useState(false);
+    const [showAutoLockModal, setShowAutoLockModal] = useState(false);
     const isWizardMode = mode === "enable" || mode === "change";
 
     const getAutoLockLabel = (delay: AutoLockDelay) =>
@@ -99,6 +86,11 @@ export const PasscodeScreen: React.FC = () => {
             : delay === 60_000
               ? t("passcode.autoLockMinute")
               : t("passcode.autoLockMinutes", { count: delay / 60_000 });
+
+    const autoLockOptionsWithLabels = AUTO_LOCK_OPTIONS.map(opt => ({
+        ...opt,
+        label: getAutoLockLabel(opt.value),
+    }));
 
     const handleBack = useCallback(() => {
         Keyboard.dismiss();
@@ -357,11 +349,14 @@ export const PasscodeScreen: React.FC = () => {
             >
                 <Pressable
                     onPress={handleBack}
-                    style={styles.backButton}
+                    style={[
+                        styles.backButton,
+                        { backgroundColor: `${colors.primary}15` },
+                    ]}
                     hitSlop={Spacing.md}
                 >
                     <Ionicons
-                        name="arrow-back"
+                        name="chevron-back"
                         size={24}
                         color={colors.primary}
                     />
@@ -480,16 +475,7 @@ export const PasscodeScreen: React.FC = () => {
                             </View>
                             <View style={styles.autoLockSection}>
                                 <Pressable
-                                    accessibilityRole="button"
-                                    accessibilityState={{
-                                        expanded: showAutoLockOptions,
-                                    }}
-                                    onPress={() => {
-                                        animateDisclosure();
-                                        setShowAutoLockOptions(
-                                            (visible) => !visible,
-                                        );
-                                    }}
+                                    onPress={() => setShowAutoLockModal(true)}
                                     style={[
                                         styles.biometricRow,
                                         { borderColor: colors.border },
@@ -514,89 +500,12 @@ export const PasscodeScreen: React.FC = () => {
                                             {getAutoLockLabel(autoLockDelay)}
                                         </Typography>
                                         <Ionicons
-                                            name={
-                                                showAutoLockOptions
-                                                    ? "chevron-up"
-                                                    : "chevron-down"
-                                            }
+                                            name="chevron-forward"
                                             size={18}
                                             color={colors.text.muted}
                                         />
                                     </View>
                                 </Pressable>
-                                {showAutoLockOptions && (
-                                    <View
-                                        style={[
-                                            styles.autoLockOptions,
-                                            { borderColor: colors.border },
-                                        ]}
-                                    >
-                                        {AUTO_LOCK_OPTIONS.map(
-                                            (delay, index) => {
-                                                const selected =
-                                                    autoLockDelay === delay;
-                                                return (
-                                                    <Pressable
-                                                        key={delay}
-                                                        onPress={() => {
-                                                            animateDisclosure();
-                                                            void setAutoLockDelay(
-                                                                delay,
-                                                            );
-                                                            setShowAutoLockOptions(
-                                                                false,
-                                                            );
-                                                        }}
-                                                        style={[
-                                                            styles.autoLockOption,
-                                                            selected && {
-                                                                backgroundColor: `${colors.primary}10`,
-                                                            },
-                                                            index <
-                                                                AUTO_LOCK_OPTIONS.length -
-                                                                    1 && {
-                                                                borderBottomWidth: 1,
-                                                                borderBottomColor:
-                                                                    colors.border,
-                                                            },
-                                                        ]}
-                                                    >
-                                                        <Ionicons
-                                                            name={
-                                                                selected
-                                                                    ? "checkmark-circle"
-                                                                    : "ellipse-outline"
-                                                            }
-                                                            size={20}
-                                                            color={
-                                                                selected
-                                                                    ? colors.primary
-                                                                    : colors
-                                                                          .text
-                                                                          .muted
-                                                            }
-                                                        />
-                                                        <Typography
-                                                            variant="body-small"
-                                                            color={
-                                                                selected
-                                                                    ? "primary"
-                                                                    : "muted"
-                                                            }
-                                                            style={
-                                                                styles.autoLockOptionText
-                                                            }
-                                                        >
-                                                            {getAutoLockLabel(
-                                                                delay,
-                                                            )}
-                                                        </Typography>
-                                                    </Pressable>
-                                                );
-                                            },
-                                        )}
-                                    </View>
-                                )}
                             </View>
                             <Button
                                 title={t("passcode.change")}
@@ -913,6 +822,17 @@ export const PasscodeScreen: React.FC = () => {
                     </View>
                 )}
             </KeyboardAvoidingView>
+
+            <OptionModal
+                visible={showAutoLockModal}
+                title={t("passcode.autoLock")}
+                options={autoLockOptionsWithLabels}
+                selected={autoLockDelay}
+                onSelect={(value) => {
+                    void setAutoLockDelay(value as AutoLockDelay);
+                }}
+                onClose={() => setShowAutoLockModal(false)}
+            />
         </View>
     );
 };
@@ -927,7 +847,13 @@ const styles = StyleSheet.create({
         padding: Spacing.lg,
         gap: Spacing.md,
     },
-    backButton: { padding: Spacing.xs },
+    backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: "center",
+        justifyContent: "center",
+    },
     content: { padding: Spacing.lg },
     card: { gap: Spacing.lg, padding: Spacing.lg },
     statusIcon: {
@@ -995,19 +921,6 @@ const styles = StyleSheet.create({
         justifyContent: "flex-end",
         gap: Spacing.xs,
     },
-    autoLockOptions: {
-        borderWidth: 1,
-        borderRadius: 12,
-        overflow: "hidden",
-    },
-    autoLockOption: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: Spacing.sm,
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.md,
-    },
-    autoLockOptionText: { flex: 1 },
     setupFooter: {
         flexDirection: "row",
         gap: Spacing.sm,

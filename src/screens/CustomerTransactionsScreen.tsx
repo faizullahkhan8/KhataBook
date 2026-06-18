@@ -1,14 +1,15 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Alert,
     FlatList,
     Keyboard,
+    Animated,
+    Easing,
     KeyboardAvoidingView,
-    Modal,
     Platform,
     Pressable,
     ScrollView,
@@ -21,6 +22,7 @@ import {
     Card,
     Input,
     LoadingScreen,
+    OptionModal,
     TouchableAmount,
     Typography,
     ViewPhoto,
@@ -45,6 +47,8 @@ import { useDatabaseContext, usePasscode, useTheme } from "../store";
 import { formatCurrency, formatDateTime } from "../utils";
 import { toInteger } from "../utils/currencyUtils";
 
+type HeaderMenuOption = "view-profile" | "toggle-status" | "edit" | "delete";
+
 export const CustomerTransactionsScreen: React.FC = () => {
     const { customerId } = useLocalSearchParams<{ customerId: string }>();
     const { db, invalidate } = useDatabaseContext();
@@ -53,7 +57,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { t } = useTranslation();
-    const { customer, refresh: refreshCustomer } = useCustomerById(
+    const { customer, loading: customerLoading, refresh: refreshCustomer } = useCustomerById(
         db,
         parseInt(customerId || "0") as CustomerId,
     );
@@ -70,6 +74,8 @@ export const CustomerTransactionsScreen: React.FC = () => {
         createTransaction,
         deleteTransaction,
         loading: loadingTransactions,
+        hasMore,
+        nextPage,
     } = useTransactions(db);
     const { entries: ledgerEntries } = useLedgerEntries(db);
     const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
@@ -83,6 +89,8 @@ export const CustomerTransactionsScreen: React.FC = () => {
     }, [refreshCustomer, fetchTransactionsByAccount, customer]);
 
     const [showAddModal, setShowAddModal] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const modalAnimation = useRef(new Animated.Value(0)).current;
     const [transactionType, setTransactionType] = useState<TransactionType>(
         TransactionType.CREDIT,
     );
@@ -98,9 +106,10 @@ export const CustomerTransactionsScreen: React.FC = () => {
     const isAccountInactive = account?.status === AccountStatus.INACTIVE;
 
     useEffect(() => {
-        setAutoLockSuspended(isMenuVisible || isMenuActionActive);
+        if (!isMenuActionActive) return;
+        setAutoLockSuspended(true);
         return () => setAutoLockSuspended(false);
-    }, [isMenuActionActive, isMenuVisible, setAutoLockSuspended]);
+    }, [isMenuActionActive, setAutoLockSuspended]);
 
     useEffect(() => {
         if (accountId) {
@@ -143,12 +152,55 @@ export const CustomerTransactionsScreen: React.FC = () => {
         return { totalReceived, totalPaid, balance };
     }, [customerTransactions]);
 
+    const headerMenuOptions = useMemo(
+        () => [
+            {
+                value: "view-profile" as const,
+                label: t("customerProfile.viewProfile"),
+                icon: "person-circle-outline" as const,
+                disabled: !customer?.id,
+            },
+            {
+                value: "toggle-status" as const,
+                label: isAccountActive
+                    ? t("customerProfile.deactivateAccount")
+                    : t("customerProfile.activateAccount"),
+                icon: isAccountActive
+                    ? ("pause-circle-outline" as const)
+                    : ("checkmark-circle-outline" as const),
+                disabled: !account?.id || isUpdatingStatus,
+            },
+            {
+                value: "edit" as const,
+                label: t("customerProfile.edit"),
+                icon: "create-outline" as const,
+                disabled: !customer?.id,
+            },
+            {
+                value: "delete" as const,
+                label: t("customerProfile.delete"),
+                icon: "trash-outline" as const,
+                disabled: deleteLoading || !customer?.id,
+            },
+        ],
+        [
+            account?.id,
+            customer?.id,
+            deleteLoading,
+            isAccountActive,
+            isUpdatingStatus,
+            t,
+        ],
+    );
+
     const handleAddTransaction = async () => {
-        if (!amount || !customer?.accounts?.[0]?.id) return;
+        if (!amount || !customer?.accounts?.[0]?.id || saving) return;
+
+        setSaving(true);
 
         const account = customer.accounts[0];
         const accountId = account.id;
-        if (!accountId) return;
+        if (!accountId) { setSaving(false); return; }
         const transactionAmount = toInteger(parseFloat(amount));
         const currentBalance = account.current_balance || 0;
         const creditLimit = account.credit_limit || 0;
@@ -170,35 +222,65 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         `Remaining Available: ${formatCurrency(remaining)}`,
                     [{ text: "OK", style: "cancel" }],
                 );
+                setSaving(false);
                 return;
             }
         }
 
-        await createTransaction({
-            account_id: accountId,
-            amount: transactionAmount,
-            type: transactionType,
-            description: description || undefined,
-        });
+        try {
+            await createTransaction({
+                account_id: accountId,
+                amount: transactionAmount,
+                type: transactionType,
+                description: description || undefined,
+            });
 
-        // Refresh data
-        await fetchTransactionsByAccount(accountId);
-        await refreshCustomer();
+            // Refresh data
+            await fetchTransactionsByAccount(accountId);
+            await refreshCustomer();
+        } catch {
+            setSaving(false);
+            return;
+        }
 
         setAmount("");
         setDescription("");
         Keyboard.dismiss();
-        setShowAddModal(false);
+        Animated.timing(modalAnimation, {
+            toValue: 0,
+            duration: 200,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+        }).start(() => {
+            setShowAddModal(false);
+            setSaving(false);
+        });
     };
 
     const openAddModal = (type: TransactionType) => {
+        modalAnimation.stopAnimation();
         setTransactionType(type);
         setShowAddModal(true);
+        Animated.timing(modalAnimation, {
+            toValue: 1,
+            duration: 250,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+        }).start();
     };
 
     const closeAddModal = () => {
+        modalAnimation.stopAnimation();
         Keyboard.dismiss();
-        setShowAddModal(false);
+        Animated.timing(modalAnimation, {
+            toValue: 0,
+            duration: 200,
+            easing: Easing.inOut(Easing.cubic),
+            useNativeDriver: true,
+        }).start(() => {
+            setShowAddModal(false);
+            setSaving(false);
+        });
     };
 
     const handleViewProfile = () => {
@@ -319,6 +401,23 @@ export const CustomerTransactionsScreen: React.FC = () => {
         );
     };
 
+    const handleHeaderMenuSelect = (value: HeaderMenuOption) => {
+        switch (value) {
+            case "view-profile":
+                handleViewProfile();
+                break;
+            case "toggle-status":
+                void handleToggleAccountStatus();
+                break;
+            case "edit":
+                handleEditCustomer();
+                break;
+            case "delete":
+                handleDeleteCustomer();
+                break;
+        }
+    };
+
     const renderTransaction = ({ item }: { item: any }) => {
         const fundingDetails = fundingSourcesByTransactionId.get(
             item.id as number,
@@ -327,20 +426,32 @@ export const CustomerTransactionsScreen: React.FC = () => {
             fundingDetails?.source ??
             (item.type === TransactionType.CREDIT ? "received" : "pocket");
         const isReceived = fundingSource === "received";
+        const isSettled = fundingSource === "settled";
+        const isSettledAndAdded = fundingSource === "settledAndAdded";
+        const isAddedBalance = fundingSource === "added";
         const isBalanceFunded = fundingSource === "balance";
         const isMixedFunded = fundingSource === "mixed";
-        const label = isReceived
-            ? t("ledger.received")
-            : isBalanceFunded
-              ? t("ledger.paidFromBalance")
-              : isMixedFunded
-                ? t("ledger.paidFromBalanceAndPocket")
-                : t("ledger.paidFromPocket");
-        const semanticColor: "success" | "danger" | "warning" = isReceived
-            ? "success"
-            : isMixedFunded
-              ? "warning"
-              : "danger";
+        const label = isSettled
+            ? t("ledger.settled")
+            : isSettledAndAdded
+              ? t("ledger.settledAndAdded")
+              : isAddedBalance
+                ? t("ledger.addedBalance")
+                : isReceived
+                  ? t("ledger.received")
+                  : isBalanceFunded
+                    ? t("ledger.paidFromBalance")
+                    : isMixedFunded
+                      ? t("ledger.paidFromBalanceAndPocket")
+                      : t("ledger.paidFromPocket");
+        const isCreditVariant =
+            isReceived || isSettled || isSettledAndAdded || isAddedBalance;
+        const semanticColor: "success" | "danger" | "warning" =
+            isCreditVariant
+                ? "success"
+                : isMixedFunded
+                  ? "warning"
+                  : "danger";
 
         return (
             <Card style={styles.transactionCard}>
@@ -383,11 +494,13 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         {item.description}
                     </Typography>
                 )}
-                {isMixedFunded && fundingDetails && (
+                {(isMixedFunded || isSettledAndAdded) && fundingDetails && (
                     <View style={styles.fundingBreakdown}>
                         <View style={styles.fundingBreakdownRow}>
                             <Typography variant="body-small" color="muted">
-                                {t("ledger.fromCustomerBalance")}
+                                {isSettledAndAdded
+                                    ? t("ledger.settledAmount")
+                                    : t("ledger.fromCustomerBalance")}
                             </Typography>
                             <TouchableAmount
                                 amount={fundingDetails.balanceFundedAmount}
@@ -398,7 +511,9 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         </View>
                         <View style={styles.fundingBreakdownRow}>
                             <Typography variant="body-small" color="muted">
-                                {t("ledger.fromPocketBusiness")}
+                                {isSettledAndAdded
+                                    ? t("ledger.addedBalanceAmount")
+                                    : t("ledger.fromPocketBusiness")}
                             </Typography>
                             <TouchableAmount
                                 amount={fundingDetails.pocketFundedAmount}
@@ -412,7 +527,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
         );
     };
 
-    if (!db || (loadingTransactions && customerTransactions.length === 0)) {
+    if (!db || customerLoading || (loadingTransactions && customerTransactions.length === 0)) {
         return <LoadingScreen />;
     }
 
@@ -432,12 +547,15 @@ export const CustomerTransactionsScreen: React.FC = () => {
             >
                 <Pressable
                     onPress={() => router.back()}
-                    style={styles.backButton}
+                    style={[
+                        styles.backButton,
+                        { backgroundColor: `${colors.primary}15` },
+                    ]}
                 >
                     <Ionicons
-                        name="arrow-back"
+                        name="chevron-back"
                         size={24}
-                        color={colors.text.primary}
+                        color={colors.primary}
                     />
                 </Pressable>
                 <View style={styles.headerContent}>
@@ -525,7 +643,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 </View>
                 <Pressable
                     onPress={() => {
-                        setAutoLockSuspended(true);
                         setIsMenuVisible(true);
                     }}
                     style={styles.menuButton}
@@ -587,100 +704,91 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 </Card>
             </View>
 
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-                <Pressable
-                    style={[
-                        styles.actionButton,
-                        { backgroundColor: colors.success },
-                    ]}
-                    onPress={() => openAddModal(TransactionType.CREDIT)}
-                >
-                    <Ionicons name="arrow-down" size={20} color="#FFFFFF" />
-                    <Typography
-                        variant="body-medium"
-                        color="primary"
-                        style={styles.filledActionText}
-                    >
-                        Receive
-                    </Typography>
-                </Pressable>
-                <Pressable
-                    style={[
-                        styles.actionButton,
-                        { backgroundColor: colors.danger },
-                    ]}
-                    onPress={() => openAddModal(TransactionType.DEBIT)}
-                >
-                    <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
-                    <Typography
-                        variant="body-medium"
-                        color="primary"
-                        style={styles.filledActionText}
-                    >
-                        Give
-                    </Typography>
-                </Pressable>
-            </View>
-
             {/* Modal */}
             {showAddModal && (
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === "ios" ? "padding" : "height"}
-                    keyboardVerticalOffset={insets.top}
-                    style={styles.modalOverlay}
+                <Animated.View
+                    style={[
+                        styles.modalOverlay,
+                        {
+                            opacity: modalAnimation,
+                            pointerEvents: showAddModal ? "auto" : "none",
+                        },
+                    ]}
                 >
-                    <ScrollView
-                        style={styles.keyboardView}
-                        contentContainerStyle={[
-                            styles.modalScrollContent,
-                            {
-                                paddingTop: insets.top + Spacing.lg,
-                                paddingBottom: insets.bottom + Spacing.lg,
-                            },
-                        ]}
-                        keyboardShouldPersistTaps="handled"
-                        automaticallyAdjustKeyboardInsets
-                        showsVerticalScrollIndicator={false}
+                    <KeyboardAvoidingView
+                        behavior={Platform.OS === "ios" ? "padding" : "height"}
+                        keyboardVerticalOffset={insets.top}
+                        style={styles.flex1}
                     >
-                        <Card style={styles.modal}>
-                            <Typography
-                                variant="heading-medium"
-                                color="primary"
-                                style={styles.modalTitle}
+                        <ScrollView
+                            style={styles.keyboardView}
+                            contentContainerStyle={[
+                                styles.modalScrollContent,
+                                {
+                                    paddingTop: insets.top + Spacing.lg,
+                                    paddingBottom: insets.bottom + Spacing.lg,
+                                },
+                            ]}
+                            keyboardShouldPersistTaps="handled"
+                            automaticallyAdjustKeyboardInsets
+                            showsVerticalScrollIndicator={false}
+                        >
+                            <Animated.View
+                                style={{
+                                    width: "100%",
+                                    maxWidth: 400,
+                                    transform: [
+                                        {
+                                            scale: modalAnimation.interpolate({
+                                                inputRange: [0, 1],
+                                                outputRange: [0.85, 1],
+                                            }),
+                                        },
+                                    ],
+                                }}
                             >
-                                {transactionType === TransactionType.CREDIT
-                                    ? "Receive Payment"
-                                    : "Make Payment"}
-                            </Typography>
-                            <Input
-                                placeholder="Amount"
-                                value={amount}
-                                onChangeText={setAmount}
-                                keyboardType="numeric"
-                                autoFocus
-                            />
-                            <Input
-                                placeholder="Description (optional)"
-                                value={description}
-                                onChangeText={setDescription}
-                            />
-                            <View style={styles.modalActions}>
-                                <Button
-                                    title="Cancel"
-                                    variant="secondary"
-                                    onPress={closeAddModal}
-                                    style={styles.modalButton}
-                                />
-                                <Button
-                                    title="Save"
-                                    onPress={handleAddTransaction}
-                                    style={styles.modalButton}
-                                />
-                            </View>
-                        </Card>
-                    </ScrollView>
-                </KeyboardAvoidingView>
+                                <Card style={styles.modal}>
+                                    <Typography
+                                        variant="heading-medium"
+                                        color="primary"
+                                        style={styles.modalTitle}
+                                    >
+                                        {transactionType === TransactionType.CREDIT
+                                            ? "Receive Payment"
+                                            : "Make Payment"}
+                                    </Typography>
+                                    <Input
+                                        placeholder="Amount"
+                                        value={amount}
+                                        onChangeText={setAmount}
+                                        keyboardType="numeric"
+                                        autoFocus
+                                    />
+                                    <Input
+                                        placeholder="Description (optional)"
+                                        value={description}
+                                        onChangeText={setDescription}
+                                    />
+                                    <View style={styles.modalActions}>
+                                        <Button
+                                            title="Cancel"
+                                            variant="secondary"
+                                            onPress={closeAddModal}
+                                            disabled={saving}
+                                            style={styles.modalButton}
+                                        />
+                                        <Button
+                                            title={saving ? "Saving..." : "Save"}
+                                            onPress={handleAddTransaction}
+                                            disabled={saving}
+                                            style={styles.modalButton}
+                                        />
+                                    </View>
+                                </Card>
+                            </Animated.View>
+                        </ScrollView>
+                    </KeyboardAvoidingView>
+                </Animated.View>
             )}
 
             <View style={styles.transactionsHeader}>
@@ -716,6 +824,23 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     offset: 100 * index,
                     index,
                 })}
+                onEndReached={hasMore ? nextPage : undefined}
+                onEndReachedThreshold={0.5}
+                ListFooterComponent={
+                    loadingTransactions && customerTransactions.length > 0 ? (
+                        <View style={styles.footer}>
+                            <Typography variant="body-small" color="muted">
+                                Loading more...
+                            </Typography>
+                        </View>
+                    ) : !hasMore && customerTransactions.length > 0 ? (
+                        <View style={styles.footer}>
+                            <Typography variant="body-small" color="muted">
+                                All transactions loaded
+                            </Typography>
+                        </View>
+                    ) : null
+                }
             />
 
             {/* FAB
@@ -726,117 +851,37 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 <Ionicons name="add" size={28} color={Colors.text.primary} />
             </Pressable> */}
 
-            <Modal
-                visible={isMenuVisible}
-                transparent
-                animationType="fade"
-                statusBarTranslucent
-                onRequestClose={() => setIsMenuVisible(false)}
-            >
+            {/* Receive / Give FABs */}
+            <View style={[styles.fabRow, { bottom: 80 + insets.bottom }]}>
                 <Pressable
-                    style={styles.menuBackdrop}
-                    onPress={() => setIsMenuVisible(false)}
+                    style={[
+                        styles.fab,
+                        { backgroundColor: colors.success },
+                    ]}
+                    onPress={() => openAddModal(TransactionType.CREDIT)}
                 >
-                    <View
-                        style={[
-                            styles.menu,
-                            {
-                                top: insets.top + 64,
-                                backgroundColor: colors.surface,
-                                borderColor: colors.border,
-                                [false ? "left" : "right"]: Spacing.lg,
-                            },
-                        ]}
-                    >
-                        <Pressable
-                            onPress={handleViewProfile}
-                            disabled={!customer?.id}
-                            style={[styles.menuItem, false && styles.rowRTL]}
-                        >
-                            <Ionicons
-                                name="person-circle-outline"
-                                size={22}
-                                color={
-                                    customer?.id
-                                        ? colors.primary
-                                        : colors.text.muted
-                                }
-                            />
-                            <Typography
-                                variant="body-medium"
-                                color={customer?.id ? "primary" : "muted"}
-                            >
-                                {t("customerProfile.viewProfile")}
-                            </Typography>
-                        </Pressable>
-                        <Pressable
-                            onPress={handleToggleAccountStatus}
-                            disabled={!account?.id || isUpdatingStatus}
-                            style={[styles.menuItem, false && styles.rowRTL]}
-                        >
-                            <Ionicons
-                                name={
-                                    isAccountActive
-                                        ? "pause-circle-outline"
-                                        : "checkmark-circle-outline"
-                                }
-                                size={22}
-                                color={
-                                    account?.id && !isUpdatingStatus
-                                        ? colors.primary
-                                        : colors.text.muted
-                                }
-                            />
-                            <Typography
-                                variant="body-medium"
-                                color={
-                                    account?.id && !isUpdatingStatus
-                                        ? "primary"
-                                        : "muted"
-                                }
-                            >
-                                {isAccountActive
-                                    ? t("customerProfile.deactivateAccount")
-                                    : t("customerProfile.activateAccount")}
-                            </Typography>
-                        </Pressable>
-                        <Pressable
-                            onPress={handleEditCustomer}
-                            style={[styles.menuItem, false && styles.rowRTL]}
-                        >
-                            <Ionicons
-                                name="create-outline"
-                                size={22}
-                                color={colors.primary}
-                            />
-                            <Typography variant="body-medium" color="primary">
-                                {t("customerProfile.edit")}
-                            </Typography>
-                        </Pressable>
-                        <Pressable
-                            onPress={handleDeleteCustomer}
-                            disabled={deleteLoading}
-                            style={[styles.menuItem, false && styles.rowRTL]}
-                        >
-                            <Ionicons
-                                name="trash-outline"
-                                size={22}
-                                color={
-                                    deleteLoading
-                                        ? colors.text.muted
-                                        : colors.danger
-                                }
-                            />
-                            <Typography
-                                variant="body-medium"
-                                color={deleteLoading ? "muted" : "danger"}
-                            >
-                                {t("customerProfile.delete")}
-                            </Typography>
-                        </Pressable>
-                    </View>
+                    <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
                 </Pressable>
-            </Modal>
+                <Pressable
+                    style={[
+                        styles.fab,
+                        { backgroundColor: colors.danger },
+                    ]}
+                    onPress={() => openAddModal(TransactionType.DEBIT)}
+                >
+                    <Ionicons name="arrow-up" size={24} color="#FFFFFF" />
+                </Pressable>
+            </View>
+
+            <OptionModal<HeaderMenuOption>
+                visible={isMenuVisible}
+                title={customer?.name || t("customerProfile.customer")}
+                options={headerMenuOptions}
+                selected={null}
+                showSelectionIndicator={false}
+                onSelect={handleHeaderMenuSelect}
+                onClose={() => setIsMenuVisible(false)}
+            />
             {deleteAuthenticationPrompt}
         </View>
     );
@@ -860,6 +905,11 @@ const styles = StyleSheet.create({
         flexDirection: "row-reverse",
     },
     backButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: "center",
+        justifyContent: "center",
         marginBottom: Spacing.xs,
     },
     headerContent: {
@@ -998,23 +1048,9 @@ const styles = StyleSheet.create({
     statCardPaid: {
         backgroundColor: "#EF444420",
     },
-    actionButtons: {
-        flexDirection: "row",
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.md,
-        gap: Spacing.md,
-    },
-    actionButton: {
+    fab: {
+        position: "absolute",
         flex: 1,
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "center",
-        paddingVertical: Spacing.md,
-        borderRadius: 8,
-        gap: Spacing.sm,
-    },
-    filledActionText: {
-        color: "#FFFFFF",
     },
     modalOverlay: {
         ...StyleSheet.absoluteFillObject,
@@ -1049,12 +1085,9 @@ const styles = StyleSheet.create({
         minWidth: 80,
     },
     fab: {
-        position: "absolute",
-        right: Spacing.lg,
         width: 56,
         height: 56,
         borderRadius: 28,
-        backgroundColor: Colors.primary,
         justifyContent: "center",
         alignItems: "center",
         shadowColor: Colors.primary,
@@ -1063,27 +1096,18 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 8,
     },
-    menuBackdrop: {
-        flex: 1,
-        backgroundColor: "transparent",
-    },
-    menu: {
+    fabRow: {
         position: "absolute",
-        minWidth: 230,
-        borderWidth: 1,
-        borderRadius: 14,
-        paddingVertical: Spacing.xs,
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.18,
-        shadowRadius: 10,
-        elevation: 6,
-    },
-    menuItem: {
+        right: Spacing.lg,
         flexDirection: "row",
-        alignItems: "center",
         gap: Spacing.md,
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.md,
+        zIndex: 10,
+    },
+    flex1: {
+        flex: 1,
+    },
+    footer: {
+        padding: Spacing.md,
+        alignItems: "center",
     },
 });

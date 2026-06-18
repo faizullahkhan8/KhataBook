@@ -4,16 +4,18 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
     FlatList,
-    LayoutAnimation,
     Pressable,
     StyleSheet,
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
-import { Card, Typography } from "../components";
+import { Card, OptionModal, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
-import { useTheme, useLanguage, usePasscode } from "../store";
+import { ThemeMode, useTheme, useLanguage, usePasscode } from "../store";
+
+type ModalOption = "theme" | "language" | null;
+
 interface SettingItem {
     id: string;
     title: string;
@@ -22,26 +24,20 @@ interface SettingItem {
     type: "navigation" | "toggle" | "action";
     section: "General" | "Security" | "Support" | "Developer";
 }
+
 const DEVELOPER_OPTIONS_KEY = "khatabook.developerOptionsUnlocked";
 const DEVELOPER_UNLOCK_HOLD_MS = 5000;
-const DISCLOSURE_ANIMATION = {
-    duration: 180,
-    create: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-    },
-    update: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-    },
-    delete: {
-        type: LayoutAnimation.Types.easeInEaseOut,
-        property: LayoutAnimation.Properties.opacity,
-    },
-};
 
-const animateDisclosure = () => {
-    LayoutAnimation.configureNext(DISCLOSURE_ANIMATION);
-};
+const THEME_OPTIONS = [
+    { value: "light" as ThemeMode, label: "Light", icon: "sunny" as const },
+    { value: "dark" as ThemeMode, label: "Dark", icon: "moon" as const },
+    { value: "system" as ThemeMode, label: "System", icon: "settings-outline" as const },
+];
+
+const LANGUAGE_OPTIONS = [
+    { value: "en", label: "English", icon: "globe-outline" as const },
+    { value: "ur", label: "اردو", icon: "globe-outline" as const },
+];
 
 export const SettingsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
@@ -50,8 +46,7 @@ export const SettingsScreen: React.FC = () => {
     const { mode, setMode, colors } = useTheme();
     const { language, setLanguage } = useLanguage();
     const { isEnabled: isPasscodeEnabled, isSupported: isPasscodeSupported } = usePasscode();
-    const [showThemeOptions, setShowThemeOptions] = useState(false);
-    const [showLanguageOptions, setShowLanguageOptions] = useState(false);
+    const [activeModal, setActiveModal] = useState<ModalOption>(null);
     const [developerOptionsUnlocked, setDeveloperOptionsUnlocked] = useState(false);
     const suppressNextAboutPress = useRef(false);
 
@@ -63,6 +58,7 @@ export const SettingsScreen: React.FC = () => {
 
         void loadDeveloperOptionsState();
     }, []);
+
     const SETTINGS_DATA: SettingItem[] = [
         {
             id: "theme",
@@ -145,6 +141,7 @@ export const SettingsScreen: React.FC = () => {
             ]
             : []),
     ];
+
     const unlockDeveloperOptions = async () => {
         suppressNextAboutPress.current = true;
         await AsyncStorage.setItem(DEVELOPER_OPTIONS_KEY, "true");
@@ -161,14 +158,10 @@ export const SettingsScreen: React.FC = () => {
 
     const handlePress = (item: SettingItem) => {
         if (item.id === "theme") {
-            animateDisclosure();
-            setShowThemeOptions(!showThemeOptions);
-            setShowLanguageOptions(false);
+            setActiveModal("theme");
         }
         else if (item.id === "language") {
-            animateDisclosure();
-            setShowLanguageOptions(!showLanguageOptions);
-            setShowThemeOptions(false);
+            setActiveModal("language");
         }
         else if (item.id === "about") {
             handleAboutPress();
@@ -189,26 +182,35 @@ export const SettingsScreen: React.FC = () => {
             router.push("/developer-options" as any);
         }
     };
+
     const renderItem = ({ item, index }: {
         item: SettingItem;
         index: number;
     }) => {
         const isFirstInSection = index === 0 || SETTINGS_DATA[index - 1].section !== item.section;
         const sectionTitle = item.section === "General" ? t('settings.general') : item.section === "Security" ? t('settings.security') : item.section === "Support" ? t('settings.support') : "DEVELOPER";
-        return (<View>
-                {isFirstInSection && (<Typography variant="subheading-small" color="muted" style={[styles.sectionHeader]}>
+        return (
+            <View>
+                {isFirstInSection && (
+                    <Typography variant="subheading-small" color="muted" style={[styles.sectionHeader]}>
                         {sectionTitle}
-                    </Typography>)}
-                <Pressable style={({ pressed }) => [
-                styles.itemContainer,
-                pressed && styles.itemPressed,
-            ]} onPress={() => handlePress(item)} delayLongPress={item.id === "about" ? DEVELOPER_UNLOCK_HOLD_MS : undefined} onLongPress={item.id === "about" && !developerOptionsUnlocked
-                ? () => void unlockDeveloperOptions()
-                : undefined}>
+                    </Typography>
+                )}
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.itemContainer,
+                        pressed && styles.itemPressed,
+                    ]}
+                    onPress={() => handlePress(item)}
+                    delayLongPress={item.id === "about" ? DEVELOPER_UNLOCK_HOLD_MS : undefined}
+                    onLongPress={item.id === "about" && !developerOptionsUnlocked
+                        ? () => void unlockDeveloperOptions()
+                        : undefined}
+                >
                     <Card style={[styles.itemCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                         <View style={styles.itemContent}>
                             <View style={[styles.iconBox, { backgroundColor: `${colors.primary}25` }]}>
-                                <Ionicons name={item.icon} size={22} color={colors.primary}/>
+                                <Ionicons name={item.icon} size={22} color={colors.primary} />
                             </View>
                             <View style={styles.textContainer}>
                                 <Typography variant="body-large" color="primary">
@@ -218,52 +220,55 @@ export const SettingsScreen: React.FC = () => {
                                     {item.subtitle}
                                 </Typography>
                             </View>
-                            <Ionicons name={item.id === "theme" && showThemeOptions
-                ? "chevron-down"
-                : item.id === "language" && showLanguageOptions
-                    ? "chevron-down"
-                    : "chevron-forward"} size={20} color={colors.border}/>
+                            <Ionicons name="chevron-forward" size={20} color={colors.border} />
                         </View>
                     </Card>
                 </Pressable>
-                {item.id === "theme" && showThemeOptions && (<View style={styles.themeOptionsContainer}>
-                        {(["light", "dark", "system"] as const).map((option) => (<Pressable key={option} style={[
-                        styles.themeOptionButton,
-                        { borderColor: mode === option ? colors.primary : colors.border },
-                        mode === option ? { backgroundColor: `${colors.primary}10` } : null
-                    ]} onPress={() => setMode(option)}>
-                                <Ionicons name={option === "light" ? "sunny" : option === "dark" ? "moon" : "settings-outline"} size={20} color={mode === option ? colors.primary : colors.text.muted}/>
-                                <Typography variant="body-small" color={mode === option ? "primary" : "muted"} style={styles.themeOptionText}>
-                                    {t(`settings.theme_${option}`)}
-                                </Typography>
-                            </Pressable>))}
-                    </View>)}
-                {item.id === "language" && showLanguageOptions && (<View style={styles.themeOptionsContainer}>
-                        {(["en", "ur"] as const).map((option) => (<Pressable key={option} style={[
-                        styles.themeOptionButton,
-                        { borderColor: language === option ? colors.primary : colors.border },
-                        language === option ? { backgroundColor: `${colors.primary}10` } : null
-                    ]} onPress={() => {
-                        setLanguage(option);
-                    }}>
-                                <Typography variant="body-small" color={language === option ? "primary" : "muted"} style={styles.themeOptionText}>
-                                    {option === 'en' ? 'English' : 'اردو'}
-                                </Typography>
-                            </Pressable>))}
-                    </View>)}
-            </View>);
+            </View>
+        );
     };
-    return (<View style={[styles.container, { backgroundColor: colors.background }]}>
-            <FlatList data={SETTINGS_DATA} renderItem={renderItem} keyExtractor={(item) => item.id} contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + Spacing.xl },
-        ]} ListHeaderComponent={<View style={[styles.header, { paddingTop: insets.top + Spacing.lg, alignItems: 'flex-start' }]}>
+
+    return (
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <FlatList
+                data={SETTINGS_DATA}
+                renderItem={renderItem}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={[
+                    styles.listContent,
+                    { paddingBottom: insets.bottom + Spacing.xl },
+                ]}
+                ListHeaderComponent={
+                    <View style={[styles.header, { paddingTop: insets.top + Spacing.lg, alignItems: 'flex-start' }]}>
                         <Typography variant="heading-large" color="primary">
                             {t('settings.title')}
                         </Typography>
-                    </View>} showsVerticalScrollIndicator={false}/>
-        </View>);
+                    </View>
+                }
+                showsVerticalScrollIndicator={false}
+            />
+
+            <OptionModal
+                visible={activeModal === "theme"}
+                title={t('settings.theme')}
+                options={THEME_OPTIONS.map(opt => ({ ...opt, label: t(`settings.theme_${opt.value}`) }))}
+                selected={mode}
+                onSelect={(value) => setMode(value as ThemeMode)}
+                onClose={() => setActiveModal(null)}
+            />
+
+            <OptionModal
+                visible={activeModal === "language"}
+                title={t('settings.language')}
+                options={LANGUAGE_OPTIONS}
+                selected={language}
+                onSelect={(value) => setLanguage(value as "en" | "ur")}
+                onClose={() => setActiveModal(null)}
+            />
+        </View>
+    );
 };
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -293,7 +298,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: Colors.border,
         backgroundColor: Colors.surface,
-        // Elevation 0 as requested
         shadowOpacity: 0,
         elevation: 0,
     },
@@ -305,30 +309,12 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 10,
-        backgroundColor: `${Colors.primary}25`, // 15% opacity tint
+        backgroundColor: `${Colors.primary}25`,
         justifyContent: "center",
         alignItems: "center",
         marginHorizontal: Spacing.md,
     },
     textContainer: {
         flex: 1,
-    },
-    themeOptionsContainer: {
-        flexDirection: "row",
-        gap: Spacing.sm,
-        marginTop: Spacing.xs,
-        marginBottom: Spacing.sm,
-    },
-    themeOptionButton: {
-        flex: 1,
-        borderWidth: 1,
-        borderRadius: 8,
-        paddingVertical: Spacing.sm,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    themeOptionText: {
-        marginTop: 4,
-        textTransform: "capitalize",
     },
 });

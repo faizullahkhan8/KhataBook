@@ -48,21 +48,17 @@ export class AccountService {
             throw new Error("Database is not initialized");
         }
         try {
-            // Always create account with 0 balance initially
             const accountWithZeroBalance = {
                 ...account,
                 current_balance: 0 as Account["current_balance"],
             };
 
-            // If no initial balance, just create account normally
             if (!initialBalance || initialBalance === 0) {
                 return this.createAccount(accountWithZeroBalance);
             }
 
-            // Use transaction to ensure atomicity
             let accountId: AccountId | undefined;
             await this.db.withTransactionAsync(async () => {
-                // 1. Create account with current_balance = 0
                 const result = await this.db.runAsync(
                     `INSERT INTO accounts (customer_id, account_number, account_type, credit_limit, current_balance, status) VALUES (?, ?, ?, ?, ?, ?)`,
                     [
@@ -70,19 +66,17 @@ export class AccountService {
                         accountWithZeroBalance.account_number,
                         accountWithZeroBalance.account_type,
                         accountWithZeroBalance.credit_limit,
-                        0, // Force 0 balance
+                        0,
                         accountWithZeroBalance.status,
                     ],
                 );
                 accountId = result.lastInsertRowId as AccountId;
 
-                // 2. Insert opening balance transaction (DEBIT type = 0)
-                // This triggers the balance update via trig_trans_insert_balance
                 await this.db.runAsync(
                     `INSERT INTO transactions (account_id, type, amount, description, reference, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
                     [
                         accountId,
-                        0, // DEBIT type
+                        0,
                         initialBalance,
                         "Opening Balance",
                         "INIT",
@@ -165,7 +159,6 @@ export class AccountService {
             throw new Error("Database is not initialized");
         }
         try {
-            // Note: Customer summary updates are handled by triggers on current_balance update
             await this.db.runAsync(
                 "UPDATE accounts SET current_balance = current_balance + ?, updated_at = strftime('%s', 'now') WHERE id = ?",
                 [amount, accountId],
@@ -192,6 +185,7 @@ export class AccountService {
                 "UPDATE accounts SET status = ?, updated_at = strftime('%s', 'now') WHERE id = ?",
                 [status, accountId],
             );
+            void logger.info("customers", "Account status updated", { accountId, status });
         } catch (error) {
             void logger.error("customers", "Error updating account status", error);
             throw error;
@@ -237,6 +231,7 @@ export class AccountService {
                 `UPDATE accounts SET ${fields.join(", ")}, updated_at = strftime('%s', 'now') WHERE id = ?`,
                 values,
             );
+            void logger.info("customers", "Account updated", { accountId });
         } catch (error) {
             void logger.error("customers", "Error updating account", error);
             throw error;
@@ -249,6 +244,7 @@ export class AccountService {
         }
         try {
             await this.db.runAsync("DELETE FROM accounts WHERE id = ?", [id]);
+            void logger.info("customers", "Account deleted", { accountId: id });
         } catch (error) {
             void logger.error("customers", "Error deleting account", error);
             throw error;

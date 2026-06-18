@@ -87,11 +87,17 @@ export const CustomerProfileScreen: React.FC = () => {
                     false && styles.rowRTL,
                 ]}
             >
-                <Pressable onPress={() => router.back()} style={styles.backButton}>
+                <Pressable
+                    onPress={() => router.back()}
+                    style={[
+                        styles.backButton,
+                        { backgroundColor: `${colors.primary}15` },
+                    ]}
+                >
                     <Ionicons
-                        name={false ? "arrow-forward" : "arrow-back"}
+                        name={false ? "chevron-forward" : "chevron-back"}
                         size={24}
-                        color={colors.text.primary}
+                        color={colors.primary}
                     />
                 </Pressable>
                 {customer?.image_uri ? (
@@ -254,7 +260,11 @@ const styles = StyleSheet.create({
         textAlign: "right",
     },
     backButton: {
-        padding: Spacing.xs,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        alignItems: "center",
+        justifyContent: "center",
     },
     headerImage: {
         width: 48,
