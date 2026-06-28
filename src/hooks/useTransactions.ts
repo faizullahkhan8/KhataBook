@@ -142,6 +142,28 @@ export const useTransactions = (
         [transactionService, invalidate],
     );
 
+    const updateTransaction = useCallback(
+        async (
+            id: TransactionId,
+            updates: Partial<Omit<Transaction, "id" | "created_at">>,
+        ) => {
+            if (!transactionService) return;
+
+            setLoading(true);
+            setError(null);
+            try {
+                await transactionService.updateTransaction(id, updates);
+                invalidate("transactions");
+                invalidate("customers");
+            } catch (err) {
+                setError(err as Error);
+            } finally {
+                setLoading(false);
+            }
+        },
+        [transactionService, invalidate],
+    );
+
     const deleteTransaction = useCallback(
         async (id: TransactionId) => {
             if (!transactionService) return;
@@ -176,6 +198,7 @@ export const useTransactions = (
         hasMore,
         nextPage,
         createTransaction,
+        updateTransaction,
         deleteTransaction,
         fetchTransactionsByAccount,
         refresh,

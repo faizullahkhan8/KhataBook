@@ -113,6 +113,14 @@ export const SettingsScreen: React.FC = () => {
             section: "Support",
         },
         {
+            id: "trash",
+            title: t('settings.trash'),
+            subtitle: t('settings.trashSubtitleEmpty'), // Dynamic count can be added later
+            icon: "trash-outline",
+            type: "navigation",
+            section: "General",
+        },
+        {
             id: "privacy",
             title: t('settings.privacyPolicy'),
             subtitle: t('settings.privacyPolicySubtitle'),
@@ -177,6 +185,9 @@ export const SettingsScreen: React.FC = () => {
         }
         else if (item.id === "terms") {
             router.push("/terms-of-use");
+        }
+        else if (item.id === "trash") {
+            router.push("/settings/trash" as any);
         }
         else if (item.id === "developer-options") {
             router.push("/developer-options" as any);

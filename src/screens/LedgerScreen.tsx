@@ -11,7 +11,6 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-    Card,
     DateFilter,
     DateRangePicker,
     ErrorScreen,
@@ -155,9 +154,9 @@ export const LedgerScreen: React.FC = () => {
                 description:
                     entry.description ||
                     (entry.funding_source === "received" ||
-                     entry.funding_source === "settled" ||
-                     entry.funding_source === "settledAndAdded" ||
-                     entry.funding_source === "added"
+                        entry.funding_source === "settled" ||
+                        entry.funding_source === "settledAndAdded" ||
+                        entry.funding_source === "added"
                         ? t("ledger.credit")
                         : t("ledger.debit")),
                 date: entry.created_at,
@@ -190,131 +189,108 @@ export const LedgerScreen: React.FC = () => {
             const label = isSettled
                 ? t("ledger.settled")
                 : isSettledAndAdded
-                  ? t("ledger.settledAndAdded")
-                  : isAddedBalance
-                    ? t("ledger.addedBalance")
-                    : isReceived
-                      ? t("ledger.received")
-                      : isBalanceFunded
-                        ? t("ledger.paidFromBalance")
-                        : isMixedFunded
-                          ? t("ledger.paidFromBalanceAndPocket")
-                          : t("ledger.paidFromPocket");
+                    ? t("ledger.settledAndAdded")
+                    : isAddedBalance
+                        ? t("ledger.addedBalance")
+                        : isReceived
+                            ? t("ledger.received")
+                            : isBalanceFunded
+                                ? t("ledger.paidFromBalance")
+                                : isMixedFunded
+                                    ? t("ledger.paidFromBalanceAndPocket")
+                                    : t("ledger.paidFromPocket");
             const isCreditVariant =
                 isReceived || isSettled || isSettledAndAdded || isAddedBalance;
             const semanticColor: "success" | "danger" | "warning" =
                 isCreditVariant
                     ? "success"
                     : isMixedFunded
-                      ? "warning"
-                      : "danger";
+                        ? "warning"
+                        : "danger";
+
+            const colorValue =
+                semanticColor === "success"
+                    ? colors.success
+                    : semanticColor === "warning"
+                        ? colors.warning
+                        : colors.danger;
+
+            const typeIcon = isCreditVariant
+                ? ("arrow-down-circle" as const)
+                : isMixedFunded
+                    ? ("git-merge-outline" as const)
+                    : ("arrow-up-circle" as const);
 
             return (
-                <Card style={styles.entryCard}>
+                <View
+                    style={[
+                        styles.entryRow,
+                        { backgroundColor: colors.surface },
+                    ]}
+                >
+                    {/* Left: colored type icon */}
                     <View
                         style={[
-                            styles.entryHeader,
-                            false && { flexDirection: "row-reverse" },
+                            styles.typeIconWrap,
+                            { backgroundColor: `${colorValue}18` },
                         ]}
                     >
-                        <Typography variant="body-medium" color="secondary">
-                            {t("ledger.transaction")}
-                        </Typography>
-                        <Typography variant="small-small" color="muted">
-                            {formatDateTime(item.date)}
-                        </Typography>
+                        <Ionicons name={typeIcon} size={18} color={colorValue} />
                     </View>
-                    <View style={styles.entryBody}>
-                        <View style={styles.entryContent}>
+
+                    {/* Center: type label + customer · time on second line */}
+                    <View style={styles.rowCenter}>
+                        <View style={styles.rowTop}>
                             <Typography
-                                variant="heading-small"
+                                variant="body-medium"
                                 color={semanticColor}
-                                style={styles.description}
-                                numberOfLines={2}
+                                numberOfLines={1}
+                                style={styles.rowLabel}
                             >
                                 {label}
                             </Typography>
+                            {(isMixedFunded || isSettledAndAdded) && (
+                                <View
+                                    style={[
+                                        styles.splitPill,
+                                        { backgroundColor: `${colorValue}18` },
+                                    ]}
+                                >
+                                    <Ionicons
+                                        name="layers-outline"
+                                        size={9}
+                                        color={colorValue}
+                                    />
+                                </View>
+                            )}
+                        </View>
+                        <View style={styles.rowMeta}>
                             <Typography
-                                variant="heading-small"
+                                variant="small-small"
                                 numberOfLines={1}
-                                style={styles.customerName}
+                                style={styles.customerNameText}
                             >
                                 {item.customerName}
                             </Typography>
                             <Typography
                                 variant="small-small"
                                 color="muted"
-                                style={styles.accountNumber}
                                 numberOfLines={1}
                             >
-                                {item.accountNumber}
+                                · {formatDateTime(item.date)}
                             </Typography>
-                            {(isMixedFunded || isSettledAndAdded) && (
-                                <View style={styles.fundingBreakdown}>
-                                    <View style={styles.fundingBreakdownRow}>
-                                        <Typography
-                                            variant="body-small"
-                                            color="muted"
-                                            style={styles.fundingLabel}
-                                            numberOfLines={2}
-                                        >
-                                            {isSettledAndAdded
-                                                ? t("ledger.settledAmount")
-                                                : t(
-                                                      "ledger.fromCustomerBalance",
-                                                  )}
-                                        </Typography>
-                                        <View style={styles.fundingAmount}>
-                                            <TouchableAmount
-                                                amount={
-                                                    item.balanceFundedAmount
-                                                }
-                                                variant="body-small"
-                                                color="primary"
-                                                style={{
-                                                    color: colors.info,
-                                                    textAlign: "right",
-                                                }}
-                                            />
-                                        </View>
-                                    </View>
-                                    <View style={styles.fundingBreakdownRow}>
-                                        <Typography
-                                            variant="body-small"
-                                            color="muted"
-                                            style={styles.fundingLabel}
-                                            numberOfLines={2}
-                                        >
-                                            {isSettledAndAdded
-                                                ? t(
-                                                      "ledger.addedBalanceAmount",
-                                                  )
-                                                : t(
-                                                      "ledger.fromPocketBusiness",
-                                                  )}
-                                        </Typography>
-                                        <View style={styles.fundingAmount}>
-                                            <TouchableAmount
-                                                amount={item.pocketFundedAmount}
-                                                variant="body-small"
-                                                color="warning"
-                                                style={styles.fundingAmountText}
-                                            />
-                                        </View>
-                                    </View>
-                                </View>
-                            )}
-                        </View>
-                        <View style={styles.amountContainer}>
-                            <TouchableAmount
-                                amount={item.amount}
-                                variant="heading-large"
-                                color={semanticColor}
-                                style={styles.amount}
-                            />
                         </View>
                     </View>
-                </Card>
+
+                    {/* Right: amount + chevron */}
+                    <View style={styles.rowRight}>
+                        <TouchableAmount
+                            amount={item.amount}
+                            variant="body-medium"
+                            color={semanticColor}
+                        />
+                    </View>
+                </View>
             );
         },
         [colors.info, t],
@@ -458,9 +434,9 @@ export const LedgerScreen: React.FC = () => {
                     initialRange={
                         customRange?.startDate && customRange?.endDate
                             ? {
-                                  startDate: customRange.startDate,
-                                  endDate: customRange.endDate,
-                              }
+                                startDate: customRange.startDate,
+                                endDate: customRange.endDate,
+                            }
                             : undefined
                     }
                 />
@@ -594,8 +570,8 @@ const styles = StyleSheet.create({
     },
     list: {
         flexGrow: 1,
-        padding: Spacing.md,
-        gap: Spacing.md,
+        paddingHorizontal: Spacing.sm,
+        paddingTop: Spacing.md,
     },
     emptyState: {
         flex: 1,
@@ -607,63 +583,58 @@ const styles = StyleSheet.create({
     emptyStateMessage: {
         textAlign: "center",
     },
-    entryCard: {
-        marginBottom: Spacing.md,
-    },
-    entryHeader: {
+    // Compact entry row
+    entryRow: {
         flexDirection: "row",
-        justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: Spacing.xs,
+        paddingVertical: 10,
+        paddingHorizontal: Spacing.md,
+        borderRadius: 10,
+        marginBottom: 6,
         gap: Spacing.sm,
     },
-    entryBody: {
-        flexDirection: "row",
-        alignItems: "flex-start",
-        gap: Spacing.sm,
+    typeIconWrap: {
+        width: 34,
+        height: 34,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
     },
-    entryContent: {
+    rowCenter: {
         flex: 1,
+        gap: 2,
+        minWidth: 0,
+    },
+    rowTop: {
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+    },
+    rowLabel: {
         flexShrink: 1,
-        minWidth: 0,
     },
-    customerName: {
-        flex: 1,
-    },
-    amountContainer: {
-        alignSelf: "flex-end",
+    splitPill: {
+        width: 16,
+        height: 16,
+        borderRadius: 4,
+        alignItems: "center",
+        justifyContent: "center",
         flexShrink: 0,
-        maxWidth: 132,
     },
-    description: {
-        marginTop: Spacing.sm,
-    },
-    accountNumber: {
-        marginTop: Spacing.xs,
-    },
-    fundingBreakdown: {
-        marginTop: Spacing.sm,
-        gap: Spacing.xs,
-    },
-    fundingBreakdownRow: {
+    rowMeta: {
         flexDirection: "row",
-        alignItems: "flex-start",
-        justifyContent: "space-between",
-        gap: Spacing.sm,
-    },
-    fundingLabel: {
-        flex: 1,
+        alignItems: "center",
+        gap: 3,
         minWidth: 0,
     },
-    fundingAmount: {
+    customerNameText: {
+        flexShrink: 1,
+        maxWidth: "50%",
+    },
+    rowRight: {
+        alignItems: "flex-end",
         flexShrink: 0,
-        maxWidth: 112,
-    },
-    fundingAmountText: {
-        textAlign: "right",
-    },
-    amount: {
-        textAlign: "right",
     },
     center: {
         flex: 1,

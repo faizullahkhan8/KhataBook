@@ -1,4 +1,5 @@
 export { AboutScreen } from "./AboutScreen";
+export { AddTransactionScreen } from "./AddTransactionScreen";
 export { CustomerProfileScreen } from "./CustomerProfileScreen";
 export { CustomersScreen } from "./CustomersScreen";
 export { CustomerTransactionsScreen } from "./CustomerTransactionsScreen";
@@ -12,3 +13,4 @@ export { PasscodeScreen } from "./PasscodeScreen";
 export { PrivacyPolicyScreen } from "./PrivacyPolicyScreen";
 export { SettingsScreen } from "./SettingsScreen";
 export { TermsOfUseScreen } from "./TermsOfUseScreen";
+export { TrashScreen } from "./TrashScreen";

@@ -1,33 +1,25 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Alert,
     FlatList,
-    Keyboard,
-    Animated,
-    Easing,
-    KeyboardAvoidingView,
     Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
-    Button,
-    Card,
-    Input,
     LoadingScreen,
     OptionModal,
     TouchableAmount,
     Typography,
     ViewPhoto,
 } from "../components";
-import { Colors, Spacing } from "../constants";
+import { Spacing } from "../constants";
 import {
     LedgerFundingSource,
     useCustomerById,
@@ -36,16 +28,10 @@ import {
 } from "../hooks";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useTransactions } from "../hooks/useTransactions";
-import {
-    AccountStatus,
-    CustomerId,
-    TransactionId,
-    TransactionType,
-} from "../models";
+import { AccountStatus, CustomerId, TransactionType } from "../models";
 import { AccountService } from "../services/AccountService";
 import { useDatabaseContext, usePasscode, useTheme } from "../store";
-import { formatCurrency, formatDateTime } from "../utils";
-import { toInteger } from "../utils/currencyUtils";
+import { formatDateTime } from "../utils";
 
 type HeaderMenuOption = "view-profile" | "toggle-status" | "edit" | "delete";
 
@@ -57,10 +43,11 @@ export const CustomerTransactionsScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { t } = useTranslation();
-    const { customer, loading: customerLoading, refresh: refreshCustomer } = useCustomerById(
-        db,
-        parseInt(customerId || "0") as CustomerId,
-    );
+    const {
+        customer,
+        loading: customerLoading,
+        refresh: refreshCustomer,
+    } = useCustomerById(db, parseInt(customerId || "0") as CustomerId);
     const accountService = useMemo(
         () => (db ? new AccountService(db) : null),
         [db],
@@ -71,8 +58,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
     const {
         transactions,
         fetchTransactionsByAccount,
-        createTransaction,
-        deleteTransaction,
         loading: loadingTransactions,
         hasMore,
         nextPage,
@@ -88,14 +73,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
         }
     }, [refreshCustomer, fetchTransactionsByAccount, customer]);
 
-    const [showAddModal, setShowAddModal] = useState(false);
-    const [saving, setSaving] = useState(false);
-    const modalAnimation = useRef(new Animated.Value(0)).current;
-    const [transactionType, setTransactionType] = useState<TransactionType>(
-        TransactionType.CREDIT,
-    );
-    const [amount, setAmount] = useState("");
-    const [description, setDescription] = useState("");
     const [isMenuVisible, setIsMenuVisible] = useState(false);
     const [isMenuActionActive, setIsMenuActionActive] = useState(false);
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -145,9 +122,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
         const totalPaid = customerTransactions
             .filter((t) => t.type === TransactionType.DEBIT)
             .reduce((sum, t) => sum + t.amount, 0);
-
-        // Return values remain as integers for stats; TouchableAmount will handle formatting
-        // Fixed: DEBIT increases balance (customer owes more), CREDIT decreases (customer pays back)
         const balance = totalPaid - totalReceived;
         return { totalReceived, totalPaid, balance };
     }, [customerTransactions]);
@@ -192,96 +166,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
             t,
         ],
     );
-
-    const handleAddTransaction = async () => {
-        if (!amount || !customer?.accounts?.[0]?.id || saving) return;
-
-        setSaving(true);
-
-        const account = customer.accounts[0];
-        const accountId = account.id;
-        if (!accountId) { setSaving(false); return; }
-        const transactionAmount = toInteger(parseFloat(amount));
-        const currentBalance = account.current_balance || 0;
-        const creditLimit = account.credit_limit || 0;
-
-        // Only validate DEBIT transactions (when customer is borrowing/paying)
-        // and only if credit limit is set (> 0)
-        if (transactionType === TransactionType.DEBIT && creditLimit > 0) {
-            const newBalance = currentBalance + transactionAmount;
-
-            if (newBalance > creditLimit) {
-                const remaining = Math.max(0, creditLimit - currentBalance);
-                Alert.alert(
-                    "Credit Limit Exceeded",
-                    `Transaction cannot be completed.\n\n` +
-                        `Credit Limit: ${formatCurrency(creditLimit)}\n` +
-                        `Current Balance: ${formatCurrency(currentBalance)}\n` +
-                        `Transaction Amount: ${formatCurrency(transactionAmount)}\n` +
-                        `New Balance Would Be: ${formatCurrency(newBalance)}\n\n` +
-                        `Remaining Available: ${formatCurrency(remaining)}`,
-                    [{ text: "OK", style: "cancel" }],
-                );
-                setSaving(false);
-                return;
-            }
-        }
-
-        try {
-            await createTransaction({
-                account_id: accountId,
-                amount: transactionAmount,
-                type: transactionType,
-                description: description || undefined,
-            });
-
-            // Refresh data
-            await fetchTransactionsByAccount(accountId);
-            await refreshCustomer();
-        } catch {
-            setSaving(false);
-            return;
-        }
-
-        setAmount("");
-        setDescription("");
-        Keyboard.dismiss();
-        Animated.timing(modalAnimation, {
-            toValue: 0,
-            duration: 200,
-            easing: Easing.inOut(Easing.cubic),
-            useNativeDriver: true,
-        }).start(() => {
-            setShowAddModal(false);
-            setSaving(false);
-        });
-    };
-
-    const openAddModal = (type: TransactionType) => {
-        modalAnimation.stopAnimation();
-        setTransactionType(type);
-        setShowAddModal(true);
-        Animated.timing(modalAnimation, {
-            toValue: 1,
-            duration: 250,
-            easing: Easing.inOut(Easing.cubic),
-            useNativeDriver: true,
-        }).start();
-    };
-
-    const closeAddModal = () => {
-        modalAnimation.stopAnimation();
-        Keyboard.dismiss();
-        Animated.timing(modalAnimation, {
-            toValue: 0,
-            duration: 200,
-            easing: Easing.inOut(Easing.cubic),
-            useNativeDriver: true,
-        }).start(() => {
-            setShowAddModal(false);
-            setSaving(false);
-        });
-    };
 
     const handleViewProfile = () => {
         if (!customer?.id) return;
@@ -363,44 +247,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
         );
     };
 
-    const handleDeleteTransaction = (transaction: any) => {
-        setIsMenuActionActive(true);
-        Alert.alert(
-            "Delete Transaction",
-            `Are you sure you want to delete this ${transaction.type === TransactionType.CREDIT ? "RECEIVED" : "PAID"} transaction of ${formatCurrency(transaction.amount)}?`,
-            [
-                {
-                    text: "Cancel",
-                    style: "cancel",
-                    onPress: () => setIsMenuActionActive(false),
-                },
-                {
-                    text: "Delete",
-                    style: "destructive",
-                    onPress: () => {
-                        setIsMenuActionActive(false);
-                        void requestDeleteAuthentication(async () => {
-                            if (transaction.id) {
-                                await deleteTransaction(
-                                    transaction.id as TransactionId,
-                                );
-                                if (customer?.accounts?.[0]?.id) {
-                                    await fetchTransactionsByAccount(
-                                        customer.accounts[0].id,
-                                    );
-                                }
-                                await refreshCustomer();
-                            }
-                        });
-                    },
-                },
-            ],
-            {
-                onDismiss: () => setIsMenuActionActive(false),
-            },
-        );
-    };
-
     const handleHeaderMenuSelect = (value: HeaderMenuOption) => {
         switch (value) {
             case "view-profile":
@@ -431,103 +277,146 @@ export const CustomerTransactionsScreen: React.FC = () => {
         const isAddedBalance = fundingSource === "added";
         const isBalanceFunded = fundingSource === "balance";
         const isMixedFunded = fundingSource === "mixed";
-        const label = isSettled
-            ? t("ledger.settled")
-            : isSettledAndAdded
-              ? t("ledger.settledAndAdded")
-              : isAddedBalance
-                ? t("ledger.addedBalance")
-                : isReceived
-                  ? t("ledger.received")
-                  : isBalanceFunded
-                    ? t("ledger.paidFromBalance")
-                    : isMixedFunded
-                      ? t("ledger.paidFromBalanceAndPocket")
-                      : t("ledger.paidFromPocket");
         const isCreditVariant =
             isReceived || isSettled || isSettledAndAdded || isAddedBalance;
-        const semanticColor: "success" | "danger" | "warning" =
-            isCreditVariant
-                ? "success"
-                : isMixedFunded
-                  ? "warning"
-                  : "danger";
+        const semanticColor: "success" | "danger" | "warning" = isCreditVariant
+            ? "success"
+            : isMixedFunded
+                ? "warning"
+                : "danger";
+
+        // Compact icon + short label per type
+        const typeIcon = isCreditVariant
+            ? ("arrow-down-circle" as const)
+            : isMixedFunded
+                ? ("git-merge-outline" as const)
+                : ("arrow-up-circle" as const);
+
+        const shortLabel = isSettled
+            ? t("ledger.settled")
+            : isSettledAndAdded
+                ? t("ledger.settledAndAdded")
+                : isAddedBalance
+                    ? t("ledger.addedBalance")
+                    : isReceived
+                        ? t("ledger.received")
+                        : isBalanceFunded
+                            ? t("ledger.paidFromBalance")
+                            : isMixedFunded
+                                ? t("ledger.paidFromBalanceAndPocket")
+                                : t("ledger.paidFromPocket");
+
+        const colorValue =
+            semanticColor === "success"
+                ? colors.success
+                : semanticColor === "warning"
+                    ? colors.warning
+                    : colors.danger;
+
+        const handleViewTransaction = () => {
+            router.push(
+                `/transaction-detail?transactionId=${item.id}&customerId=${customer?.id}` as any,
+            );
+        };
 
         return (
-            <Card style={styles.transactionCard}>
-                <View style={styles.transactionHeader}>
-                    <Typography variant="body-medium" color={semanticColor}>
-                        {label}
+            <Pressable
+                onPress={handleViewTransaction}
+                style={[
+                    styles.transactionRow,
+                    { backgroundColor: colors.surface },
+                ]}
+            >
+                {/* Left: colored type icon */}
+                <View
+                    style={[
+                        styles.typeIconWrap,
+                        { backgroundColor: `${colorValue}18` },
+                    ]}
+                >
+                    <Ionicons name={typeIcon} size={18} color={colorValue} />
+                </View>
+
+                {/* Center: label + description/time on second line */}
+                <View style={styles.rowCenter}>
+                    <Typography
+                        variant="body-medium"
+                        color={semanticColor}
+                        numberOfLines={1}
+                    >
+                        {shortLabel}
                     </Typography>
-                    <View style={styles.transactionActions}>
-                        <Typography variant="small-small" color="muted">
-                            {formatDateTime(
-                                item.created_at || Date.now() / 1000,
-                            )}
-                        </Typography>
-                        <Pressable
-                            onPress={() => handleDeleteTransaction(item)}
-                            style={styles.deleteIcon}
+                    <View style={styles.rowMeta}>
+                        <Typography
+                            variant="small-small"
+                            color="muted"
+                            numberOfLines={1}
+                            style={styles.rowMetaText}
                         >
+                            {item.description
+                                ? item.description
+                                : formatDateTime(
+                                    item.created_at || Date.now() / 1000,
+                                )}
+                        </Typography>
+                        {/* Inline attachment dots */}
+                        {item.voice_uri && (
                             <Ionicons
-                                name="trash-outline"
-                                size={18}
-                                color={colors.danger}
+                                name="mic"
+                                size={10}
+                                color={colors.text.muted}
                             />
-                        </Pressable>
+                        )}
+                        {item.image_uri && (
+                            <Ionicons
+                                name="image-outline"
+                                size={10}
+                                color={colors.text.muted}
+                            />
+                        )}
+                        {/* Mixed-funding sub-pill */}
+                        {(isMixedFunded || isSettledAndAdded) &&
+                            fundingDetails && (
+                                <View
+                                    style={[
+                                        styles.splitPill,
+                                        {
+                                            backgroundColor: `${colorValue}18`,
+                                        },
+                                    ]}
+                                >
+                                    <Ionicons
+                                        name="layers-outline"
+                                        size={9}
+                                        color={colorValue}
+                                    />
+                                </View>
+                            )}
                     </View>
                 </View>
-                <View style={styles.amountContainer}>
+
+                {/* Right: amount + chevron */}
+                <View style={styles.rowRight}>
                     <TouchableAmount
                         amount={item.amount}
-                        variant="heading-medium"
+                        variant="body-medium"
                         color={semanticColor}
-                        style={styles.amount}
+                    />
+                    <Ionicons
+                        name="chevron-forward"
+                        size={14}
+                        color={colors.text.muted}
                     />
                 </View>
-                {item.description && (
-                    <Typography
-                        variant="body-small"
-                        color="muted"
-                        style={styles.description}
-                    >
-                        {item.description}
-                    </Typography>
-                )}
-                {(isMixedFunded || isSettledAndAdded) && fundingDetails && (
-                    <View style={styles.fundingBreakdown}>
-                        <View style={styles.fundingBreakdownRow}>
-                            <Typography variant="body-small" color="muted">
-                                {isSettledAndAdded
-                                    ? t("ledger.settledAmount")
-                                    : t("ledger.fromCustomerBalance")}
-                            </Typography>
-                            <TouchableAmount
-                                amount={fundingDetails.balanceFundedAmount}
-                                variant="body-small"
-                                color="primary"
-                                style={{ color: colors.info }}
-                            />
-                        </View>
-                        <View style={styles.fundingBreakdownRow}>
-                            <Typography variant="body-small" color="muted">
-                                {isSettledAndAdded
-                                    ? t("ledger.addedBalanceAmount")
-                                    : t("ledger.fromPocketBusiness")}
-                            </Typography>
-                            <TouchableAmount
-                                amount={fundingDetails.pocketFundedAmount}
-                                variant="body-small"
-                                color="warning"
-                            />
-                        </View>
-                    </View>
-                )}
-            </Card>
+            </Pressable>
         );
     };
 
-    if (!db || customerLoading || (loadingTransactions && customerTransactions.length === 0)) {
+    if (
+        !db ||
+        customerLoading ||
+        (loadingTransactions && customerTransactions.length === 0)
+    ) {
         return <LoadingScreen />;
     }
 
@@ -580,7 +469,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                             <View
                                 style={[
                                     styles.headerImagePlaceholder,
-                                    { backgroundColor: colors.background },
+                                    { backgroundColor: colors.surface },
                                 ]}
                             >
                                 <Ionicons
@@ -635,7 +524,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                     color="muted"
                                     numberOfLines={1}
                                 >
-                                    {customer?.phone || ""}
+                                    {customer.phone}
                                 </Typography>
                             )}
                         </View>
@@ -658,36 +547,15 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 </Pressable>
             </View>
 
-            {/* Stats Row */}
-            <View style={styles.statsRow}>
-                <Card
-                    style={{ ...styles.statCard, ...styles.statCardReceived }}
+            {/* Balance hero — primary focus */}
+            <View style={styles.balanceSection}>
+                <View
+                    style={[
+                        styles.balanceCard,
+                        { backgroundColor: colors.surface },
+                    ]}
                 >
                     <Typography variant="body-small" color="muted">
-                        Total Received
-                    </Typography>
-                    <TouchableAmount
-                        amount={stats.totalReceived}
-                        variant="heading-medium"
-                        color="success"
-                    />
-                </Card>
-                <Card style={{ ...styles.statCard, ...styles.statCardPaid }}>
-                    <Typography variant="body-small" color="muted">
-                        Total Paid
-                    </Typography>
-                    <TouchableAmount
-                        amount={stats.totalPaid}
-                        variant="heading-medium"
-                        color="danger"
-                    />
-                </Card>
-            </View>
-
-            {/* Balance Card */}
-            <View style={styles.accountInfo}>
-                <Card style={styles.infoCard}>
-                    <Typography variant="subheading-small" color="secondary">
                         Current Balance
                     </Typography>
                     <TouchableAmount
@@ -697,99 +565,60 @@ export const CustomerTransactionsScreen: React.FC = () => {
                             stats.balance > 0
                                 ? "danger"
                                 : stats.balance < 0
-                                  ? "success"
-                                  : "primary"
+                                    ? "success"
+                                    : "primary"
                         }
                     />
-                </Card>
-            </View>
-
-            {/* Modal */}
-            {showAddModal && (
-                <Animated.View
-                    style={[
-                        styles.modalOverlay,
-                        {
-                            opacity: modalAnimation,
-                            pointerEvents: showAddModal ? "auto" : "none",
-                        },
-                    ]}
-                >
-                    <KeyboardAvoidingView
-                        behavior={Platform.OS === "ios" ? "padding" : "height"}
-                        keyboardVerticalOffset={insets.top}
-                        style={styles.flex1}
-                    >
-                        <ScrollView
-                            style={styles.keyboardView}
-                            contentContainerStyle={[
-                                styles.modalScrollContent,
-                                {
-                                    paddingTop: insets.top + Spacing.lg,
-                                    paddingBottom: insets.bottom + Spacing.lg,
-                                },
+                    {/* Divider */}
+                    <View
+                        style={[
+                            styles.balanceDivider,
+                            { backgroundColor: colors.border },
+                        ]}
+                    />
+                    {/* Mini stat chips — secondary context */}
+                    <View style={styles.miniStatsRow}>
+                        <View style={styles.miniStat}>
+                            <View
+                                style={[
+                                    styles.miniStatDot,
+                                    { backgroundColor: colors.success },
+                                ]}
+                            />
+                            <Typography variant="small-small" color="muted">
+                                Received
+                            </Typography>
+                            <TouchableAmount
+                                amount={stats.totalReceived}
+                                variant="body-small"
+                                color="success"
+                            />
+                        </View>
+                        <View
+                            style={[
+                                styles.miniStatSep,
+                                { backgroundColor: colors.border },
                             ]}
-                            keyboardShouldPersistTaps="handled"
-                            automaticallyAdjustKeyboardInsets
-                            showsVerticalScrollIndicator={false}
-                        >
-                            <Animated.View
-                                style={{
-                                    width: "100%",
-                                    maxWidth: 400,
-                                    transform: [
-                                        {
-                                            scale: modalAnimation.interpolate({
-                                                inputRange: [0, 1],
-                                                outputRange: [0.85, 1],
-                                            }),
-                                        },
-                                    ],
-                                }}
-                            >
-                                <Card style={styles.modal}>
-                                    <Typography
-                                        variant="heading-medium"
-                                        color="primary"
-                                        style={styles.modalTitle}
-                                    >
-                                        {transactionType === TransactionType.CREDIT
-                                            ? "Receive Payment"
-                                            : "Make Payment"}
-                                    </Typography>
-                                    <Input
-                                        placeholder="Amount"
-                                        value={amount}
-                                        onChangeText={setAmount}
-                                        keyboardType="numeric"
-                                        autoFocus
-                                    />
-                                    <Input
-                                        placeholder="Description (optional)"
-                                        value={description}
-                                        onChangeText={setDescription}
-                                    />
-                                    <View style={styles.modalActions}>
-                                        <Button
-                                            title="Cancel"
-                                            variant="secondary"
-                                            onPress={closeAddModal}
-                                            disabled={saving}
-                                            style={styles.modalButton}
-                                        />
-                                        <Button
-                                            title={saving ? "Saving..." : "Save"}
-                                            onPress={handleAddTransaction}
-                                            disabled={saving}
-                                            style={styles.modalButton}
-                                        />
-                                    </View>
-                                </Card>
-                            </Animated.View>
-                        </ScrollView>
-                    </KeyboardAvoidingView>
-                </Animated.View>
-            )}
+                        />
+                        <View style={styles.miniStat}>
+                            <View
+                                style={[
+                                    styles.miniStatDot,
+                                    { backgroundColor: colors.danger },
+                                ]}
+                            />
+                            <Typography variant="small-small" color="muted">
+                                Paid
+                            </Typography>
+                            <TouchableAmount
+                                amount={stats.totalPaid}
+                                variant="body-small"
+                                color="danger"
+                            />
+                        </View>
+                    </View>
+                </View>
+            </View>
 
             <View style={styles.transactionsHeader}>
                 <Typography variant="heading-medium" color="primary">
@@ -804,7 +633,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 data={customerTransactions}
                 renderItem={renderTransaction}
                 keyExtractor={(item) => item.id?.toString() || ""}
-                contentContainerStyle={[styles.list, { paddingBottom: 100 }]}
+                contentContainerStyle={[styles.list, { paddingBottom: 120 }]}
                 refreshing={loadingTransactions}
                 onRefresh={handleRefresh}
                 ListEmptyComponent={
@@ -814,16 +643,10 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         </Typography>
                     </View>
                 }
-                // Performance optimizations
                 initialNumToRender={10}
                 maxToRenderPerBatch={10}
                 windowSize={10}
                 removeClippedSubviews={Platform.OS === "android"}
-                getItemLayout={(_, index) => ({
-                    length: 100, // Estimated transaction card height
-                    offset: 100 * index,
-                    index,
-                })}
                 onEndReached={hasMore ? nextPage : undefined}
                 onEndReachedThreshold={0.5}
                 ListFooterComponent={
@@ -843,33 +666,52 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 }
             />
 
-            {/* FAB
-            <Pressable
-                style={[styles.fab, { bottom: 20 + insets.bottom }]}
-                onPress={() => setShowAddModal(true)}
-            >
-                <Ionicons name="add" size={28} color={Colors.text.primary} />
-            </Pressable> */}
-
             {/* Receive / Give FABs */}
-            <View style={[styles.fabRow, { bottom: 80 + insets.bottom }]}>
+            <View
+                style={[
+                    styles.fabRow,
+                    { bottom: Spacing.xxl * 2 + insets.bottom },
+                ]}
+            >
                 <Pressable
                     style={[
                         styles.fab,
-                        { backgroundColor: colors.success },
+                        {
+                            backgroundColor: colors.success,
+                            shadowColor: colors.primary,
+                        },
                     ]}
-                    onPress={() => openAddModal(TransactionType.CREDIT)}
+                    onPress={() =>
+                        router.push(
+                            `/add-transaction?customerId=${customerId}&type=receive` as any,
+                        )
+                    }
                 >
-                    <Ionicons name="arrow-down" size={24} color="#FFFFFF" />
+                    <Ionicons
+                        name="arrow-down"
+                        size={24}
+                        color={colors.background}
+                    />
                 </Pressable>
                 <Pressable
                     style={[
                         styles.fab,
-                        { backgroundColor: colors.danger },
+                        {
+                            backgroundColor: colors.danger,
+                            shadowColor: colors.primary,
+                        },
                     ]}
-                    onPress={() => openAddModal(TransactionType.DEBIT)}
+                    onPress={() =>
+                        router.push(
+                            `/add-transaction?customerId=${customerId}&type=give` as any,
+                        )
+                    }
                 >
-                    <Ionicons name="arrow-up" size={24} color="#FFFFFF" />
+                    <Ionicons
+                        name="arrow-up"
+                        size={24}
+                        color={colors.background}
+                    />
                 </Pressable>
             </View>
 
@@ -890,19 +732,14 @@ export const CustomerTransactionsScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
     },
     header: {
         paddingHorizontal: Spacing.md,
         paddingBottom: Spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
         flexDirection: "row",
         alignItems: "center",
         justifyContent: "space-between",
-    },
-    rowRTL: {
-        flexDirection: "row-reverse",
     },
     backButton: {
         width: 44,
@@ -910,7 +747,6 @@ const styles = StyleSheet.create({
         borderRadius: 22,
         alignItems: "center",
         justifyContent: "center",
-        marginBottom: Spacing.xs,
     },
     headerContent: {
         flex: 1,
@@ -961,128 +797,107 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: Colors.surface,
         justifyContent: "center",
         alignItems: "center",
         marginRight: Spacing.sm,
     },
-    accountInfo: {
-        padding: Spacing.md,
+    // Balance hero
+    balanceSection: {
+        paddingHorizontal: Spacing.sm,
+        paddingTop: Spacing.sm,
+        paddingBottom: Spacing.xs,
     },
-    infoCard: {
+    balanceCard: {
+        borderRadius: 14,
+        paddingHorizontal: Spacing.md,
+        paddingTop: Spacing.md,
+        paddingBottom: Spacing.sm,
+    },
+    balanceDivider: {
+        height: 1,
+        marginTop: Spacing.sm,
+        marginBottom: Spacing.sm,
+    },
+    miniStatsRow: {
+        flexDirection: "row",
         alignItems: "center",
-        padding: Spacing.lg,
+    },
+    miniStat: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 5,
+    },
+    miniStatDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+    },
+    miniStatSep: {
+        width: 1,
+        height: 20,
+        marginHorizontal: Spacing.sm,
     },
     transactionsHeader: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
         paddingHorizontal: Spacing.lg,
-        paddingVertical: Spacing.md,
+        paddingVertical: Spacing.xs,
     },
     list: {
-        padding: Spacing.md,
-        gap: Spacing.md,
+        paddingHorizontal: Spacing.md,
+        paddingTop: Spacing.xs,
     },
-    transactionCard: {
-        marginBottom: Spacing.md,
-    },
-    transactionHeader: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        alignItems: "center",
-        marginBottom: Spacing.xs,
-    },
-    transactionActions: {
+    // Compact transaction row
+    transactionRow: {
         flexDirection: "row",
         alignItems: "center",
+        paddingVertical: 10,
+        paddingHorizontal: Spacing.md,
+        borderRadius: 10,
+        marginBottom: 6,
         gap: Spacing.sm,
     },
-    deleteIcon: {
-        padding: Spacing.xs,
-    },
-    amount: {
-        marginTop: Spacing.sm,
-    },
-    amountContainer: {
-        alignSelf: "flex-end",
+    typeIconWrap: {
+        width: 34,
+        height: 34,
+        borderRadius: 10,
+        alignItems: "center",
+        justifyContent: "center",
         flexShrink: 0,
-        maxWidth: 140,
     },
-    description: {
-        marginTop: Spacing.xs,
+    rowCenter: {
+        flex: 1,
+        gap: 2,
+        minWidth: 0,
     },
-    fundingBreakdown: {
-        marginTop: Spacing.sm,
-        gap: Spacing.xs,
-    },
-    fundingBreakdownRow: {
+    rowMeta: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
-        gap: Spacing.md,
+        gap: 4,
     },
-    center: {
+    rowMetaText: {
         flex: 1,
-        justifyContent: "center",
+        minWidth: 0,
+    },
+    splitPill: {
+        width: 16,
+        height: 16,
+        borderRadius: 4,
         alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+    },
+    rowRight: {
+        alignItems: "flex-end",
+        flexDirection: "row",
+        gap: 2,
+        flexShrink: 0,
     },
     emptyState: {
         alignItems: "center",
         marginTop: Spacing.xxl,
-    },
-    statsRow: {
-        flexDirection: "row",
-        paddingHorizontal: Spacing.md,
-        paddingTop: Spacing.md,
-        gap: Spacing.md,
-    },
-    statCard: {
-        flex: 1,
-        alignItems: "center",
-        padding: Spacing.md,
-    },
-    statCardReceived: {
-        backgroundColor: "#10B98120",
-    },
-    statCardPaid: {
-        backgroundColor: "#EF444420",
-    },
-    fab: {
-        position: "absolute",
-        flex: 1,
-    },
-    modalOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: "rgba(0, 0, 0, 0.7)",
-        zIndex: 1000,
-    },
-    keyboardView: {
-        flex: 1,
-        width: "100%",
-    },
-    modalScrollContent: {
-        flexGrow: 1,
-        justifyContent: "center",
-        alignItems: "center",
-        paddingHorizontal: Spacing.lg,
-    },
-    modal: {
-        width: "100%",
-        maxWidth: 400,
-        padding: Spacing.lg,
-    },
-    modalTitle: {
-        marginBottom: Spacing.md,
-    },
-    modalActions: {
-        flexDirection: "row",
-        justifyContent: "flex-end",
-        gap: Spacing.md,
-        marginTop: Spacing.md,
-    },
-    modalButton: {
-        minWidth: 80,
     },
     fab: {
         width: 56,
@@ -1090,7 +905,6 @@ const styles = StyleSheet.create({
         borderRadius: 28,
         justifyContent: "center",
         alignItems: "center",
-        shadowColor: Colors.primary,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -1102,9 +916,6 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         gap: Spacing.md,
         zIndex: 10,
-    },
-    flex1: {
-        flex: 1,
     },
     footer: {
         padding: Spacing.md,

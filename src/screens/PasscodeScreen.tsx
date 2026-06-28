@@ -33,11 +33,31 @@ type Mode = "enable" | "authenticate" | "menu" | "change" | "disable";
 type SetupStep = 1 | 2 | 3;
 
 const AUTO_LOCK_OPTIONS = [
-    { value: 0 as AutoLockDelay, label: "Immediately", icon: "time-outline" as const },
-    { value: 60_000 as AutoLockDelay, label: "1 minute", icon: "time-outline" as const },
-    { value: 180_000 as AutoLockDelay, label: "3 minutes", icon: "time-outline" as const },
-    { value: 300_000 as AutoLockDelay, label: "5 minutes", icon: "time-outline" as const },
-    { value: 600_000 as AutoLockDelay, label: "10 minutes", icon: "time-outline" as const },
+    {
+        value: 3000 as AutoLockDelay,
+        label: "Immediate",
+        icon: "time-outline" as const,
+    },
+    {
+        value: 60_000 as AutoLockDelay,
+        label: "1 minute",
+        icon: "time-outline" as const,
+    },
+    {
+        value: 180_000 as AutoLockDelay,
+        label: "3 minutes",
+        icon: "time-outline" as const,
+    },
+    {
+        value: 300_000 as AutoLockDelay,
+        label: "5 minutes",
+        icon: "time-outline" as const,
+    },
+    {
+        value: 600_000 as AutoLockDelay,
+        label: "10 minutes",
+        icon: "time-outline" as const,
+    },
 ];
 
 export const PasscodeScreen: React.FC = () => {
@@ -81,13 +101,13 @@ export const PasscodeScreen: React.FC = () => {
     const isWizardMode = mode === "enable" || mode === "change";
 
     const getAutoLockLabel = (delay: AutoLockDelay) =>
-        delay === 0
+        delay === 3000
             ? t("passcode.autoLockImmediate")
             : delay === 60_000
               ? t("passcode.autoLockMinute")
               : t("passcode.autoLockMinutes", { count: delay / 60_000 });
 
-    const autoLockOptionsWithLabels = AUTO_LOCK_OPTIONS.map(opt => ({
+    const autoLockOptionsWithLabels = AUTO_LOCK_OPTIONS.map((opt) => ({
         ...opt,
         label: getAutoLockLabel(opt.value),
     }));

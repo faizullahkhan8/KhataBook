@@ -22,7 +22,7 @@ import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { CustomerId } from "../models";
 import { AccountService } from "../services/AccountService";
 import { CustomerService } from "../services/CustomerService";
-import { useDatabaseContext, useTheme } from "../store";
+import { useDatabaseContext, usePasscode, useTheme } from "../store";
 import { fromInteger, toInteger } from "../utils/currencyUtils";
 
 export const AddCustomerScreen: React.FC = () => {
@@ -35,7 +35,9 @@ export const AddCustomerScreen: React.FC = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { t } = useTranslation();    const { customerId } = useLocalSearchParams<{ customerId?: string }>();
+    const { setAutoLockSuspended } = usePasscode();
+    const { t } = useTranslation();
+    const { customerId } = useLocalSearchParams<{ customerId?: string }>();
     const { createCustomer } = useCustomersWithAccounts(db);
     const { customer } = useCustomerById(
         db,
@@ -249,45 +251,56 @@ export const AddCustomerScreen: React.FC = () => {
     };
 
     const pickFromCamera = async () => {
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== "granted") {
-            Alert.alert(
-                t("addCustomer.permissionRequired"),
-                t("addCustomer.cameraPermission"),
-            );
-            return;
-        }
+        setAutoLockSuspended(true);
+        try {
+            const { status } =
+                await ImagePicker.requestCameraPermissionsAsync();
+            if (status !== "granted") {
+                Alert.alert(
+                    t("addCustomer.permissionRequired"),
+                    t("addCustomer.cameraPermission"),
+                );
+                return;
+            }
 
-        const result = await ImagePicker.launchCameraAsync({
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.8,
-        });
+            const result = await ImagePicker.launchCameraAsync({
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+            });
 
-        if (!result.canceled && result.assets[0]) {
-            setImageUri(result.assets[0].uri);
+            if (!result.canceled && result.assets[0]) {
+                setImageUri(result.assets[0].uri);
+            }
+        } finally {
+            setAutoLockSuspended(false);
         }
     };
 
     const pickFromGallery = async () => {
-        const { status } =
-            await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== "granted") {
-            Alert.alert(
-                t("addCustomer.permissionRequired"),
-                t("addCustomer.galleryPermission"),
-            );
-            return;
-        }
+        setAutoLockSuspended(true);
+        try {
+            const { status } =
+                await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== "granted") {
+                Alert.alert(
+                    t("addCustomer.permissionRequired"),
+                    t("addCustomer.galleryPermission"),
+                );
+                return;
+            }
 
-        const result = await ImagePicker.launchImageLibraryAsync({
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.8,
-        });
+            const result = await ImagePicker.launchImageLibraryAsync({
+                allowsEditing: true,
+                aspect: [1, 1],
+                quality: 0.8,
+            });
 
-        if (!result.canceled && result.assets[0]) {
-            setImageUri(result.assets[0].uri);
+            if (!result.canceled && result.assets[0]) {
+                setImageUri(result.assets[0].uri);
+            }
+        } finally {
+            setAutoLockSuspended(false);
         }
     };
 

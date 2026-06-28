@@ -14,5 +14,7 @@ export interface Transaction {
     amount: CurrencyAmount; // Stored as integer (e.g. 1000 for 10.00)
     description?: string;
     reference?: string;
+    image_uri?: string;
+    voice_uri?: string;
     created_at?: Timestamp;
 }

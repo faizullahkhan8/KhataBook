@@ -18,8 +18,8 @@
         "passcodeSubtitle": "فعال",
         "passcodeEnabled": "فعال",
         "passcodeDisabled": "غیر فعال",
-        "cloudBackup": "کلاؤڈ بیک اپ",
-        "cloudBackupSubtitle": "آخری مطابقت: 2 گھنٹے پہلے",
+        "cloudBackup": "کلاؤڈ بیک اپ(جلد آ رہا ہے)",
+        "cloudBackupSubtitle": "آخری مطابقت: ",
         "feedback": "رائے اور مدد",
         "feedbackSubtitle": "رائے، تجاویز، بگز یا مسائل شیئر کریں",
         "aboutDeveloper": "ڈویلپر کے بارے میں",
@@ -28,7 +28,9 @@
         "termsOfUse": "استعمال کی شرائط",
         "termsOfUseSubtitle": "KhataBook استعمال کرنے کے اصول اور ذمہ داریاں",
         "english": "انگریزی",
-        "urdu": "اردو"
+        "urdu": "اردو",
+        "trash": "ردی",
+        "trashSubtitleEmpty": "حذف شدہ ریکارڈز بحال یا مستقل حذف کریں"
     },
     "feedback": {
         "title": "رائے اور مدد",
@@ -178,7 +180,10 @@
         "contact": "رابطہ نمبر: {{number}}",
         "noPhoneNumber": "فون نمبر موجود نہیں",
         "inactive": "غیر فعال",
+        "owed": "وصولی درکار",
+        "credit": "پیشگی / کریڈٹ",
         "loading": "لوڈ ہو رہا ہے...",
+        "allLoaded": "تمام گاہک لوڈ ہو گئے",
         "selected": "{{count}} منتخب",
         "selectAll": "سب منتخب کریں",
         "deselectAll": "سب غیر منتخب کریں",
@@ -462,7 +467,36 @@
         "emailUs": "ای میل کریں"
     },
     "common": {
-        "loading": "لوڈ ہو رہا ہے..."
+        "loading": "لوڈ ہو رہا ہے...",
+        "loadingMore": "مزید لوڈ ہو رہا ہے..."
+    },
+    "trash": {
+        "title": "ردی",
+        "subtitle": "{{count}} آئٹمز",
+        "customersTab": "گاہک",
+        "transactionsTab": "لین دین",
+        "emptyTrashButton": "ردی خالی کریں",
+        "emptyState": "کچھ نہیں",
+        "emptyStateMessage": "حذف شدہ آئٹمز یہاں نظر آئیں گے۔ آپ انہیں بحال یا مستقل حذف کر سکتے ہیں۔",
+        "deletedAgo": "{{time}} پہلے حذف ہوا",
+        "select": "منتخب کریں",
+        "selectAll": "سب منتخب کریں",
+        "deselectAll": "سب غیر منتخب کریں",
+        "selected": "{{count}} منتخب",
+        "restore": "بحال کریں",
+        "restoreTitle": "آئٹمز بحال کریں؟",
+        "restoreMessage": "{{count}} آئٹم(س) آپ کے ریکارڈ میں واپس آ جائیں گے۔",
+        "permanentDelete": "ہمیشہ کے لیے حذف کریں",
+        "permanentDeleteTitle": "ہمیشہ کے لیے حذف کریں؟",
+        "permanentDeleteMessage": "{{count}} آئٹم(س) مستقل طور پر ہٹا دیے جائیں گے۔ یہ واپس نہیں کیا جا سکتا۔",
+        "emptyTrashTitle": "ردی خالی کریں؟",
+        "emptyTrashMessage": "ردی میں موجود تمام آئٹمز مستقل طور پر حذف ہو جائیں گے۔ یہ واپس نہیں کیا جا سکتا۔",
+        "confirm": "تصدیق کریں",
+        "cancel": "منسوخ کریں",
+        "just_now": "ابھی",
+        "minutes_ago": "{{count}} منٹ",
+        "hours_ago": "{{count}} گھنٹے",
+        "days_ago": "{{count}} دن"
     },
     "navigation": {
         "customers": "گاہک",

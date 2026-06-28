@@ -8,7 +8,8 @@ export type LogCategory =
     | "transactions"
     | "customers"
     | "messages"
-    | "navigation";
+    | "navigation"
+    | "trash";
 
 export interface LogEntry {
     id: string;
@@ -238,4 +239,5 @@ export const LOG_CATEGORIES: LogCategory[] = [
     "customers",
     "messages",
     "navigation",
+    "trash",
 ];

@@ -31,6 +31,14 @@ export default function RootLayout() {
                                         options={{ headerShown: false }}
                                     />
                                     <Stack.Screen
+                                        name="add-transaction"
+                                        options={{ headerShown: false }}
+                                    />
+                                    <Stack.Screen
+                                        name="transaction-detail"
+                                        options={{ headerShown: false }}
+                                    />
+                                    <Stack.Screen
                                         name="customer-transactions"
                                         options={{ headerShown: false }}
                                     />
@@ -64,6 +72,10 @@ export default function RootLayout() {
                                     />
                                     <Stack.Screen
                                         name="logs"
+                                        options={{ headerShown: false }}
+                                    />
+                                    <Stack.Screen
+                                        name="settings/trash"
                                         options={{ headerShown: false }}
                                     />
                                 </Stack>

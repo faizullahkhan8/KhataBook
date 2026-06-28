@@ -177,10 +177,11 @@ export const useLedgerEntries = (db: SQLiteDatabase | null) => {
         }
     }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const refresh = useCallback(() => {
+    const refresh = useCallback(async () => {
         cursorRef.current = null;
         resetPage();
-    }, [resetPage]);
+        await fetchEntries(false);
+    }, [resetPage, fetchEntries]);
 
     return {
         entries,

@@ -46,6 +46,7 @@ export const useDeleteAuthentication = () => {
         pendingActionRef.current = null;
         setPendingAction(null);
         try {
+            await new Promise<void>((resolve) => setTimeout(resolve, 0));
             await action?.();
         } finally {
             setAutoLockSuspended(false);

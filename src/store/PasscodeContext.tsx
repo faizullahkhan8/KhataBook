@@ -21,7 +21,7 @@ const FAILURE_LIMIT = 5;
 type KdfType = "argon2id" | "legacy_sha256";
 export type PasscodeLength = 4 | 6;
 type StoredPasscodeLength = PasscodeLength | 8;
-export type AutoLockDelay = 0 | 60_000 | 180_000 | 300_000 | 600_000;
+export type AutoLockDelay = 3000 | 60_000 | 180_000 | 300_000 | 600_000;
 
 interface StoredPasscode {
     pinHash: string;
@@ -494,7 +494,12 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
                 previousState === "active" &&
                 !biometricPromptActive.current
             ) {
-                scheduleLock(true);
+                // Use force=false when auto-lock is suspended: the inactive
+                // transition is likely caused by an in-app Alert or system
+                // sheet (image picker, permission dialog), not a real app
+                // backgrounding. force=true bypasses the suspension check
+                // and locks the app even though the user never left it.
+                scheduleLock(!isAutoLockSuspended());
                 return;
             }
 
@@ -611,7 +616,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
                 cooldownLevel: 0,
                 lockedUntil: 0,
                 biometricEnabled: false,
-                autoLockDelay: 0,
+                autoLockDelay: 3000,
                 requireDeleteAuth: false,
             });
 
@@ -715,7 +720,10 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
                 return { success: false };
             }
 
-            void logger.info("passcode", "Recovery answer verified successfully");
+            void logger.info(
+                "passcode",
+                "Recovery answer verified successfully",
+            );
             return { success: true };
         },
         [clearFailures, isUnlockAttemptCurrent, persist, registerFailure],
@@ -844,12 +852,19 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
                         return { success: false, error: "app_cancel" };
                     }
 
-                    void logger.info("security", "Biometric authentication succeeded");
+                    void logger.info(
+                        "security",
+                        "Biometric authentication succeeded",
+                    );
                     setIsLocked(false);
                     return { success: true };
                 }
 
-                void logger.warning("security", "Biometric authentication failed", { error: result.error });
+                void logger.warning(
+                    "security",
+                    "Biometric authentication failed",
+                    { error: result.error },
+                );
                 return { success: false, error: result.error };
             } catch (error) {
                 void logger.error(
@@ -908,7 +923,10 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
 
             if (!enabled) {
                 await persist({ ...current, biometricEnabled: false });
-                void logger.info("security", "Biometric authentication disabled");
+                void logger.info(
+                    "security",
+                    "Biometric authentication disabled",
+                );
                 return { success: true };
             }
 
@@ -948,7 +966,10 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
                 autoLockSuspensionCount.current === 0 &&
                 AppState.currentState === "active"
             ) {
-                if (lockOnNextActive.current && !forceLockOnNextActive.current) {
+                if (
+                    lockOnNextActive.current &&
+                    !forceLockOnNextActive.current
+                ) {
                     clearScheduledLock();
                     return;
                 }
@@ -974,7 +995,11 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             const current = storedRef.current;
             if (!current) return;
             await persist({ ...current, requireDeleteAuth: enabled });
-            void logger.info("security", "Delete authentication requirement changed", { enabled });
+            void logger.info(
+                "security",
+                "Delete authentication requirement changed",
+                { enabled },
+            );
         },
         [persist],
     );
@@ -994,7 +1019,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             biometricEnrolled,
             biometricTypes,
             isBiometricAuthenticating,
-            autoLockDelay: stored?.autoLockDelay ?? 0,
+            autoLockDelay: stored?.autoLockDelay ?? 3000,
             requireDeleteAuth: Boolean(stored?.requireDeleteAuth),
             setupPasscode,
             verifyPin,

@@ -71,7 +71,7 @@ export class CustomerService {
         }
         try {
             const customers = await this.db.getAllAsync<Customer>(
-                "SELECT * FROM customers ORDER BY name ASC LIMIT ? OFFSET ?",
+                "SELECT * FROM customers WHERE is_deleted = 0 ORDER BY name ASC LIMIT ? OFFSET ?",
                 [limit, offset],
             );
             return customers;
@@ -93,7 +93,7 @@ export class CustomerService {
         }
         try {
             const summaries = await this.db.getAllAsync<CustomerSummary>(
-                "SELECT id, name, phone, image_uri, total_receivable, total_payable, last_transaction_at FROM customers ORDER BY name ASC LIMIT ? OFFSET ?",
+                "SELECT id, name, phone, image_uri, total_receivable, total_payable, last_transaction_at FROM customers WHERE is_deleted = 0 ORDER BY name ASC LIMIT ? OFFSET ?",
                 [limit, offset],
             );
             return summaries;
@@ -118,7 +118,7 @@ export class CustomerService {
         try {
             const searchTerm = `%${query}%`;
             const customers = await this.db.getAllAsync<Customer>(
-                "SELECT * FROM customers WHERE name LIKE ? OR phone LIKE ? OR cnic LIKE ? ORDER BY name ASC LIMIT ? OFFSET ?",
+                "SELECT * FROM customers WHERE is_deleted = 0 AND (name LIKE ? OR phone LIKE ? OR cnic LIKE ?) ORDER BY name ASC LIMIT ? OFFSET ?",
                 [searchTerm, searchTerm, searchTerm, limit, offset],
             );
             return customers;
@@ -189,10 +189,13 @@ export class CustomerService {
             throw new Error("Database is not initialized");
         }
         try {
-            await this.db.runAsync("DELETE FROM customers WHERE id = ?", [id]);
-            void logger.info("customers", "Customer deleted", { customerId: id });
+            await this.db.runAsync(
+                "UPDATE customers SET is_deleted = 1, deleted_at = strftime('%s', 'now') WHERE id = ?",
+                [id],
+            );
+            void logger.info("customers", "Customer soft-deleted (moved to trash)", { customerId: id });
         } catch (error) {
-            void logger.error("customers", "Error deleting customer", error);
+            void logger.error("customers", "Error soft-deleting customer", error);
             throw error;
         }
     }
@@ -203,7 +206,7 @@ export class CustomerService {
         }
         try {
             const result = await this.db.getFirstAsync<{ count: number }>(
-                "SELECT COUNT(*) as count FROM customers",
+                "SELECT COUNT(*) as count FROM customers WHERE is_deleted = 0",
             );
             return result?.count || 0;
         } catch (error) {

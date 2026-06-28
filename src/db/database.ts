@@ -186,8 +186,36 @@ export const initializeDatabase = async (
         if (!customerColumns.some((column) => column.name === "cnic")) {
             await db.execAsync("ALTER TABLE customers ADD COLUMN cnic TEXT;");
         }
+        if (!customerColumns.some((column) => column.name === "deleted_at")) {
+            await db.execAsync("ALTER TABLE customers ADD COLUMN deleted_at INTEGER;");
+        }
+        if (!customerColumns.some((column) => column.name === "is_deleted")) {
+            await db.execAsync("ALTER TABLE customers ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;");
+        }
         await db.execAsync(
             "CREATE INDEX IF NOT EXISTS idx_customers_cnic ON customers(cnic);",
+        );
+        await db.execAsync(
+            "CREATE INDEX IF NOT EXISTS idx_customers_deleted ON customers(is_deleted);",
+        );
+
+        const transactionColumns = await db.getAllAsync<{ name: string }>(
+            "PRAGMA table_info(transactions)",
+        );
+        if (!transactionColumns.some((c) => c.name === "image_uri")) {
+            await db.execAsync("ALTER TABLE transactions ADD COLUMN image_uri TEXT;");
+        }
+        if (!transactionColumns.some((c) => c.name === "voice_uri")) {
+            await db.execAsync("ALTER TABLE transactions ADD COLUMN voice_uri TEXT;");
+        }
+        if (!transactionColumns.some((c) => c.name === "deleted_at")) {
+            await db.execAsync("ALTER TABLE transactions ADD COLUMN deleted_at INTEGER;");
+        }
+        if (!transactionColumns.some((c) => c.name === "is_deleted")) {
+            await db.execAsync("ALTER TABLE transactions ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;");
+        }
+        await db.execAsync(
+            "CREATE INDEX IF NOT EXISTS idx_transactions_deleted ON transactions(is_deleted);",
         );
 
         await db.execAsync(`
