@@ -34,7 +34,7 @@ type SetupStep = 1 | 2 | 3;
 
 const AUTO_LOCK_OPTIONS = [
     {
-        value: 3000 as AutoLockDelay,
+        value: 10000 as AutoLockDelay,
         label: "Immediate",
         icon: "time-outline" as const,
     },
@@ -101,7 +101,7 @@ export const PasscodeScreen: React.FC = () => {
     const isWizardMode = mode === "enable" || mode === "change";
 
     const getAutoLockLabel = (delay: AutoLockDelay) =>
-        delay === 3000
+        delay === 10000
             ? t("passcode.autoLockImmediate")
             : delay === 60_000
               ? t("passcode.autoLockMinute")

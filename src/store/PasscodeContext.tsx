@@ -21,7 +21,7 @@ const FAILURE_LIMIT = 5;
 type KdfType = "argon2id" | "legacy_sha256";
 export type PasscodeLength = 4 | 6;
 type StoredPasscodeLength = PasscodeLength | 8;
-export type AutoLockDelay = 3000 | 60_000 | 180_000 | 300_000 | 600_000;
+export type AutoLockDelay = 10000 | 60_000 | 180_000 | 300_000 | 600_000;
 
 interface StoredPasscode {
     pinHash: string;
@@ -616,7 +616,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
                 cooldownLevel: 0,
                 lockedUntil: 0,
                 biometricEnabled: false,
-                autoLockDelay: 3000,
+                autoLockDelay: 10000,
                 requireDeleteAuth: false,
             });
 
@@ -1019,7 +1019,7 @@ export const PasscodeProvider: React.FC<{ children: React.ReactNode }> = ({
             biometricEnrolled,
             biometricTypes,
             isBiometricAuthenticating,
-            autoLockDelay: stored?.autoLockDelay ?? 3000,
+            autoLockDelay: stored?.autoLockDelay ?? 10000,
             requireDeleteAuth: Boolean(stored?.requireDeleteAuth),
             setupPasscode,
             verifyPin,
