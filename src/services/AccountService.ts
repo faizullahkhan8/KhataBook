@@ -1,6 +1,6 @@
 import { SQLiteDatabase } from "../db/types";
 import { Account, AccountStatus } from "../models/Account";
-import { AccountId, CustomerId } from "../models/types";
+import { AccountId, CustomerId, StoreId } from "../models/types";
 import { logger } from "./LogService";
 
 export class AccountService {
@@ -11,15 +11,17 @@ export class AccountService {
     }
 
     async createAccount(
-        account: Omit<Account, "id" | "created_at" | "updated_at">,
+        storeId: StoreId,
+        account: Omit<Account, "id" | "store_id" | "created_at" | "updated_at">,
     ): Promise<AccountId> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
             const result = await this.db.runAsync(
-                `INSERT INTO accounts (customer_id, account_number, account_type, credit_limit, current_balance, status) VALUES (?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO accounts (store_id, customer_id, account_number, account_type, credit_limit, current_balance, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
                 [
+                    storeId,
                     account.customer_id,
                     account.account_number,
                     account.account_type,
@@ -41,7 +43,8 @@ export class AccountService {
      * Wrapped in a SQLite transaction for data consistency
      */
     async createAccountWithOpeningBalance(
-        account: Omit<Account, "id" | "created_at" | "updated_at">,
+        storeId: StoreId,
+        account: Omit<Account, "id" | "store_id" | "created_at" | "updated_at">,
         initialBalance: number = 0,
     ): Promise<AccountId> {
         if (!this.db) {
@@ -54,14 +57,15 @@ export class AccountService {
             };
 
             if (!initialBalance || initialBalance === 0) {
-                return this.createAccount(accountWithZeroBalance);
+                return this.createAccount(storeId, accountWithZeroBalance);
             }
 
             let accountId: AccountId | undefined;
             await this.db.withTransactionAsync(async () => {
                 const result = await this.db.runAsync(
-                    `INSERT INTO accounts (customer_id, account_number, account_type, credit_limit, current_balance, status) VALUES (?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO accounts (store_id, customer_id, account_number, account_type, credit_limit, current_balance, status) VALUES (?, ?, ?, ?, ?, ?, ?)`,
                     [
+                        storeId,
                         accountWithZeroBalance.customer_id,
                         accountWithZeroBalance.account_number,
                         accountWithZeroBalance.account_type,
@@ -73,8 +77,9 @@ export class AccountService {
                 accountId = result.lastInsertRowId as AccountId;
 
                 await this.db.runAsync(
-                    `INSERT INTO transactions (account_id, type, amount, description, reference, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO transactions (store_id, account_id, type, amount, description, reference, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
                     [
+                        storeId,
                         accountId,
                         0,
                         initialBalance,
@@ -96,15 +101,18 @@ export class AccountService {
         }
     }
 
-    async getAccountById(id: AccountId): Promise<Account | null> {
+    async getAccountById(id: AccountId, storeId?: StoreId): Promise<Account | null> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
-            const account = await this.db.getFirstAsync<Account>(
-                "SELECT * FROM accounts WHERE id = ?",
-                [id],
-            );
+            let query = "SELECT * FROM accounts WHERE id = ?";
+            const params: (string | number)[] = [id];
+            if (storeId !== undefined) {
+                query += " AND store_id = ?";
+                params.push(storeId);
+            }
+            const account = await this.db.getFirstAsync<Account>(query, params);
             return account || null;
         } catch (error) {
             void logger.error("customers", "Error fetching account", error);
@@ -112,15 +120,20 @@ export class AccountService {
         }
     }
 
-    async getAccountsByCustomerId(customerId: CustomerId): Promise<Account[]> {
+    async getAccountsByCustomerId(customerId: CustomerId, storeId?: StoreId): Promise<Account[]> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
-            const accounts = await this.db.getAllAsync<Account>(
-                "SELECT * FROM accounts WHERE customer_id = ? ORDER BY created_at DESC",
-                [customerId],
-            );
+            let query = "SELECT * FROM accounts WHERE customer_id = ?";
+            const params: (string | number)[] = [customerId];
+            if (storeId !== undefined) {
+                query += " AND store_id = ?";
+                params.push(storeId);
+            }
+            query += " ORDER BY created_at DESC";
+            
+            const accounts = await this.db.getAllAsync<Account>(query, params);
             return accounts;
         } catch (error) {
             void logger.error(
@@ -133,6 +146,7 @@ export class AccountService {
     }
 
     async getAllAccounts(
+        storeId: StoreId,
         limit: number = 50,
         offset: number = 0,
     ): Promise<Account[]> {
@@ -141,8 +155,8 @@ export class AccountService {
         }
         try {
             const accounts = await this.db.getAllAsync<Account>(
-                "SELECT * FROM accounts ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                [limit, offset],
+                "SELECT * FROM accounts WHERE store_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                [storeId, limit, offset],
             );
             return accounts;
         } catch (error) {
@@ -251,13 +265,14 @@ export class AccountService {
         }
     }
 
-    async getAccountCount(): Promise<number> {
+    async getAccountCount(storeId: StoreId): Promise<number> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
             const result = await this.db.getFirstAsync<{ count: number }>(
-                "SELECT COUNT(*) as count FROM accounts",
+                "SELECT COUNT(*) as count FROM accounts WHERE store_id = ?",
+                [storeId]
             );
             return result?.count || 0;
         } catch (error) {
@@ -266,14 +281,14 @@ export class AccountService {
         }
     }
 
-    async getActiveAccounts(): Promise<Account[]> {
+    async getActiveAccounts(storeId: StoreId): Promise<Account[]> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
             const accounts = await this.db.getAllAsync<Account>(
-                "SELECT * FROM accounts WHERE status = ? ORDER BY created_at DESC",
-                [AccountStatus.ACTIVE],
+                "SELECT * FROM accounts WHERE status = ? AND store_id = ? ORDER BY created_at DESC",
+                [AccountStatus.ACTIVE, storeId],
             );
             return accounts;
         } catch (error) {

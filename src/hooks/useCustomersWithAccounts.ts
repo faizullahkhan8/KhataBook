@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     AccountStatus,
     AccountType,
+    CurrencyAmount,
     CustomerId,
     CustomerWithAccounts,
 } from "../models";
@@ -11,10 +12,11 @@ import { CustomerService } from "../services/CustomerService";
 import { TransactionService } from "../services/TransactionService";
 import { usePagination } from "./usePagination";
 
-import { useDatabaseContext } from "../store";
+import { useDatabaseContext, useStoreContext } from "../store";
 
 export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
     const { refreshVersions, invalidate } = useDatabaseContext();
+    const { activeStoreId } = useStoreContext();
     const [customers, setCustomers] = useState<CustomerWithAccounts[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -40,7 +42,7 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
 
     const fetchCustomersWithAccounts = useCallback(
         async (targetPage: number, query: string, append: boolean) => {
-            if (!customerService || !accountService) return;
+            if (!customerService || !accountService || !activeStoreId) return;
 
             const gen = ++fetchGen.current;
 
@@ -53,11 +55,12 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
                 const currentOffset = targetPage * pageSize;
                 const customerData = query
                     ? await customerService.searchCustomers(
+                          activeStoreId,
                           query,
                           pageSize,
                           currentOffset,
                       )
-                    : await customerService.getAllCustomers(pageSize, currentOffset);
+                    : await customerService.getAllCustomers(activeStoreId, pageSize, currentOffset);
 
                 if (gen !== fetchGen.current) return;
 
@@ -70,6 +73,7 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
                         const accounts =
                             await accountService.getAccountsByCustomerId(
                                 customer.id!,
+                                activeStoreId,
                             );
                         return { ...customer, accounts };
                     }),
@@ -90,14 +94,14 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
                 }
             }
         },
-        [customerService, accountService, pageSize, markFetched],
+        [customerService, accountService, activeStoreId, pageSize, markFetched],
     );
 
     // Initial load + search query changes → page 0, replace
     useEffect(() => {
         resetPage();
         void fetchCustomersWithAccounts(0, searchQuery, false);
-    }, [refreshVersions.customers, searchQuery]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [refreshVersions.customers, searchQuery, activeStoreId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Pagination: page increments via nextPage → append
     useEffect(() => {
@@ -111,6 +115,7 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
             customer: Omit<
                 CustomerWithAccounts,
                 | "id"
+                | "store_id"
                 | "created_at"
                 | "updated_at"
                 | "accounts"
@@ -123,37 +128,41 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
                 initialBalance?: number;
             },
         ): Promise<CustomerId | undefined> => {
-            if (!customerService || !accountService) return undefined;
+            if (!customerService || !accountService || !activeStoreId) return undefined;
 
             setLoading(true);
             setError(null);
             try {
                 const customerId =
-                    await customerService.createCustomer(customer);
+                    await customerService.createCustomer(activeStoreId, customer);
                 if (customerId) {
                     const initialBalance = options?.initialBalance || 0;
                     if (initialBalance > 0) {
                         await accountService.createAccountWithOpeningBalance(
+                            activeStoreId,
                             {
                                 customer_id: customerId,
                                 account_number: `ACC-${Date.now()}`,
                                 account_type: AccountType.CREDIT,
                                 credit_limit: (options?.creditLimit ||
                                     0) as any,
-                                current_balance: 0,
+                                current_balance: initialBalance as CurrencyAmount,
                                 status: AccountStatus.ACTIVE,
                             },
-                            initialBalance,
+                            initialBalance as CurrencyAmount,
                         );
                     } else {
-                        await accountService.createAccount({
-                            customer_id: customerId,
-                            account_number: `ACC-${Date.now()}`,
-                            account_type: AccountType.CREDIT,
-                            credit_limit: (options?.creditLimit || 0) as any,
-                            current_balance: 0,
-                            status: AccountStatus.ACTIVE,
-                        });
+                        await accountService.createAccount(
+                            activeStoreId,
+                            {
+                                customer_id: customerId,
+                                account_number: `ACC-${Date.now()}`,
+                                account_type: AccountType.CREDIT,
+                                credit_limit: (options?.creditLimit || 0) as any,
+                                current_balance: 0 as CurrencyAmount,
+                                status: AccountStatus.ACTIVE,
+                            }
+                        );
                     }
                 }
                 invalidate("customers");
@@ -165,7 +174,7 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
                 setLoading(false);
             }
         },
-        [customerService, accountService, invalidate],
+        [customerService, accountService, activeStoreId, invalidate],
     );
 
     const bulkDeleteCustomers = useCallback(

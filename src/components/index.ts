@@ -15,6 +15,7 @@ export {
 } from "./PasscodeGate";
 export { PasscodePinInput } from "./PasscodePinInput";
 export { PasscodeLengthSelector } from "./PasscodeLengthSelector";
+export { StoreSwitcher } from "./StoreSwitcher";
 export { TouchableAmount } from "./TouchableAmount";
 export { Typography } from "./Typography";
 export { ViewPhoto } from "./ViewPhoto";

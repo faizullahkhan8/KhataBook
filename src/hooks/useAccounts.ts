@@ -2,11 +2,12 @@ import { SQLiteDatabase } from "../db/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Account, AccountId, CustomerId } from "../models";
 import { AccountService } from "../services/AccountService";
-import { useDatabaseContext } from "../store";
+import { useDatabaseContext, useStoreContext } from "../store";
 import { usePagination } from "./usePagination";
 
 export const useAccounts = (db: SQLiteDatabase | null) => {
-    const { refreshVersion, invalidate } = useDatabaseContext();
+    const { refreshVersions, invalidate } = useDatabaseContext();
+    const { activeStoreId } = useStoreContext();
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -20,31 +21,31 @@ export const useAccounts = (db: SQLiteDatabase | null) => {
     );
 
     const fetchAccounts = useCallback(async (isManualRefresh = false) => {
-        if (!accountService) return;
+        if (!accountService || !activeStoreId) return;
 
         if (isManualRefresh || accounts.length === 0) {
             setLoading(true);
         }
         setError(null);
         try {
-            const data = await accountService.getAllAccounts(pageSize, offset);
+            const data = await accountService.getAllAccounts(activeStoreId, pageSize, offset);
             setAccounts(data);
         } catch (err) {
             setError(err as Error);
         } finally {
             setLoading(false);
         }
-    }, [accountService, pageSize, offset, accounts.length]);
+    }, [accountService, activeStoreId, pageSize, offset, accounts.length]);
 
     const fetchAccountsByCustomer = useCallback(
         async (customerId: CustomerId) => {
-            if (!accountService) return;
+            if (!accountService || !activeStoreId) return;
 
             setLoading(true);
             setError(null);
             try {
                 const data =
-                    await accountService.getAccountsByCustomerId(customerId);
+                    await accountService.getAccountsByCustomerId(customerId, activeStoreId);
                 setAccounts(data);
             } catch (err) {
                 setError(err as Error);
@@ -52,17 +53,17 @@ export const useAccounts = (db: SQLiteDatabase | null) => {
                 setLoading(false);
             }
         },
-        [accountService],
+        [accountService, activeStoreId],
     );
 
     const createAccount = useCallback(
-        async (account: Omit<Account, "id" | "created_at" | "updated_at">) => {
-            if (!accountService) return;
+        async (account: Omit<Account, "id" | "store_id" | "created_at" | "updated_at">) => {
+            if (!accountService || !activeStoreId) return;
 
             setLoading(true);
             setError(null);
             try {
-                await accountService.createAccount(account);
+                await accountService.createAccount(activeStoreId, account);
                 invalidate(); // Trigger global refresh
             } catch (err) {
                 setError(err as Error);
@@ -70,7 +71,7 @@ export const useAccounts = (db: SQLiteDatabase | null) => {
                 setLoading(false);
             }
         },
-        [accountService, invalidate],
+        [accountService, activeStoreId, invalidate],
     );
 
     const updateAccountBalance = useCallback(
@@ -111,7 +112,7 @@ export const useAccounts = (db: SQLiteDatabase | null) => {
 
     useEffect(() => {
         fetchAccounts();
-    }, [fetchAccounts, refreshVersion]);
+    }, [fetchAccounts, refreshVersions.accounts]);
 
     return {
         accounts,

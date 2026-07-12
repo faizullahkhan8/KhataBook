@@ -57,6 +57,8 @@ export const Input: React.FC<InputProps> = React.memo(({
     );
 });
 
+Input.displayName = "Input";
+
 const styles = StyleSheet.create({
     container: {
         marginBottom: Spacing.md,

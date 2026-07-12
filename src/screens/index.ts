@@ -11,5 +11,6 @@ export { OnboardingScreen } from "./OnboardingScreen";
 export { PasscodeScreen } from "./PasscodeScreen";
 export { PrivacyPolicyScreen } from "./PrivacyPolicyScreen";
 export { SettingsScreen } from "./SettingsScreen";
+export { StoresScreen } from "./StoresScreen";
 export { TermsOfUseScreen } from "./TermsOfUseScreen";
 export { TrashScreen } from "./TrashScreen";

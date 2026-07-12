@@ -4,13 +4,14 @@ import { CustomerWithAccounts, CustomerId } from "../models";
 import { AccountService } from "../services/AccountService";
 import { CustomerService } from "../services/CustomerService";
 
-import { useDatabaseContext } from "../store";
+import { useDatabaseContext, useStoreContext } from "../store";
 
 export const useCustomerById = (
     db: SQLiteDatabase | null,
     customerId: CustomerId,
 ) => {
     const { refreshVersions } = useDatabaseContext();
+    const { activeStoreId } = useStoreContext();
     const [customer, setCustomer] = useState<CustomerWithAccounts | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -25,16 +26,16 @@ export const useCustomerById = (
     );
 
     const fetchCustomer = useCallback(async (isManualRefresh = false) => {
-        if (!customerService || !accountService || !customerId) return;
+        if (!customerService || !accountService || !customerId || !activeStoreId) return;
 
         setLoading(true);
         setError(null);
         try {
             const customerData =
-                await customerService.getCustomerById(customerId);
+                await customerService.getCustomerById(customerId, activeStoreId);
             if (customerData) {
                 const accounts =
-                    await accountService.getAccountsByCustomerId(customerId);
+                    await accountService.getAccountsByCustomerId(customerId, activeStoreId);
                 setCustomer({ ...customerData, accounts });
             }
         } catch (err) {
@@ -42,11 +43,11 @@ export const useCustomerById = (
         } finally {
             setLoading(false);
         }
-    }, [customerService, accountService, customerId]);
+    }, [customerService, accountService, customerId, activeStoreId]);
 
     useEffect(() => {
         fetchCustomer();
-    }, [fetchCustomer, refreshVersions.customers]);
+    }, [fetchCustomer, refreshVersions.customers, activeStoreId]);
 
     return {
         customer,

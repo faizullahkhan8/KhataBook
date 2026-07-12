@@ -7,7 +7,7 @@ import {
     TransactionId,
     TransactionType,
 } from "../models";
-import { useDatabaseContext } from "../store";
+import { useDatabaseContext, useStoreContext } from "../store";
 import { usePagination } from "./usePagination";
 
 export type LedgerFundingSource = "received" | "balance" | "pocket" | "mixed" | "settled" | "settledAndAdded" | "added";
@@ -34,6 +34,7 @@ type LedgerTransactionRow = Omit<
 
 export const useLedgerEntries = (db: SQLiteDatabase | null) => {
     const { refreshVersions } = useDatabaseContext();
+    const { activeStoreId } = useStoreContext();
     const [entries, setEntries] = useState<LedgerTransactionEntry[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -46,7 +47,7 @@ export const useLedgerEntries = (db: SQLiteDatabase | null) => {
 
     const fetchEntries = useCallback(
         async (append: boolean) => {
-            if (!db || loadingRef.current) return;
+            if (!db || loadingRef.current || !activeStoreId) return;
 
             loadingRef.current = true;
             if (!append) {
@@ -89,10 +90,10 @@ export const useLedgerEntries = (db: SQLiteDatabase | null) => {
                     FROM transactions t
                     JOIN accounts a ON a.id = t.account_id
                     JOIN customers c ON c.id = a.customer_id
-                    WHERE 1=1 ${cursorClause}
+                    WHERE t.store_id = ? ${cursorClause} AND t.is_deleted = 0
                     ORDER BY t.created_at DESC, t.id DESC
                     LIMIT ?`,
-                    [pageSize],
+                    [activeStoreId, pageSize],
                 );
 
                 const hasFewer = rows.length < pageSize;
@@ -160,7 +161,7 @@ export const useLedgerEntries = (db: SQLiteDatabase | null) => {
                 setLoading(false);
             }
         },
-        [db, pageSize, markFetched],
+        [db, activeStoreId, pageSize, markFetched],
     );
 
     // Initial load + version changes → replace
@@ -168,7 +169,7 @@ export const useLedgerEntries = (db: SQLiteDatabase | null) => {
         cursorRef.current = null;
         resetPage();
         void fetchEntries(false);
-    }, [refreshVersions.transactions, refreshVersions.accounts]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [refreshVersions.transactions, refreshVersions.accounts, activeStoreId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Pagination: page increments via nextPage → append with keyset cursor
     useEffect(() => {

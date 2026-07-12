@@ -92,6 +92,8 @@ const LogItem = React.memo(({ item, colors, copyLog }: { item: LogEntry; colors:
     );
 }, (prev, next) => prev.item.id === next.item.id && prev.colors.surface === next.colors.surface);
 
+LogItem.displayName = "LogItem";
+
 export const LogsScreen: React.FC = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();

@@ -62,6 +62,14 @@ export const SettingsScreen: React.FC = () => {
 
     const SETTINGS_DATA: SettingItem[] = [
         {
+            id: "stores",
+            title: t("settings.stores", "Stores"),
+            subtitle: t("settings.storesSubtitle", "Manage your stores"),
+            icon: "storefront-outline",
+            type: "navigation",
+            section: "General",
+        },
+        {
             id: "theme",
             title: t("settings.theme"),
             subtitle:
@@ -176,6 +184,8 @@ export const SettingsScreen: React.FC = () => {
             setActiveModal("theme");
         } else if (item.id === "language") {
             setActiveModal("language");
+        } else if (item.id === "stores") {
+            router.push("/settings/stores" as any);
         } else if (item.id === "about") {
             handleAboutPress();
         } else if (item.id === "feedback") {

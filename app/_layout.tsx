@@ -4,6 +4,7 @@ import {
     ThemeProvider,
     LanguageProvider,
     PasscodeProvider,
+    StoreProvider,
 } from "@/store";
 import { DatabaseSecurityGate, PasscodeGate } from "@/components";
 
@@ -13,15 +14,16 @@ export default function RootLayout() {
             <ThemeProvider>
                 <DatabaseProvider>
                     <DatabaseSecurityGate>
-                        <PasscodeProvider>
-                            <PasscodeGate>
-                                <Stack
-                                    screenOptions={{
-                                        headerShown: false,
-                                        animation: "slide_from_right",
-                                        gestureEnabled: true,
-                                    }}
-                                >
+                        <StoreProvider>
+                            <PasscodeProvider>
+                                <PasscodeGate>
+                                    <Stack
+                                        screenOptions={{
+                                            headerShown: false,
+                                            animation: "slide_from_right",
+                                            gestureEnabled: true,
+                                        }}
+                                    >
                                     <Stack.Screen
                                         name="index"
                                         options={{ headerShown: false }}
@@ -81,6 +83,7 @@ export default function RootLayout() {
                                 </Stack>
                             </PasscodeGate>
                         </PasscodeProvider>
+                        </StoreProvider>
                     </DatabaseSecurityGate>
                 </DatabaseProvider>
             </ThemeProvider>

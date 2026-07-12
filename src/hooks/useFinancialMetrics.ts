@@ -1,6 +1,6 @@
 import { SQLiteDatabase } from "../db/types";
 import { useCallback, useEffect, useState } from "react";
-import { useDatabaseContext } from "../store";
+import { useDatabaseContext, useStoreContext } from "../store";
 import { logger } from "../services/LogService";
 
 export interface FinancialMetrics {
@@ -42,6 +42,7 @@ export const useFinancialMetrics = (
     dateRange?: DateRange | null,
 ) => {
     const { refreshVersions } = useDatabaseContext();
+    const { activeStoreId } = useStoreContext();
     const [metrics, setMetrics] = useState<FinancialMetrics>({
         totalCredits: 0,
         totalDebits: 0,
@@ -77,20 +78,20 @@ export const useFinancialMetrics = (
     };
 
     const fetchMetrics = useCallback(async () => {
-        if (!db) return;
+        if (!db || !activeStoreId) return;
 
         setLoading(true);
         try {
-            let transactionWhereClause = "";
-            const queryParams: (string | number)[] = [];
+            let transactionWhereClause = "WHERE t.store_id = ?";
+            const queryParams: (string | number)[] = [activeStoreId];
 
             if (dateRange) {
                 const startTimestamp = toUnixTimestamp(dateRange.startDate);
                 const endTimestamp = toUnixTimestamp(dateRange.endDate);
                 // Add 86400 seconds (1 day) to include the full end date
                 const endTimestampInclusive = endTimestamp + 86399;
-                transactionWhereClause =
-                    "WHERE t.created_at >= ? AND t.created_at <= ?";
+                transactionWhereClause +=
+                    " AND t.created_at >= ? AND t.created_at <= ?";
                 queryParams.push(startTimestamp, endTimestampInclusive);
             }
 
@@ -100,22 +101,22 @@ export const useFinancialMetrics = (
                     SUM(CASE WHEN type = 1 THEN amount ELSE 0 END) as credits,
                     SUM(CASE WHEN type = 0 THEN amount ELSE 0 END) as debits
                  FROM transactions t
-                 ${transactionWhereClause}
+                 ${transactionWhereClause} AND t.is_deleted = 0
             `;
             const transResult = await db.getFirstAsync<{
                 credits: number;
                 debits: number;
-            }>(transQuery, dateRange ? queryParams : []);
+            }>(transQuery, queryParams);
 
             // Fetch transaction count with optional date filter
             const transCountQuery = `
                 SELECT COUNT(*) as totalTrans 
                 FROM transactions t
-                ${transactionWhereClause}
+                ${transactionWhereClause} AND t.is_deleted = 0
             `;
             const transCountResult = await db.getFirstAsync<{
                 totalTrans: number;
-            }>(transCountQuery, dateRange ? queryParams : []);
+            }>(transCountQuery, queryParams);
 
             // Account stats are not date-dependent (they're current state)
             const accountResult = await db.getFirstAsync<{
@@ -141,20 +142,21 @@ export const useFinancialMetrics = (
                     COUNT(CASE WHEN status = 2 THEN 1 END) as suspended,
                     COUNT(CASE WHEN status = 3 THEN 1 END) as closed,
                     COUNT(*) as totalAcc
-                 FROM accounts`,
+                 FROM accounts WHERE store_id = ?`,
+                 [activeStoreId]
             );
 
             // Fetch total customers
             const customerResult = await db.getFirstAsync<{
                 totalCust: number;
-            }>("SELECT COUNT(*) as totalCust FROM customers");
+            }>("SELECT COUNT(*) as totalCust FROM customers WHERE store_id = ? AND is_deleted = 0", [activeStoreId]);
 
             const dormantCutoff = Math.floor(Date.now() / 1000) - 30 * 86400;
             const dormantResult = await db.getFirstAsync<{
                 dormant: number;
             }>(
-                "SELECT COUNT(*) as dormant FROM customers WHERE last_transaction_at IS NULL OR last_transaction_at < ?",
-                [dormantCutoff],
+                "SELECT COUNT(*) as dormant FROM customers WHERE store_id = ? AND is_deleted = 0 AND (last_transaction_at IS NULL OR last_transaction_at < ?)",
+                [activeStoreId, dormantCutoff],
             );
 
             const topReceivableResult = await db.getFirstAsync<{
@@ -164,9 +166,10 @@ export const useFinancialMetrics = (
                 `SELECT c.name, a.current_balance as amount
                  FROM accounts a
                  JOIN customers c ON c.id = a.customer_id
-                 WHERE a.current_balance > 0
+                 WHERE a.store_id = ? AND a.current_balance > 0 AND c.is_deleted = 0
                  ORDER BY a.current_balance DESC
                  LIMIT 1`,
+                 [activeStoreId]
             );
 
             const topPayableResult = await db.getFirstAsync<{
@@ -176,14 +179,21 @@ export const useFinancialMetrics = (
                 `SELECT c.name, ABS(a.current_balance) as amount
                  FROM accounts a
                  JOIN customers c ON c.id = a.customer_id
-                 WHERE a.current_balance < 0
+                 WHERE a.store_id = ? AND a.current_balance < 0 AND c.is_deleted = 0
                  ORDER BY ABS(a.current_balance) DESC
                  LIMIT 1`,
+                 [activeStoreId]
             );
 
-            const activityWhereClause = dateRange
-                ? "WHERE t.created_at >= ? AND t.created_at <= ?"
-                : "";
+            const activityWhereClause = "WHERE t.store_id = ? AND t.is_deleted = 0";
+            const activityParams: (string | number)[] = [activeStoreId];
+            if (dateRange) {
+                const startTimestamp = toUnixTimestamp(dateRange.startDate);
+                const endTimestamp = toUnixTimestamp(dateRange.endDate);
+                const endTimestampInclusive = endTimestamp + 86399;
+                activityParams.push(startTimestamp, endTimestampInclusive);
+            }
+
             const mostActiveResult = await db.getFirstAsync<{
                 name: string;
                 transactionCount: number;
@@ -192,11 +202,11 @@ export const useFinancialMetrics = (
                  FROM transactions t
                  JOIN accounts a ON a.id = t.account_id
                  JOIN customers c ON c.id = a.customer_id
-                 ${activityWhereClause}
+                 ${activityWhereClause} ${dateRange ? " AND t.created_at >= ? AND t.created_at <= ?" : ""}
                  GROUP BY c.id, c.name
                  ORDER BY transactionCount DESC
                  LIMIT 1`,
-                dateRange ? queryParams : [],
+                activityParams,
             );
 
             const totalCredits = transResult?.credits || 0;
@@ -259,11 +269,11 @@ export const useFinancialMetrics = (
         } finally {
             setLoading(false);
         }
-    }, [db, dateRange]);
+    }, [db, dateRange, activeStoreId]);
 
     useEffect(() => {
         fetchMetrics();
-    }, [fetchMetrics, refreshVersions.all]);
+    }, [fetchMetrics, refreshVersions.all, activeStoreId]);
 
     return { metrics, loading, refresh: fetchMetrics };
 };

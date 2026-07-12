@@ -7,10 +7,11 @@ import {
     TrashedTransaction,
     TrashCount,
 } from "../services/TrashService";
-import { useDatabaseContext } from "../store";
+import { useDatabaseContext, useStoreContext } from "../store";
 
 export const useTrash = (db: SQLiteDatabase | null) => {
     const { refreshVersions, invalidate } = useDatabaseContext();
+    const { activeStoreId } = useStoreContext();
 
     const [deletedCustomers, setDeletedCustomers] = useState<TrashedCustomer[]>([]);
     const [deletedTransactions, setDeletedTransactions] = useState<TrashedTransaction[]>([]);
@@ -24,14 +25,14 @@ export const useTrash = (db: SQLiteDatabase | null) => {
     );
 
     const fetchTrash = useCallback(async () => {
-        if (!trashService) return;
+        if (!trashService || !activeStoreId) return;
         setLoading(true);
         setError(null);
         try {
             const [customers, transactions, count] = await Promise.all([
-                trashService.getDeletedCustomers(),
-                trashService.getDeletedTransactions(),
-                trashService.getTrashCount(),
+                trashService.getDeletedCustomers(activeStoreId),
+                trashService.getDeletedTransactions(activeStoreId),
+                trashService.getTrashCount(activeStoreId),
             ]);
             setDeletedCustomers(customers);
             setDeletedTransactions(transactions);
@@ -41,12 +42,12 @@ export const useTrash = (db: SQLiteDatabase | null) => {
         } finally {
             setLoading(false);
         }
-    }, [trashService]);
+    }, [trashService, activeStoreId]);
 
     // Auto-refresh when underlying data changes
     useEffect(() => {
         void fetchTrash();
-    }, [fetchTrash, refreshVersions.customers, refreshVersions.transactions]);
+    }, [fetchTrash, refreshVersions.customers, refreshVersions.transactions, activeStoreId]);
 
     const restoreCustomers = useCallback(
         async (ids: CustomerId[]) => {
@@ -86,11 +87,11 @@ export const useTrash = (db: SQLiteDatabase | null) => {
     );
 
     const emptyTrash = useCallback(async () => {
-        if (!trashService) return;
-        await trashService.emptyTrash();
+        if (!trashService || !activeStoreId) return;
+        await trashService.emptyTrash(activeStoreId);
         invalidate("customers");
         invalidate("transactions");
-    }, [trashService, invalidate]);
+    }, [trashService, activeStoreId, invalidate]);
 
     return {
         deletedCustomers,

@@ -2,10 +2,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export type LogLevel = "debug" | "info" | "warning" | "error";
 export type LogCategory =
+    | "system"
+    | "auth"
+    | "backup"
+    | "ui"
+    | "network"
     | "database"
     | "security"
     | "passcode"
     | "transactions"
+    | "stores"
     | "customers"
     | "messages"
     | "navigation"
@@ -232,10 +238,14 @@ export const formatLogEntry = (entry: LogEntry) => {
 
 export const LOG_LEVELS: LogLevel[] = ["debug", "info", "warning", "error"];
 export const LOG_CATEGORIES: LogCategory[] = [
+    "system",
+    "auth",
     "database",
-    "security",
-    "passcode",
+    "backup",
+    "ui",
+    "network",
     "transactions",
+    "stores",
     "customers",
     "messages",
     "navigation",

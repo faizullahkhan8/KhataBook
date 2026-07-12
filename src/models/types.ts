@@ -10,6 +10,7 @@ export type CustomerId = Brand<number, "CustomerId">;
 export type AccountId = Brand<number, "AccountId">;
 export type TransactionId = Brand<number, "TransactionId">;
 export type PaymentId = Brand<number, "PaymentId">;
+export type StoreId = Brand<number, "StoreId">;
 
 /**
  * Financial amounts represented as integers (e.g. cents, paisa).

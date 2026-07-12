@@ -65,8 +65,19 @@ export const initializeDatabase = async (
     try {
         // 1. Create tables with updated schema
         await db.execAsync(`
+            CREATE TABLE IF NOT EXISTS stores (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                contact TEXT,
+                address TEXT,
+                is_default INTEGER NOT NULL DEFAULT 0,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+            );
+
             CREATE TABLE IF NOT EXISTS customers (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                store_id INTEGER NOT NULL DEFAULT 1,
                 name TEXT NOT NULL,
                 phone TEXT NOT NULL DEFAULT '',
                 cnic TEXT,
@@ -81,12 +92,14 @@ export const initializeDatabase = async (
                 updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
             );
             
+            CREATE INDEX IF NOT EXISTS idx_customers_store ON customers(store_id);
             CREATE INDEX IF NOT EXISTS idx_customers_name ON customers(name);
             CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone);
             CREATE INDEX IF NOT EXISTS idx_customers_last_trans ON customers(last_transaction_at);
 
             CREATE TABLE IF NOT EXISTS accounts (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                store_id INTEGER NOT NULL DEFAULT 1,
                 customer_id INTEGER NOT NULL,
                 account_number TEXT UNIQUE NOT NULL,
                 account_type INTEGER NOT NULL DEFAULT 0, -- 0: CREDIT, 1: DEBIT
@@ -98,11 +111,13 @@ export const initializeDatabase = async (
                 FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
             );
             
+            CREATE INDEX IF NOT EXISTS idx_accounts_store ON accounts(store_id);
             CREATE INDEX IF NOT EXISTS idx_accounts_cust_status ON accounts(customer_id, status);
             CREATE INDEX IF NOT EXISTS idx_accounts_number ON accounts(account_number);
 
             CREATE TABLE IF NOT EXISTS transactions (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                store_id INTEGER NOT NULL DEFAULT 1,
                 account_id INTEGER NOT NULL,
                 type INTEGER NOT NULL, -- 0: DEBIT, 1: CREDIT
                 amount INTEGER NOT NULL,
@@ -112,11 +127,13 @@ export const initializeDatabase = async (
                 FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
             );
             
+            CREATE INDEX IF NOT EXISTS idx_transactions_store ON transactions(store_id);
             CREATE INDEX IF NOT EXISTS idx_transactions_acc_date ON transactions(account_id, created_at DESC);
             CREATE INDEX IF NOT EXISTS idx_transactions_type ON transactions(type);
 
             CREATE TABLE IF NOT EXISTS payments (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                store_id INTEGER NOT NULL DEFAULT 1,
                 account_id INTEGER NOT NULL,
                 amount INTEGER NOT NULL,
                 payment_method TEXT NOT NULL,
@@ -126,10 +143,12 @@ export const initializeDatabase = async (
                 FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
             );
             
+            CREATE INDEX IF NOT EXISTS idx_payments_store ON payments(store_id);
             CREATE INDEX IF NOT EXISTS idx_payments_acc_date ON payments(account_id, created_at DESC);
 
             CREATE TABLE IF NOT EXISTS customer_order (
                 customer_id INTEGER PRIMARY KEY,
+                store_id INTEGER NOT NULL DEFAULT 1,
                 sort_order INTEGER NOT NULL,
                 FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE
             );
@@ -192,6 +211,20 @@ export const initializeDatabase = async (
         if (!customerColumns.some((column) => column.name === "is_deleted")) {
             await db.execAsync("ALTER TABLE customers ADD COLUMN is_deleted INTEGER NOT NULL DEFAULT 0;");
         }
+        if (!customerColumns.some((column) => column.name === "store_id")) {
+            await db.execAsync(`
+                ALTER TABLE customers ADD COLUMN store_id INTEGER NOT NULL DEFAULT 1;
+                ALTER TABLE accounts ADD COLUMN store_id INTEGER NOT NULL DEFAULT 1;
+                ALTER TABLE transactions ADD COLUMN store_id INTEGER NOT NULL DEFAULT 1;
+                ALTER TABLE payments ADD COLUMN store_id INTEGER NOT NULL DEFAULT 1;
+                ALTER TABLE customer_order ADD COLUMN store_id INTEGER NOT NULL DEFAULT 1;
+                
+                CREATE INDEX IF NOT EXISTS idx_customers_store ON customers(store_id);
+                CREATE INDEX IF NOT EXISTS idx_accounts_store ON accounts(store_id);
+                CREATE INDEX IF NOT EXISTS idx_transactions_store ON transactions(store_id);
+                CREATE INDEX IF NOT EXISTS idx_payments_store ON payments(store_id);
+            `);
+        }
         await db.execAsync(
             "CREATE INDEX IF NOT EXISTS idx_customers_cnic ON customers(cnic);",
         );
@@ -236,6 +269,9 @@ export const initializeDatabase = async (
 
             INSERT OR IGNORE INTO app_metadata ("key", value)
             VALUES (${sqlString(DEFAULT_MESSAGE_TEMPLATES_SEED_KEY)}, '1');
+
+            INSERT OR IGNORE INTO stores (id, name, is_default)
+            VALUES (1, 'My Store', 1);
         `);
 
         // 2. Data Migration (Handle existing string enums and float amounts)

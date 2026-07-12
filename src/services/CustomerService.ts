@@ -1,6 +1,6 @@
 import { SQLiteDatabase } from "../db/types";
 import { Customer, CustomerSummary } from "../models/Customer";
-import { CustomerId } from "../models/types";
+import { CustomerId, StoreId } from "../models/types";
 import { logger } from "./LogService";
 
 export class CustomerService {
@@ -11,9 +11,11 @@ export class CustomerService {
     }
 
     async createCustomer(
+        storeId: StoreId,
         customer: Omit<
             Customer,
             | "id"
+            | "store_id"
             | "created_at"
             | "updated_at"
             | "total_receivable"
@@ -26,8 +28,9 @@ export class CustomerService {
         }
         try {
             const result = await this.db.runAsync(
-                `INSERT INTO customers (name, phone, cnic, email, address, image_uri, notes) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO customers (store_id, name, phone, cnic, email, address, image_uri, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
+                    storeId,
                     customer.name,
                     customer.phone || "",
                     customer.cnic || null,
@@ -46,15 +49,18 @@ export class CustomerService {
         }
     }
 
-    async getCustomerById(id: CustomerId): Promise<Customer | null> {
+    async getCustomerById(id: CustomerId, storeId?: StoreId): Promise<Customer | null> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
-            const customer = await this.db.getFirstAsync<Customer>(
-                "SELECT * FROM customers WHERE id = ?",
-                [id],
-            );
+            let query = "SELECT * FROM customers WHERE id = ?";
+            const params: (string | number)[] = [id];
+            if (storeId !== undefined) {
+                query += " AND store_id = ?";
+                params.push(storeId);
+            }
+            const customer = await this.db.getFirstAsync<Customer>(query, params);
             return customer || null;
         } catch (error) {
             void logger.error("customers", "Error fetching customer", error);
@@ -63,6 +69,7 @@ export class CustomerService {
     }
 
     async getAllCustomers(
+        storeId: StoreId,
         limit: number = 50,
         offset: number = 0,
     ): Promise<Customer[]> {
@@ -71,8 +78,8 @@ export class CustomerService {
         }
         try {
             const customers = await this.db.getAllAsync<Customer>(
-                "SELECT * FROM customers WHERE is_deleted = 0 ORDER BY name ASC LIMIT ? OFFSET ?",
-                [limit, offset],
+                "SELECT * FROM customers WHERE is_deleted = 0 AND store_id = ? ORDER BY name ASC LIMIT ? OFFSET ?",
+                [storeId, limit, offset],
             );
             return customers;
         } catch (error) {
@@ -85,6 +92,7 @@ export class CustomerService {
      * Fetch lightweight summaries for high-performance list rendering.
      */
     async getCustomerSummaries(
+        storeId: StoreId,
         limit: number = 50,
         offset: number = 0,
     ): Promise<CustomerSummary[]> {
@@ -93,8 +101,8 @@ export class CustomerService {
         }
         try {
             const summaries = await this.db.getAllAsync<CustomerSummary>(
-                "SELECT id, name, phone, image_uri, total_receivable, total_payable, last_transaction_at FROM customers WHERE is_deleted = 0 ORDER BY name ASC LIMIT ? OFFSET ?",
-                [limit, offset],
+                "SELECT id, name, phone, image_uri, total_receivable, total_payable, last_transaction_at FROM customers WHERE is_deleted = 0 AND store_id = ? ORDER BY name ASC LIMIT ? OFFSET ?",
+                [storeId, limit, offset],
             );
             return summaries;
         } catch (error) {
@@ -108,6 +116,7 @@ export class CustomerService {
     }
 
     async searchCustomers(
+        storeId: StoreId,
         query: string,
         limit: number = 50,
         offset: number = 0,
@@ -118,8 +127,8 @@ export class CustomerService {
         try {
             const searchTerm = `%${query}%`;
             const customers = await this.db.getAllAsync<Customer>(
-                "SELECT * FROM customers WHERE is_deleted = 0 AND (name LIKE ? OR phone LIKE ? OR cnic LIKE ?) ORDER BY name ASC LIMIT ? OFFSET ?",
-                [searchTerm, searchTerm, searchTerm, limit, offset],
+                "SELECT * FROM customers WHERE is_deleted = 0 AND store_id = ? AND (name LIKE ? OR phone LIKE ? OR cnic LIKE ?) ORDER BY name ASC LIMIT ? OFFSET ?",
+                [storeId, searchTerm, searchTerm, searchTerm, limit, offset],
             );
             return customers;
         } catch (error) {
@@ -200,13 +209,14 @@ export class CustomerService {
         }
     }
 
-    async getCustomerCount(): Promise<number> {
+    async getCustomerCount(storeId: StoreId): Promise<number> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
             const result = await this.db.getFirstAsync<{ count: number }>(
-                "SELECT COUNT(*) as count FROM customers WHERE is_deleted = 0",
+                "SELECT COUNT(*) as count FROM customers WHERE is_deleted = 0 AND store_id = ?",
+                [storeId]
             );
             return result?.count || 0;
         } catch (error) {

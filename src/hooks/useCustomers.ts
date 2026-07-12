@@ -1,12 +1,13 @@
 import { SQLiteDatabase } from "../db/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Customer } from "../models";
+import { Customer, CustomerId } from "../models";
 import { CustomerService } from "../services/CustomerService";
-import { useDatabaseContext } from "../store";
+import { useDatabaseContext, useStoreContext } from "../store";
 import { usePagination } from "./usePagination";
 
 export const useCustomers = (db: SQLiteDatabase | null) => {
-    const { refreshVersion, invalidate } = useDatabaseContext();
+    const { refreshVersions, invalidate } = useDatabaseContext();
+    const { activeStoreId } = useStoreContext();
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -21,7 +22,7 @@ export const useCustomers = (db: SQLiteDatabase | null) => {
     );
 
     const fetchCustomers = useCallback(async (isManualRefresh = false) => {
-        if (!customerService) return;
+        if (!customerService || !activeStoreId) return;
 
         if (isManualRefresh || customers.length === 0) {
             setLoading(true);
@@ -30,30 +31,31 @@ export const useCustomers = (db: SQLiteDatabase | null) => {
         try {
             const data = searchQuery
                 ? await customerService.searchCustomers(
+                      activeStoreId,
                       searchQuery,
                       pageSize,
                       offset,
                   )
-                : await customerService.getAllCustomers(pageSize, offset);
+                : await customerService.getAllCustomers(activeStoreId, pageSize, offset);
             setCustomers(data);
         } catch (err) {
             setError(err as Error);
         } finally {
             setLoading(false);
         }
-    }, [customerService, searchQuery, pageSize, offset, customers.length]);
+    }, [customerService, activeStoreId, searchQuery, pageSize, offset, customers.length]);
 
     const createCustomer = useCallback(
         async (
-            customer: Omit<Customer, "id" | "created_at" | "updated_at">,
+            customer: Omit<Customer, "id" | "store_id" | "created_at" | "updated_at">,
         ): Promise<number | undefined> => {
-            if (!customerService) return undefined;
+            if (!customerService || !activeStoreId) return undefined;
 
             setLoading(true);
             setError(null);
             try {
                 const customerId =
-                    await customerService.createCustomer(customer);
+                    await customerService.createCustomer(activeStoreId, customer);
                 invalidate(); // Trigger global refresh
                 return customerId;
             } catch (err) {
@@ -63,11 +65,11 @@ export const useCustomers = (db: SQLiteDatabase | null) => {
                 setLoading(false);
             }
         },
-        [customerService, invalidate],
+        [customerService, activeStoreId, invalidate],
     );
 
     const updateCustomer = useCallback(
-        async (id: number, customer: Partial<Customer>) => {
+        async (id: CustomerId, customer: Partial<Customer>) => {
             if (!customerService) return;
 
             setLoading(true);
@@ -85,7 +87,7 @@ export const useCustomers = (db: SQLiteDatabase | null) => {
     );
 
     const deleteCustomer = useCallback(
-        async (id: number) => {
+        async (id: CustomerId) => {
             if (!customerService) return;
 
             setLoading(true);
@@ -112,7 +114,7 @@ export const useCustomers = (db: SQLiteDatabase | null) => {
 
     useEffect(() => {
         fetchCustomers();
-    }, [fetchCustomers, refreshVersion]);
+    }, [fetchCustomers, refreshVersions.customers]);
 
     return {
         customers,

@@ -2,7 +2,7 @@ import { SQLiteDatabase } from "../db/types";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AccountId, Transaction, TransactionId } from "../models";
 import { TransactionService } from "../services/TransactionService";
-import { useDatabaseContext } from "../store";
+import { useDatabaseContext, useStoreContext } from "../store";
 import { usePagination } from "./usePagination";
 
 export interface DateRange {
@@ -15,6 +15,7 @@ export const useTransactions = (
     dateRange?: DateRange | null,
 ) => {
     const { refreshVersions, invalidate } = useDatabaseContext();
+    const { activeStoreId } = useStoreContext();
     const [allTransactions, setAllTransactions] = useState<Transaction[]>([]);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<Error | null>(null);
@@ -35,7 +36,7 @@ export const useTransactions = (
 
     const fetchPage = useCallback(
         async (targetPage: number, accountId: AccountId | null, append: boolean) => {
-            if (!transactionService) return;
+            if (!transactionService || !activeStoreId) return;
 
             if (!append) {
                 setLoading(true);
@@ -44,8 +45,8 @@ export const useTransactions = (
             try {
                 const currentOffset = targetPage * pageSize;
                 const data = accountId
-                    ? await transactionService.getTransactionsByAccountId(accountId, pageSize, currentOffset)
-                    : await transactionService.getAllTransactions(pageSize, currentOffset);
+                    ? await transactionService.getTransactionsByAccountId(accountId, activeStoreId, pageSize, currentOffset)
+                    : await transactionService.getAllTransactions(activeStoreId, pageSize, currentOffset);
 
                 if (data.length < pageSize) {
                     markFetched(data.length);
@@ -60,7 +61,7 @@ export const useTransactions = (
                 setLoading(false);
             }
         },
-        [transactionService, pageSize, markFetched],
+        [transactionService, activeStoreId, pageSize, markFetched],
     );
 
     // Filter transactions by date range
@@ -82,7 +83,7 @@ export const useTransactions = (
 
     const fetchTransactionsByAccount = useCallback(
         async (accountId: AccountId) => {
-            if (!transactionService) return;
+            if (!transactionService || !activeStoreId) return;
 
             targetAccountRef.current = accountId;
             resetPage();
@@ -93,6 +94,7 @@ export const useTransactions = (
                 const data =
                     await transactionService.getTransactionsByAccountId(
                         accountId,
+                        activeStoreId,
                         pageSize,
                         0,
                     );
@@ -106,7 +108,7 @@ export const useTransactions = (
                 setLoading(false);
             }
         },
-        [transactionService, pageSize, resetPage, markFetched],
+        [transactionService, activeStoreId, pageSize, resetPage, markFetched],
     );
 
     // Initial load + version changes → page 0 (all accounts), replace
@@ -114,7 +116,7 @@ export const useTransactions = (
         targetAccountRef.current = null;
         resetPage();
         void fetchPage(0, null, false);
-    }, [refreshVersions.transactions]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [refreshVersions.transactions, activeStoreId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Pagination: page increments via nextPage → append, respects account mode
     useEffect(() => {
@@ -124,13 +126,13 @@ export const useTransactions = (
     }, [page]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const createTransaction = useCallback(
-        async (transaction: Omit<Transaction, "id" | "created_at">) => {
-            if (!transactionService) return;
+        async (transaction: Omit<Transaction, "id" | "store_id" | "created_at">) => {
+            if (!transactionService || !activeStoreId) return;
 
             setLoading(true);
             setError(null);
             try {
-                await transactionService.createTransaction(transaction);
+                await transactionService.createTransaction(activeStoreId, transaction);
                 invalidate("transactions");
                 invalidate("customers");
             } catch (err) {
@@ -139,7 +141,7 @@ export const useTransactions = (
                 setLoading(false);
             }
         },
-        [transactionService, invalidate],
+        [transactionService, activeStoreId, invalidate],
     );
 
     const updateTransaction = useCallback(

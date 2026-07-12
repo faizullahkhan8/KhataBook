@@ -1,6 +1,6 @@
 import { SQLiteDatabase } from "../db/types";
 import { Transaction, TransactionType } from "../models/Transaction";
-import { AccountId, TransactionId } from "../models/types";
+import { AccountId, StoreId, TransactionId } from "../models/types";
 import { logger } from "./LogService";
 
 export class TransactionService {
@@ -11,15 +11,17 @@ export class TransactionService {
     }
 
     async createTransaction(
-        transaction: Omit<Transaction, "id" | "created_at">,
+        storeId: StoreId,
+        transaction: Omit<Transaction, "id" | "store_id" | "created_at">,
     ): Promise<TransactionId> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
             const result = await this.db.runAsync(
-                `INSERT INTO transactions (account_id, type, amount, description, reference, image_uri, voice_uri) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO transactions (store_id, account_id, type, amount, description, reference, image_uri, voice_uri) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
+                    storeId,
                     transaction.account_id,
                     transaction.type,
                     transaction.amount,
@@ -48,15 +50,17 @@ export class TransactionService {
      * Used for opening balance transactions or data migration
      */
     async createTransactionWithTimestamp(
-        transaction: Omit<Transaction, "id">,
+        storeId: StoreId,
+        transaction: Omit<Transaction, "id" | "store_id">,
     ): Promise<TransactionId> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
             const result = await this.db.runAsync(
-                `INSERT INTO transactions (account_id, type, amount, description, reference, image_uri, voice_uri, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                `INSERT INTO transactions (store_id, account_id, type, amount, description, reference, image_uri, voice_uri, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
                 [
+                    storeId,
                     transaction.account_id,
                     transaction.type,
                     transaction.amount,
@@ -85,15 +89,18 @@ export class TransactionService {
         }
     }
 
-    async getTransactionById(id: TransactionId): Promise<Transaction | null> {
+    async getTransactionById(id: TransactionId, storeId?: StoreId): Promise<Transaction | null> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
-            const transaction = await this.db.getFirstAsync<Transaction>(
-                "SELECT * FROM transactions WHERE id = ?",
-                [id],
-            );
+            let query = "SELECT * FROM transactions WHERE id = ?";
+            const params: (string | number)[] = [id];
+            if (storeId !== undefined) {
+                query += " AND store_id = ?";
+                params.push(storeId);
+            }
+            const transaction = await this.db.getFirstAsync<Transaction>(query, params);
             return transaction || null;
         } catch (error) {
             void logger.error("transactions", "Error fetching transaction", error);
@@ -103,6 +110,7 @@ export class TransactionService {
 
     async getTransactionsByAccountId(
         accountId: AccountId,
+        storeId?: StoreId,
         limit: number = 50,
         offset: number = 0,
     ): Promise<Transaction[]> {
@@ -110,10 +118,16 @@ export class TransactionService {
             throw new Error("Database is not initialized");
         }
         try {
-            const transactions = await this.db.getAllAsync<Transaction>(
-                "SELECT * FROM transactions WHERE account_id = ? AND is_deleted = 0 ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                [accountId, limit, offset],
-            );
+            let query = "SELECT * FROM transactions WHERE account_id = ? AND is_deleted = 0";
+            const params: (string | number)[] = [accountId];
+            if (storeId !== undefined) {
+                query += " AND store_id = ?";
+                params.push(storeId);
+            }
+            query += " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+            params.push(limit, offset);
+            
+            const transactions = await this.db.getAllAsync<Transaction>(query, params);
             return transactions;
         } catch (error) {
             void logger.error(
@@ -126,6 +140,7 @@ export class TransactionService {
     }
 
     async getAllTransactions(
+        storeId: StoreId,
         limit: number = 50,
         offset: number = 0,
     ): Promise<Transaction[]> {
@@ -134,8 +149,8 @@ export class TransactionService {
         }
         try {
             const transactions = await this.db.getAllAsync<Transaction>(
-                "SELECT * FROM transactions WHERE is_deleted = 0 ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                [limit, offset],
+                "SELECT * FROM transactions WHERE is_deleted = 0 AND store_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                [storeId, limit, offset],
             );
             return transactions;
         } catch (error) {
@@ -145,6 +160,7 @@ export class TransactionService {
     }
 
     async getTransactionsByType(
+        storeId: StoreId,
         type: TransactionType,
         limit: number = 50,
         offset: number = 0,
@@ -154,8 +170,8 @@ export class TransactionService {
         }
         try {
             const transactions = await this.db.getAllAsync<Transaction>(
-                "SELECT * FROM transactions WHERE type = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
-                [type, limit, offset],
+                "SELECT * FROM transactions WHERE type = ? AND store_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                [type, storeId, limit, offset],
             );
             return transactions;
         } catch (error) {
@@ -271,13 +287,14 @@ export class TransactionService {
         }
     }
 
-    async getTransactionCount(): Promise<number> {
+    async getTransactionCount(storeId: StoreId): Promise<number> {
         if (!this.db) {
             throw new Error("Database is not initialized");
         }
         try {
             const result = await this.db.getFirstAsync<{ count: number }>(
-                "SELECT COUNT(*) as count FROM transactions WHERE is_deleted = 0",
+                "SELECT COUNT(*) as count FROM transactions WHERE is_deleted = 0 AND store_id = ?",
+                [storeId]
             );
             return result?.count || 0;
         } catch (error) {
@@ -291,7 +308,8 @@ export class TransactionService {
     }
 
     async batchCreateTransactions(
-        transactions: Omit<Transaction, "id" | "created_at">[],
+        storeId: StoreId,
+        transactions: Omit<Transaction, "id" | "store_id" | "created_at">[],
     ): Promise<void> {
         if (!this.db) {
             throw new Error("Database is not initialized");
@@ -299,11 +317,12 @@ export class TransactionService {
         try {
             await this.db.withTransactionAsync(async () => {
                 const statement = await this.db.prepareAsync(
-                    `INSERT INTO transactions (account_id, type, amount, description, reference, image_uri, voice_uri) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                    `INSERT INTO transactions (store_id, account_id, type, amount, description, reference, image_uri, voice_uri) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
                 );
                 try {
                     for (const transaction of transactions) {
                         await statement.executeAsync([
+                            storeId,
                             transaction.account_id,
                             transaction.type,
                             transaction.amount,

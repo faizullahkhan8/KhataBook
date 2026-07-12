@@ -19,6 +19,7 @@ import {
     ErrorScreen,
     LoadingScreen,
     OptionModal,
+    StoreSwitcher,
     TouchableAmount,
     Typography,
     ViewPhoto,
@@ -132,6 +133,8 @@ const CustomerItem = React.memo(({
     prev.isSelected === next.isSelected &&
     prev.colors.surface === next.colors.surface
 );
+
+CustomerItem.displayName = "CustomerItem";
 
 export const CustomersScreen: React.FC = () => {
     const { db } = useDatabaseContext();
@@ -424,11 +427,16 @@ export const CustomersScreen: React.FC = () => {
         <ErrorScreen error={error} type="database" onRetry={refresh} isLoading={loading}>
             <View style={[styles.container, { backgroundColor: colors.background }]}>
 
+                {/* Store Switcher */}
+                <View style={{ paddingHorizontal: Spacing.md, paddingTop: insets.top + Spacing.sm }}>
+                    <StoreSwitcher />
+                </View>
+
                 {/* Header */}
                 <View style={[
                     styles.header,
                     {
-                        marginTop: insets.top + Spacing.sm,
+                        marginTop: Spacing.sm,
                         marginHorizontal: Spacing.md,
                         marginBottom: Spacing.sm,
                         borderRadius: 10,

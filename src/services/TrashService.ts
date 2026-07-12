@@ -1,5 +1,5 @@
 import { SQLiteDatabase } from "../db/types";
-import { CustomerId, TransactionId } from "../models/types";
+import { CustomerId, StoreId, TransactionId } from "../models/types";
 import { logger } from "./LogService";
 import { deleteFromStorage } from "../utils/fileUtils";
 
@@ -37,13 +37,14 @@ export class TrashService {
 
     // ── Fetching ──────────────────────────────────────────────
 
-    async getDeletedCustomers(): Promise<TrashedCustomer[]> {
+    async getDeletedCustomers(storeId: StoreId): Promise<TrashedCustomer[]> {
         try {
             return await this.db.getAllAsync<TrashedCustomer>(
                 `SELECT id, name, phone, image_uri, deleted_at
                  FROM customers
-                 WHERE is_deleted = 1
+                 WHERE is_deleted = 1 AND store_id = ?
                  ORDER BY deleted_at DESC`,
+                 [storeId]
             );
         } catch (error) {
             void logger.error("trash", "Error fetching deleted customers", error);
@@ -51,7 +52,7 @@ export class TrashService {
         }
     }
 
-    async getDeletedTransactions(): Promise<TrashedTransaction[]> {
+    async getDeletedTransactions(storeId: StoreId): Promise<TrashedTransaction[]> {
         try {
             return await this.db.getAllAsync<TrashedTransaction>(
                 `SELECT t.id, t.account_id, t.type, t.amount, t.description,
@@ -61,8 +62,9 @@ export class TrashService {
                  FROM transactions t
                  JOIN accounts a ON a.id = t.account_id
                  JOIN customers c ON c.id = a.customer_id
-                 WHERE t.is_deleted = 1
+                 WHERE t.is_deleted = 1 AND t.store_id = ?
                  ORDER BY t.deleted_at DESC`,
+                 [storeId]
             );
         } catch (error) {
             void logger.error("trash", "Error fetching deleted transactions", error);
@@ -70,13 +72,15 @@ export class TrashService {
         }
     }
 
-    async getTrashCount(): Promise<TrashCount> {
+    async getTrashCount(storeId: StoreId): Promise<TrashCount> {
         try {
             const cResult = await this.db.getFirstAsync<{ count: number }>(
-                "SELECT COUNT(*) as count FROM customers WHERE is_deleted = 1",
+                "SELECT COUNT(*) as count FROM customers WHERE is_deleted = 1 AND store_id = ?",
+                [storeId]
             );
             const tResult = await this.db.getFirstAsync<{ count: number }>(
-                "SELECT COUNT(*) as count FROM transactions WHERE is_deleted = 1",
+                "SELECT COUNT(*) as count FROM transactions WHERE is_deleted = 1 AND store_id = ?",
+                [storeId]
             );
             return {
                 customers: cResult?.count ?? 0,
@@ -193,21 +197,25 @@ export class TrashService {
         }
     }
 
-    async emptyTrash(): Promise<void> {
+    async emptyTrash(storeId: StoreId): Promise<void> {
         try {
             const cRows = await this.db.getAllAsync<{ image_uri: string | null }>(
-                "SELECT image_uri FROM customers WHERE is_deleted = 1"
+                "SELECT image_uri FROM customers WHERE is_deleted = 1 AND store_id = ?",
+                [storeId]
             );
             const tRows = await this.db.getAllAsync<{ image_uri: string | null; voice_uri: string | null }>(
-                "SELECT image_uri, voice_uri FROM transactions WHERE is_deleted = 1"
+                "SELECT image_uri, voice_uri FROM transactions WHERE is_deleted = 1 AND store_id = ?",
+                [storeId]
             );
 
             await this.db.withTransactionAsync(async () => {
                 await this.db.runAsync(
-                    "DELETE FROM customers WHERE is_deleted = 1",
+                    "DELETE FROM customers WHERE is_deleted = 1 AND store_id = ?",
+                    [storeId]
                 );
                 await this.db.runAsync(
-                    "DELETE FROM transactions WHERE is_deleted = 1",
+                    "DELETE FROM transactions WHERE is_deleted = 1 AND store_id = ?",
+                    [storeId]
                 );
             });
 

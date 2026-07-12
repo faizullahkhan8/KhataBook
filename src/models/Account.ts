@@ -1,4 +1,4 @@
-import { AccountId, CurrencyAmount, CustomerId, Timestamp } from "./types";
+import { AccountId, CurrencyAmount, CustomerId, StoreId, Timestamp } from "./types";
 
 export enum AccountStatus {
     ACTIVE = 0,
@@ -14,6 +14,7 @@ export enum AccountType {
 
 export interface Account {
     id?: AccountId;
+    store_id: StoreId;
     customer_id: CustomerId;
     account_number: string;
     account_type: AccountType;

@@ -1,4 +1,4 @@
-import { AccountId, CurrencyAmount, Timestamp, TransactionId } from "./types";
+import { AccountId, CurrencyAmount, StoreId, Timestamp, TransactionId } from "./types";
 
 export enum TransactionType {
     // DEBIT (0): Customer takes/borrows on credit - increases their balance owed to us
@@ -9,6 +9,7 @@ export enum TransactionType {
 
 export interface Transaction {
     id?: TransactionId;
+    store_id: StoreId;
     account_id: AccountId;
     type: TransactionType;
     amount: CurrencyAmount; // Stored as integer (e.g. 1000 for 10.00)

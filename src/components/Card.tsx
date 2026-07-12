@@ -27,6 +27,8 @@ export const Card: React.FC<CardProps> = React.memo(({ children, style }) => {
     );
 });
 
+Card.displayName = "Card";
+
 const styles = StyleSheet.create({
     card: {
         borderRadius: 12,

@@ -1,8 +1,9 @@
 import { Account } from "./Account";
-import { CurrencyAmount, CustomerId, Timestamp } from "./types";
+import { CurrencyAmount, CustomerId, StoreId, Timestamp } from "./types";
 
 export interface Customer {
     id?: CustomerId;
+    store_id: StoreId;
     name: string;
     phone: string;
     cnic?: string;
