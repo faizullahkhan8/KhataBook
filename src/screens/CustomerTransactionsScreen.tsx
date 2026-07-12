@@ -1,19 +1,20 @@
 import { Ionicons } from "@expo/vector-icons";
-import * as SMS from "expo-sms";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import * as SMS from "expo-sms";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Alert,
     FlatList,
+    Linking,
     Platform,
     Pressable,
     StyleSheet,
     View,
-    Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import {
     LoadingScreen,
     OptionModal,
@@ -32,23 +33,31 @@ import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useTransactions } from "../hooks/useTransactions";
 import { AccountStatus, CustomerId, TransactionType } from "../models";
 import { AccountService } from "../services/AccountService";
-import { useDatabaseContext, usePasscode, useTheme } from "../store";
-import { formatDateTime, formatCurrency } from "../utils";
+import { useDatabaseContext, useTheme } from "../store";
+import { formatCurrency, formatDateTime } from "../utils";
 
-type HeaderMenuOption = "view-profile" | "toggle-status" | "edit" | "delete" | "send-sms" | "send-whatsapp";
+type HeaderMenuOption =
+    | "view-profile"
+    | "toggle-status"
+    | "edit"
+    | "delete"
+    | "send-sms"
+    | "send-whatsapp";
 
 export const CustomerTransactionsScreen: React.FC = () => {
     const { customerId } = useLocalSearchParams<{ customerId: string }>();
     const { db, invalidate } = useDatabaseContext();
-        const router = useRouter();
+    const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { t } = useTranslation();
+
     const {
         customer,
         loading: customerLoading,
         refresh: refreshCustomer,
     } = useCustomerById(db, parseInt(customerId || "0") as CustomerId);
+
     const accountService = useMemo(
         () => (db ? new AccountService(db) : null),
         [db],
@@ -56,6 +65,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
 
     const { deleteCustomer, loading: deleteLoading } =
         useCustomersWithAccounts(db);
+
     const {
         transactions,
         fetchTransactionsByAccount,
@@ -63,20 +73,17 @@ export const CustomerTransactionsScreen: React.FC = () => {
         hasMore,
         nextPage,
     } = useTransactions(db);
+
     const { entries: ledgerEntries } = useLedgerEntries(db);
     const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
         useDeleteAuthentication();
 
-    const handleRefresh = useCallback(async () => {
-        await refreshCustomer();
-        if (customer?.accounts?.[0]?.id) {
-            await fetchTransactionsByAccount(customer.accounts[0].id);
-        }
-    }, [refreshCustomer, fetchTransactionsByAccount, customer]);
-
     const [isMenuVisible, setIsMenuVisible] = useState(false);
     const [isMenuActionActive, setIsMenuActionActive] = useState(false);
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+    const [hasInitiatedTransactionFetch, setHasInitiatedTransactionFetch] =
+        useState(false);
 
     const accountId = customer?.accounts?.[0]?.id;
     const account = customer?.accounts?.[0];
@@ -90,8 +97,21 @@ export const CustomerTransactionsScreen: React.FC = () => {
     useEffect(() => {
         if (accountId) {
             fetchTransactionsByAccount(accountId);
+            setHasInitiatedTransactionFetch(true);
+        } else if (
+            customer &&
+            (!customer.accounts || customer.accounts.length === 0)
+        ) {
+            setHasInitiatedTransactionFetch(true);
         }
-    }, [accountId, fetchTransactionsByAccount]);
+    }, [accountId, customer, fetchTransactionsByAccount]);
+
+    const handleRefresh = useCallback(async () => {
+        await refreshCustomer();
+        if (customer?.accounts?.[0]?.id) {
+            await fetchTransactionsByAccount(customer.accounts[0].id);
+        }
+    }, [refreshCustomer, fetchTransactionsByAccount, customer]);
 
     const customerTransactions = useMemo(() => {
         if (!customer?.accounts || customer.accounts.length === 0) return [];
@@ -197,7 +217,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
 
     const handleToggleAccountStatus = async () => {
         if (!accountService || !account?.id) return;
-
         setIsMenuActionActive(true);
         setIsMenuVisible(false);
         setIsUpdatingStatus(true);
@@ -222,7 +241,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
 
     const handleDeleteCustomer = () => {
         if (!customer?.id) return;
-
         setIsMenuActionActive(true);
         setIsMenuVisible(false);
         Alert.alert(
@@ -242,7 +260,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         void requestDeleteAuthentication(async () => {
                             try {
                                 await deleteCustomer(customer.id!);
-                                router.replace("/" as any);
+                                router.back();
                             } catch {
                                 Alert.alert(
                                     t("customerProfile.deleteError"),
@@ -288,13 +306,24 @@ export const CustomerTransactionsScreen: React.FC = () => {
         let message = "";
 
         if (stats.balance > 0) {
-            message = t("customerMessages.balanceDue", { name: customer?.name, amount, defaultValue: `Dear ${customer?.name}, your current balance due is ${amount}. Please arrange a settlement at your earliest convenience.` });
+            message = t("customerMessages.balanceDue", {
+                name: customer?.name,
+                amount,
+                defaultValue: `Dear ${customer?.name}, your current balance due is ${amount}. Please arrange a settlement at your earliest convenience.`,
+            });
         } else if (stats.balance < 0) {
-            message = t("customerMessages.balanceAdvance", { name: customer?.name, amount, defaultValue: `Dear ${customer?.name}, this is a balance update. You currently have an advance balance of ${amount} with us.` });
+            message = t("customerMessages.balanceAdvance", {
+                name: customer?.name,
+                amount,
+                defaultValue: `Dear ${customer?.name}, this is a balance update. You currently have an advance balance of ${amount} with us.`,
+            });
         } else {
-            message = t("customerMessages.balanceZero", { name: customer?.name, defaultValue: `Dear ${customer?.name}, your account balance is fully settled. Thank you for doing business with us! Keep managing your ledger easily with KhataBook.` });
+            message = t("customerMessages.balanceZero", {
+                name: customer?.name,
+                defaultValue: `Dear ${customer?.name}, your account balance is fully settled. Thank you for doing business with us! Keep managing your ledger easily with KhataBook.`,
+            });
         }
-        
+
         return message + appSignature;
     };
 
@@ -307,10 +336,19 @@ export const CustomerTransactionsScreen: React.FC = () => {
             if (isAvailable) {
                 await SMS.sendSMSAsync([customer.phone], generateMessageBody());
             } else {
-                Alert.alert(t("customerProfile.error", "Error"), t("customerProfile.smsUnavailable", "SMS is not available on this device."));
+                Alert.alert(
+                    t("customerProfile.error", "Error"),
+                    t(
+                        "customerProfile.smsUnavailable",
+                        "SMS is not available on this device.",
+                    ),
+                );
             }
         } catch (error) {
-            Alert.alert(t("customerProfile.error", "Error"), t("customerProfile.smsError", "Failed to open SMS app."));
+            Alert.alert(
+                t("customerProfile.error", "Error"),
+                t("customerProfile.smsError", "Failed to open SMS app."),
+            );
         } finally {
             setIsMenuActionActive(false);
         }
@@ -320,22 +358,32 @@ export const CustomerTransactionsScreen: React.FC = () => {
         if (!customer?.phone) return;
         setIsMenuActionActive(true);
         setIsMenuVisible(false);
-        
-        let phone = customer.phone.replace(/\D/g, '');
-        if (phone.startsWith('0')) {
-            phone = '92' + phone.substring(1);
+
+        let phone = customer.phone.replace(/\D/g, "");
+        if (phone.startsWith("0")) {
+            phone = "92" + phone.substring(1);
         }
 
         const url = `whatsapp://send?text=${encodeURIComponent(generateMessageBody())}&phone=${phone}`;
+
         try {
             const canOpen = await Linking.canOpenURL(url);
             if (canOpen) {
                 await Linking.openURL(url);
             } else {
-                Alert.alert(t("customerProfile.error", "Error"), t("customerProfile.whatsappUnavailable", "WhatsApp is not installed on this device."));
+                Alert.alert(
+                    t("customerProfile.error", "Error"),
+                    t(
+                        "customerProfile.whatsappUnavailable",
+                        "WhatsApp is not installed on this device.",
+                    ),
+                );
             }
         } catch (error) {
-            Alert.alert(t("customerProfile.error", "Error"), t("customerProfile.whatsappError", "Failed to open WhatsApp."));
+            Alert.alert(
+                t("customerProfile.error", "Error"),
+                t("customerProfile.whatsappError", "Failed to open WhatsApp."),
+            );
         } finally {
             setIsMenuActionActive(false);
         }
@@ -345,50 +393,53 @@ export const CustomerTransactionsScreen: React.FC = () => {
         const fundingDetails = fundingSourcesByTransactionId.get(
             item.id as number,
         );
+
         const fundingSource: LedgerFundingSource =
             fundingDetails?.source ??
             (item.type === TransactionType.CREDIT ? "received" : "pocket");
+
         const isReceived = fundingSource === "received";
         const isSettled = fundingSource === "settled";
         const isSettledAndAdded = fundingSource === "settledAndAdded";
         const isAddedBalance = fundingSource === "added";
         const isBalanceFunded = fundingSource === "balance";
         const isMixedFunded = fundingSource === "mixed";
+
         const isCreditVariant =
             isReceived || isSettled || isSettledAndAdded || isAddedBalance;
+
         const semanticColor: "success" | "danger" | "warning" = isCreditVariant
             ? "success"
             : isMixedFunded
-                ? "warning"
-                : "danger";
+              ? "warning"
+              : "danger";
 
-        // Compact icon + short label per type
         const typeIcon = isCreditVariant
             ? ("arrow-down-circle" as const)
             : isMixedFunded
-                ? ("git-merge-outline" as const)
-                : ("arrow-up-circle" as const);
+              ? ("git-merge-outline" as const)
+              : ("arrow-up-circle" as const);
 
         const shortLabel = isSettled
             ? t("ledger.settled")
             : isSettledAndAdded
-                ? t("ledger.settledAndAdded")
-                : isAddedBalance
-                    ? t("ledger.addedBalance")
-                    : isReceived
-                        ? t("ledger.received")
-                        : isBalanceFunded
-                            ? t("ledger.paidFromBalance")
-                            : isMixedFunded
-                                ? t("ledger.paidFromBalanceAndPocket")
-                                : t("ledger.paidFromPocket");
+              ? t("ledger.settledAndAdded")
+              : isAddedBalance
+                ? t("ledger.addedBalance")
+                : isReceived
+                  ? t("ledger.received")
+                  : isBalanceFunded
+                    ? t("ledger.paidFromBalance")
+                    : isMixedFunded
+                      ? t("ledger.paidFromBalanceAndPocket")
+                      : t("ledger.paidFromPocket");
 
         const colorValue =
             semanticColor === "success"
                 ? colors.success
                 : semanticColor === "warning"
-                    ? colors.warning
-                    : colors.danger;
+                  ? colors.warning
+                  : colors.danger;
 
         const handleViewTransaction = () => {
             router.push(
@@ -404,7 +455,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     { backgroundColor: colors.surface },
                 ]}
             >
-                {/* Left: colored type icon */}
                 <View
                     style={[
                         styles.typeIconWrap,
@@ -414,7 +464,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <Ionicons name={typeIcon} size={18} color={colorValue} />
                 </View>
 
-                {/* Center: label + description/time on second line */}
                 <View style={styles.rowCenter}>
                     <Typography
                         variant="body-medium"
@@ -433,10 +482,10 @@ export const CustomerTransactionsScreen: React.FC = () => {
                             {item.description
                                 ? item.description
                                 : formatDateTime(
-                                    item.created_at || Date.now() / 1000,
-                                )}
+                                      item.created_at || Date.now() / 1000,
+                                  )}
                         </Typography>
-                        {/* Inline attachment dots */}
+
                         {item.voice_uri && (
                             <Ionicons
                                 name="mic"
@@ -451,7 +500,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                 color={colors.text.muted}
                             />
                         )}
-                        {/* Mixed-funding sub-pill */}
+
                         {(isMixedFunded || isSettledAndAdded) &&
                             fundingDetails && (
                                 <View
@@ -472,7 +521,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     </View>
                 </View>
 
-                {/* Right: amount + chevron */}
                 <View style={styles.rowRight}>
                     <TouchableAmount
                         amount={item.amount}
@@ -492,6 +540,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
     if (
         !db ||
         customerLoading ||
+        !hasInitiatedTransactionFetch ||
         (loadingTransactions && customerTransactions.length === 0)
     ) {
         return <LoadingScreen />;
@@ -517,7 +566,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         shadowOpacity: 0.06,
                         shadowRadius: 4,
                         elevation: 2,
-                        },
+                    },
                 ]}
             >
                 <Pressable
@@ -528,10 +577,12 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     ]}
                 >
                     <Ionicons
-                        name="chevron-back" size={20}
+                        name="chevron-back"
+                        size={20}
                         color={colors.primary}
                     />
                 </Pressable>
+
                 <View style={styles.headerContent}>
                     <View style={styles.headerRow}>
                         {customer?.image_uri ? (
@@ -615,6 +666,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         </View>
                     </View>
                 </View>
+
                 <Pressable
                     onPress={() => {
                         setIsMenuVisible(true);
@@ -623,7 +675,8 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     disabled={!customer}
                 >
                     <Ionicons
-                        name="ellipsis-vertical" size={20}
+                        name="ellipsis-vertical"
+                        size={20}
                         color={
                             customer ? colors.text.primary : colors.text.muted
                         }
@@ -631,7 +684,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 </Pressable>
             </View>
 
-            {/* Balance hero — primary focus */}
             <View style={styles.balanceSection}>
                 <View
                     style={[
@@ -649,18 +701,18 @@ export const CustomerTransactionsScreen: React.FC = () => {
                             stats.balance > 0
                                 ? "danger"
                                 : stats.balance < 0
-                                    ? "success"
-                                    : "primary"
+                                  ? "success"
+                                  : "primary"
                         }
                     />
-                    {/* Divider */}
+
                     <View
                         style={[
                             styles.balanceDivider,
                             { backgroundColor: colors.border },
                         ]}
                     />
-                    {/* Mini stat chips — secondary context */}
+
                     <View style={styles.miniStatsRow}>
                         <View style={styles.miniStat}>
                             <View
@@ -678,12 +730,14 @@ export const CustomerTransactionsScreen: React.FC = () => {
                                 color="success"
                             />
                         </View>
+
                         <View
                             style={[
                                 styles.miniStatSep,
                                 { backgroundColor: colors.border },
                             ]}
                         />
+
                         <View style={styles.miniStat}>
                             <View
                                 style={[
@@ -750,7 +804,6 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 }
             />
 
-            {/* Receive / Give FABs */}
             <View
                 style={[
                     styles.fabRow,
@@ -777,6 +830,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                         color={colors.background}
                     />
                 </Pressable>
+
                 <Pressable
                     style={[
                         styles.fab,
@@ -808,6 +862,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 onSelect={handleHeaderMenuSelect}
                 onClose={() => setIsMenuVisible(false)}
             />
+
             {deleteAuthenticationPrompt}
         </View>
     );
@@ -818,12 +873,11 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     header: {
-        paddingHorizontal: Spacing.md,
-        paddingVertical: 10,
         flexDirection: "row",
-        gap: Spacing.sm,
         alignItems: "center",
         justifyContent: "space-between",
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 10,
     },
     backButton: {
         width: 34,
@@ -885,7 +939,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginRight: Spacing.sm,
     },
-    // Balance hero
     balanceSection: {
         paddingHorizontal: Spacing.sm,
         paddingTop: Spacing.sm,
@@ -933,7 +986,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.md,
         paddingTop: Spacing.xs,
     },
-    // Compact transaction row
     transactionRow: {
         flexDirection: "row",
         alignItems: "center",

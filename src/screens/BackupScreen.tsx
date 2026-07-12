@@ -11,7 +11,7 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Card, Typography } from "../components";
+import { Card, Typography, LoadingScreen } from "../components";
 import { Spacing } from "../constants";
 import { useGoogleAuth } from "../context/GoogleAuthContext";
 import { BackupInfo, GoogleDriveService } from "../services/GoogleDriveService";
@@ -385,21 +385,13 @@ export const BackupScreen: React.FC = () => {
                         </View>
                     </View>
                 )}
-
-                {isProcessing && (
-                    <View
-                        style={[
-                            styles.loadingOverlay,
-                            { backgroundColor: `${colors.background}cc` },
-                        ]}
-                    >
-                        <ActivityIndicator
-                            size="large"
-                            color={colors.primary}
-                        />
-                    </View>
-                )}
             </View>
+
+            {isProcessing && (
+                <View style={[StyleSheet.absoluteFillObject, { zIndex: 100 }]}>
+                    <LoadingScreen message={t("common.loading", "Please wait...")} />
+                </View>
+            )}
         </View>
     );
 };
@@ -515,10 +507,5 @@ const styles = StyleSheet.create({
         borderRadius: 8,
         gap: Spacing.sm,
     },
-    loadingOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        alignItems: "center",
-        justifyContent: "center",
-        zIndex: 20,
-    },
+
 });

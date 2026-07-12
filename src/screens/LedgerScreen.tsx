@@ -10,6 +10,7 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import {
     DateFilter,
     DateRangePicker,
@@ -46,13 +47,16 @@ export const LedgerScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { t } = useTranslation();
+
     const [selectedFilter, setSelectedFilter] = useState<DateFilterType>("all");
     const [customRange, setCustomRange] = useState<DateRange | undefined>(
         undefined,
     );
     const [showDatePicker, setShowDatePicker] = useState(false);
 
-    // Calculate date range based on selected filter
+    // --- NEW: Structural Loading State Management ---
+    const initialLoadDone = useRef(false);
+
     const dateRange = useMemo<HookDateRange | null>(() => {
         const now = new Date();
         const today = new Date(
@@ -99,11 +103,13 @@ export const LedgerScreen: React.FC = () => {
         nextPage,
         refresh: refreshEntries,
     } = useLedgerEntries(db);
+
     const isRefreshing = loadingEntries;
 
     const handleRefresh = async () => {
         await refreshEntries();
     };
+
     const [searchText, setSearchText] = useState("");
     const [isSearchActive, setIsSearchActive] = useState(false);
     const searchInputRef = useRef<TextInput>(null);
@@ -186,6 +192,7 @@ export const LedgerScreen: React.FC = () => {
             const isAddedBalance = item.fundingSource === "added";
             const isBalanceFunded = item.fundingSource === "balance";
             const isMixedFunded = item.fundingSource === "mixed";
+
             const label = isSettled
                 ? t("ledger.settled")
                 : isSettledAndAdded
@@ -199,8 +206,10 @@ export const LedgerScreen: React.FC = () => {
                         : isMixedFunded
                           ? t("ledger.paidFromBalanceAndPocket")
                           : t("ledger.paidFromPocket");
+
             const isCreditVariant =
                 isReceived || isSettled || isSettledAndAdded || isAddedBalance;
+
             const semanticColor: "success" | "danger" | "warning" =
                 isCreditVariant
                     ? "success"
@@ -228,7 +237,6 @@ export const LedgerScreen: React.FC = () => {
                         { backgroundColor: colors.surface },
                     ]}
                 >
-                    {/* Left: colored type icon */}
                     <View
                         style={[
                             styles.typeIconWrap,
@@ -241,8 +249,6 @@ export const LedgerScreen: React.FC = () => {
                             color={colorValue}
                         />
                     </View>
-
-                    {/* Center: type label + customer · time on second line */}
                     <View style={styles.rowCenter}>
                         <View style={styles.rowTop}>
                             <Typography
@@ -281,12 +287,10 @@ export const LedgerScreen: React.FC = () => {
                                 color="muted"
                                 numberOfLines={1}
                             >
-                                · {formatDateTime(item.date)}
+                                {formatDateTime(item.date)}
                             </Typography>
                         </View>
                     </View>
-
-                    {/* Right: amount + chevron */}
                     <View style={styles.rowRight}>
                         <TouchableAmount
                             amount={item.amount}
@@ -300,7 +304,12 @@ export const LedgerScreen: React.FC = () => {
         [colors, t],
     );
 
-    if (!db || (loadingEntries && transactionEntries.length === 0)) {
+    // --- NEW: Evaluate Initial Load Status ---
+    if (!loadingEntries) {
+        initialLoadDone.current = true;
+    }
+
+    if (!db || (!initialLoadDone.current && loadingEntries)) {
         return <LoadingScreen />;
     }
 
@@ -403,14 +412,12 @@ export const LedgerScreen: React.FC = () => {
                     </View>
                 </View>
 
-                {/* Date Filter */}
                 <DateFilter
                     selectedFilter={selectedFilter}
                     onFilterChange={handleFilterChange}
                     customRange={customRange}
                 />
 
-                {/* Date Range Picker Modal */}
                 <DateRangePicker
                     visible={showDatePicker}
                     onClose={() => setShowDatePicker(false)}
@@ -496,15 +503,10 @@ export const LedgerScreen: React.FC = () => {
     );
 };
 
+// ... Styles remain exactly the same as your previous version ...
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
-    header: {
-        paddingHorizontal: Spacing.md,
-        paddingVertical: 10,
-    },
+    container: { flex: 1, backgroundColor: Colors.background },
+    header: { paddingHorizontal: Spacing.lg, paddingVertical: 10 },
     headerTopRow: {
         flexDirection: "row",
         alignItems: "center",
@@ -524,11 +526,7 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
     },
-    searchInputContainer: {
-        flex: 1,
-        height: 48,
-        justifyContent: "center",
-    },
+    searchInputContainer: { flex: 1, height: 48, justifyContent: "center" },
     headerSearchInput: {
         flex: 1,
         height: 40,
@@ -547,13 +545,11 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginLeft: Spacing.sm,
     },
-    searchContainer: {
-        padding: Spacing.md,
-    },
+    searchContainer: { padding: Spacing.md },
     list: {
         flexGrow: 1,
-        paddingHorizontal: Spacing.md,
-        paddingTop: Spacing.sm,
+        paddingHorizontal: Spacing.sm,
+        paddingTop: Spacing.md,
     },
     emptyState: {
         flex: 1,
@@ -562,10 +558,7 @@ const styles = StyleSheet.create({
         gap: Spacing.sm,
         paddingHorizontal: Spacing.xxl,
     },
-    emptyStateMessage: {
-        textAlign: "center",
-    },
-    // Compact entry row
+    emptyStateMessage: { textAlign: "center" },
     entryRow: {
         flexDirection: "row",
         alignItems: "center",
@@ -583,19 +576,9 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         flexShrink: 0,
     },
-    rowCenter: {
-        flex: 1,
-        gap: 2,
-        minWidth: 0,
-    },
-    rowTop: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: 5,
-    },
-    rowLabel: {
-        flexShrink: 1,
-    },
+    rowCenter: { flex: 1, gap: 2, minWidth: 0 },
+    rowTop: { flexDirection: "row", alignItems: "center", gap: 5 },
+    rowLabel: { flexShrink: 1 },
     splitPill: {
         width: 16,
         height: 16,
@@ -610,21 +593,8 @@ const styles = StyleSheet.create({
         gap: 3,
         minWidth: 0,
     },
-    customerNameText: {
-        flexShrink: 1,
-        maxWidth: "50%",
-    },
-    rowRight: {
-        alignItems: "flex-end",
-        flexShrink: 0,
-    },
-    center: {
-        flex: 1,
-        justifyContent: "center",
-        alignItems: "center",
-    },
-    footer: {
-        padding: Spacing.md,
-        alignItems: "center",
-    },
+    customerNameText: { flexShrink: 1, maxWidth: "50%" },
+    rowRight: { alignItems: "flex-end", flexShrink: 0 },
+    center: { flex: 1, justifyContent: "center", alignItems: "center" },
+    footer: { padding: Spacing.md, alignItems: "center" },
 });

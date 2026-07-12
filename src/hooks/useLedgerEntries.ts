@@ -79,6 +79,7 @@ export const useLedgerEntries = (db: SQLiteDatabase | null) => {
                             )
                             FROM transactions later
                             WHERE later.account_id = t.account_id
+                              AND later.is_deleted = 0
                               AND (
                                   later.created_at > t.created_at
                                   OR (

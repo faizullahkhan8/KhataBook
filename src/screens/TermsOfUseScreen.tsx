@@ -16,8 +16,8 @@ interface TermsSection {
     contact?: boolean;
 }
 
-const EFFECTIVE_DATE = "June 9, 2026";
-const URDU_EFFECTIVE_DATE = "9 جون 2026";
+const EFFECTIVE_DATE = "July 13, 2026";
+const URDU_EFFECTIVE_DATE = "13 جولائی 2026";
 const CONTACT_EMAIL = "faizullahofficial0@gmail.com";
 
 const ENGLISH_SECTIONS: TermsSection[] = [
@@ -60,9 +60,10 @@ const ENGLISH_SECTIONS: TermsSection[] = [
         ],
     },
     {
-        title: "6. Local Data and Privacy",
+        title: "6. Local Data and Cloud Backup",
         paragraphs: [
-            "The current version stores core ledger and customer records locally on your device and does not provide developer-controlled cloud backup. You are responsible for protecting and preserving that data. Clearing app storage, deleting records, or uninstalling the app may permanently remove information.",
+            "The current version stores core ledger, store, and customer records locally on your device. You may optionally use your Google Drive account to securely backup and restore your database. This cloud backup relies on a third-party service (Google), and you are responsible for maintaining access to and securing your Google account.",
+            "The developer does not provide developer-controlled cloud backup and is not responsible for data lost due to device failure, lost Google account access, or accidental deletion of records or backups. Clearing app storage, deleting records, or uninstalling the app may permanently remove information if not backed up.",
             "The Privacy Policy explains KhataBook's information-handling practices and forms part of these Terms.",
         ],
         privacyLink: true,
@@ -195,9 +196,10 @@ const URDU_SECTIONS: TermsSection[] = [
         ],
     },
     {
-        title: "6. مقامی ڈیٹا اور رازداری",
+        title: "6. مقامی ڈیٹا اور کلاؤڈ بیک اپ",
         paragraphs: [
-            "موجودہ ورژن بنیادی گاہک اور کھاتہ ریکارڈ آپ کے اپنے آلے پر محفوظ کرتا ہے اور ڈویلپر کے زیر انتظام کلاؤڈ بیک اپ فراہم نہیں کرتا۔ ڈیٹا محفوظ رکھنا آپ کی ذمہ داری ہے۔ ایپ کا ڈیٹا صاف کرنے، ریکارڈ حذف کرنے یا ایپ اَن انسٹال کرنے سے معلومات مستقل طور پر ضائع ہو سکتی ہیں۔",
+            "موجودہ ورژن بنیادی گاہک اور کھاتہ ریکارڈ آپ کے اپنے آلے پر محفوظ کرتا ہے۔ آپ اپنے ڈیٹا کو محفوظ رکھنے اور بحال کرنے کے لیے اختیاری طور پر اپنے گوگل ڈرائیو (Google Drive) اکاؤنٹ کا استعمال کر سکتے ہیں۔ یہ کلاؤڈ بیک اپ گوگل کی سروس پر منحصر ہے، اور اپنے گوگل اکاؤنٹ تک رسائی اور اسے محفوظ رکھنا آپ کی ذمہ داری ہے۔",
+            "ڈویلپر کے زیر انتظام کوئی کلاؤڈ بیک اپ فراہم نہیں کیا جاتا، اور آلے کے خراب ہونے، گوگل اکاؤنٹ تک رسائی کھونے، یا ریکارڈز/بیک اپ کے حادثاتی طور پر حذف ہونے کی صورت میں ڈیٹا کے ضیاع کا ذمہ دار ڈویلپر نہیں ہوگا۔ بیک اپ کے بغیر ایپ کا ڈیٹا صاف کرنے، ریکارڈ حذف کرنے یا ایپ اَن انسٹال کرنے سے معلومات مستقل طور پر ضائع ہو سکتی ہیں۔",
             "رازداری پالیسی وضاحت کرتی ہے کہ KhataBook معلومات کے ساتھ کیا معاملہ کرتی ہے اور وہ ان شرائط کا حصہ ہے۔",
         ],
         privacyLink: true,
@@ -293,14 +295,14 @@ const URDU_SECTIONS: TermsSection[] = [
 const ENGLISH_SUMMARY = [
     { icon: "checkmark-circle-outline" as const, text: "Use KhataBook only for lawful recordkeeping and business purposes." },
     { icon: "calculator-outline" as const, text: "Verify important balances, reports, and decisions independently." },
-    { icon: "save-outline" as const, text: "You are responsible for your device security and preserving local records." },
+    { icon: "save-outline" as const, text: "You are responsible for your device security and preserving your local records or backups." },
     { icon: "people-outline" as const, text: "Obtain permission before storing or messaging another person's information." },
 ];
 
 const URDU_SUMMARY = [
     { icon: "checkmark-circle-outline" as const, text: "KhataBook صرف قانونی کاروباری اور ریکارڈ رکھنے کے مقاصد کے لیے استعمال کریں۔" },
     { icon: "calculator-outline" as const, text: "اہم بیلنس، رپورٹ اور فیصلے کی خود تصدیق کریں۔" },
-    { icon: "save-outline" as const, text: "اپنے آلے کی حفاظت اور مقامی ریکارڈ محفوظ رکھنا آپ کی ذمہ داری ہے۔" },
+    { icon: "save-outline" as const, text: "اپنے آلے کی حفاظت اور مقامی ریکارڈ یا بیک اپ محفوظ رکھنا آپ کی ذمہ داری ہے۔" },
     { icon: "people-outline" as const, text: "کسی دوسرے شخص کی معلومات محفوظ کرنے یا اسے پیغام بھیجنے سے پہلے اجازت حاصل کریں۔" },
 ];
 

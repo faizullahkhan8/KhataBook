@@ -342,6 +342,22 @@ export const initializeDatabase = async (
                 WHERE id = OLD.account_id;
             END;
 
+            -- Update account balance on transaction update
+            CREATE TRIGGER IF NOT EXISTS trig_trans_update_balance
+            AFTER UPDATE ON transactions
+            BEGIN
+                -- Revert old amount from old account
+                UPDATE accounts 
+                SET current_balance = current_balance - (CASE WHEN OLD.type = 0 THEN OLD.amount ELSE -OLD.amount END)
+                WHERE id = OLD.account_id;
+                
+                -- Apply new amount to new account
+                UPDATE accounts 
+                SET current_balance = current_balance + (CASE WHEN NEW.type = 0 THEN NEW.amount ELSE -NEW.amount END),
+                    updated_at = strftime('%s', 'now')
+                WHERE id = NEW.account_id;
+            END;
+
             -- Update customer summary on account balance change
             CREATE TRIGGER IF NOT EXISTS trig_account_balance_update
             AFTER UPDATE OF current_balance ON accounts
@@ -361,6 +377,20 @@ export const initializeDatabase = async (
                 SET last_transaction_at = NEW.created_at
                 WHERE id = (SELECT customer_id FROM accounts WHERE id = NEW.account_id);
             END;
+        `);
+
+        // Self-heal any corrupted data caused by missing UPDATE triggers
+        await db.execAsync(`
+            UPDATE accounts
+            SET current_balance = COALESCE((
+                SELECT SUM(CASE WHEN type = 0 THEN amount ELSE -amount END)
+                FROM transactions
+                WHERE account_id = accounts.id AND is_deleted = 0
+            ), 0);
+
+            UPDATE customers
+            SET total_receivable = (SELECT COALESCE(SUM(current_balance), 0) FROM accounts WHERE customer_id = customers.id AND current_balance > 0),
+                total_payable = (SELECT COALESCE(ABS(SUM(current_balance)), 0) FROM accounts WHERE customer_id = customers.id AND current_balance < 0);
         `);
 
         void logger.info("database", "Database initialized and migrated successfully");

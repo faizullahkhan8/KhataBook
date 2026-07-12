@@ -119,6 +119,7 @@ export default function TransactionDetailScreen() {
                                         )
                                         FROM transactions later
                                         WHERE later.account_id = t.account_id
+                                          AND later.is_deleted = 0
                                           AND (
                                               later.created_at > t.created_at 
                                               OR (later.created_at = t.created_at AND later.id >= t.id)
@@ -463,7 +464,7 @@ export default function TransactionDetailScreen() {
                         </Typography>
                         <Typography variant="body-small" color="muted">
                             {t("customerProfile.currentBalance")}:{" "}
-                            {currentBalance}
+                            {formatCurrency(currentBalance)}
                         </Typography>
                     </View>
 

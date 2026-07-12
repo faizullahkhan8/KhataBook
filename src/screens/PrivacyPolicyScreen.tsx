@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTranslation } from "react-i18next";
 import { Card, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
 import { useLanguage, useTheme } from "../store";
@@ -15,8 +15,8 @@ interface PolicySection {
     contact?: boolean;
 }
 
-const EFFECTIVE_DATE = "June 9, 2026";
-const URDU_EFFECTIVE_DATE = "9 جون 2026";
+const EFFECTIVE_DATE = "July 13, 2026";
+const URDU_EFFECTIVE_DATE = "13 جولائی 2026";
 const CONTACT_EMAIL = "faizullahofficial0@gmail.com";
 
 const POLICY_SECTIONS: PolicySection[] = [
@@ -53,9 +53,10 @@ const POLICY_SECTIONS: PolicySection[] = [
     {
         title: "4. Local Storage and Data Transfers",
         paragraphs: [
-            "KhataBook is designed as a local-first app. Business and customer records are stored in a SQLite database on your device. Your language preference is also stored locally.",
-            "The current version does not operate a developer-controlled server, automatically upload your ledger data, provide cloud backup, use advertising networks, or use analytics trackers.",
-            "Information leaves the app only when you initiate an action, such as opening the SMS composer, choosing a photo through the operating system, or contacting the developer. Those actions are then subject to the privacy practices of your device, mobile carrier, messaging app, email provider, or other service you choose.",
+            "KhataBook is designed as a local-first app. Business, store, and customer records are stored in a SQLite database on your device. Your language preference is also stored locally.",
+            "You may optionally choose to connect your Google Drive account to backup and restore your ledger data. If you enable this feature, KhataBook will only access the specific backup files it creates in your Google Drive and will not access your other personal files.",
+            "The current version does not operate a developer-controlled server, use advertising networks, or use analytics trackers.",
+            "Information leaves the app only when you initiate an action, such as opening the SMS composer, backing up to your Google Drive, choosing a photo, or contacting the developer. Those actions are then subject to the privacy practices of your device, Google, your mobile carrier, or other services you choose.",
         ],
     },
     {
@@ -157,9 +158,10 @@ const URDU_POLICY_SECTIONS: PolicySection[] = [
     {
         title: "4. معلومات کہاں محفوظ رہتی ہیں",
         paragraphs: [
-            "KhataBook کو اس طرح بنایا گیا ہے کہ بنیادی کاروباری ریکارڈ آپ ہی کے موبائل یا آلے پر رہیں۔ گاہک، اکاؤنٹ، لین دین، ادائیگی اور پیغام کے نمونے مقامی SQLite ڈیٹابیس میں محفوظ ہوتے ہیں۔ زبان کی ترجیح بھی آلے پر محفوظ رہتی ہے۔",
-            "موجودہ ورژن میں ڈویلپر کے زیر انتظام سرور، خودکار کلاؤڈ بیک اپ، اشتہارات یا تجزیاتی ٹریکر موجود نہیں ہیں۔ ایپ عام استعمال کے دوران آپ کا کھاتہ ڈیٹا ڈویلپر کو نہیں بھیجتی۔",
-            "معلومات صرف اس وقت کسی دوسری سروس تک جاتی ہیں جب آپ خود کوئی کارروائی کریں، مثلاً SMS کمپوزر کھولیں، تصویر منتخب کریں یا ڈویلپر سے رابطہ کریں۔ ایسی صورت میں متعلقہ موبائل نظام، نیٹ ورک، میسج ایپ، ای میل سروس یا دوسری منتخب سروس کی اپنی رازداری شرائط لاگو ہوں گی۔",
+            "KhataBook کو اس طرح بنایا گیا ہے کہ بنیادی کاروباری ریکارڈ آپ ہی کے موبائل یا آلے پر رہیں۔ آپ کے اسٹورز، گاہک، اکاؤنٹ، لین دین، ادائیگی اور پیغام کے نمونے مقامی SQLite ڈیٹابیس میں محفوظ ہوتے ہیں۔ زبان کی ترجیح بھی آلے پر محفوظ رہتی ہے۔",
+            "آپ اختیاری طور پر اپنا گوگل ڈرائیو (Google Drive) اکاؤنٹ منسلک کر سکتے ہیں تاکہ اپنے کھاتے کا بیک اپ لے سکیں اور اسے بحال کر سکیں۔ اگر آپ یہ سہولت استعمال کرتے ہیں، تو KhataBook صرف ان مخصوص بیک اپ فائلوں تک رسائی حاصل کرے گی جو اس نے خود بنائی ہیں اور آپ کی دیگر ذاتی فائلوں تک رسائی نہیں کرے گی۔",
+            "موجودہ ورژن میں ڈویلپر کے زیر انتظام سرور، اشتہارات یا تجزیاتی ٹریکر موجود نہیں ہیں۔ ایپ عام استعمال کے دوران آپ کا کھاتہ ڈیٹا ڈویلپر کو نہیں بھیجتی۔",
+            "معلومات صرف اس وقت کسی دوسری سروس تک جاتی ہیں جب آپ خود کوئی کارروائی کریں، مثلاً SMS کمپوزر کھولیں، گوگل ڈرائیو پر بیک اپ لیں، تصویر منتخب کریں یا ڈویلپر سے رابطہ کریں۔ ایسی صورت میں گوگل یا متعلقہ موبائل نظام کی اپنی رازداری شرائط لاگو ہوں گی۔",
         ],
     },
     {
@@ -232,7 +234,7 @@ const ENGLISH_SUMMARY = [
     },
     {
         icon: "cloud-offline-outline" as const,
-        text: "No automatic cloud backup or developer-controlled server upload.",
+        text: "Optional Google Drive backup available; no developer-controlled server upload.",
     },
     {
         icon: "megaphone-outline" as const,
@@ -251,7 +253,7 @@ const URDU_SUMMARY = [
     },
     {
         icon: "cloud-offline-outline" as const,
-        text: "خودکار کلاؤڈ بیک اپ یا ڈویلپر کے سرور پر ڈیٹا اپ لوڈ نہیں ہوتا۔",
+        text: "اختیاری گوگل ڈرائیو بیک اپ دستیاب ہے؛ ڈویلپر کے سرور پر ڈیٹا اپ لوڈ نہیں ہوتا۔",
     },
     {
         icon: "megaphone-outline" as const,
@@ -313,7 +315,8 @@ export const PrivacyPolicyScreen: React.FC = () => {
                     ]}
                 >
                     <Ionicons
-                        name="chevron-back" size={20}
+                        name="chevron-back"
+                        size={20}
                         color={colors.primary}
                     />
                 </Pressable>
@@ -380,14 +383,17 @@ export const PrivacyPolicyScreen: React.FC = () => {
                     <Typography
                         variant="heading-small"
                         color="primary"
-                        style={[
-                            styles.sectionHeading,
-                        ]}
+                        style={[styles.sectionHeading]}
                     >
                         {isUrdu ? "رازداری ایک نظر میں" : "Privacy at a glance"}
                     </Typography>
                     {summaryItems.map((item, index) => {
-                        const itemColor = [colors.primary, colors.success, colors.warning, colors.danger][index % 4];
+                        const itemColor = [
+                            colors.primary,
+                            colors.success,
+                            colors.warning,
+                            colors.danger,
+                        ][index % 4];
                         return (
                             <SummaryRow
                                 key={item.text}
@@ -400,77 +406,77 @@ export const PrivacyPolicyScreen: React.FC = () => {
                 </Card>
 
                 {policySections.map((section, index) => {
-                    const sectionColor = [colors.primary, colors.success, colors.warning, colors.danger][index % 4];
+                    const sectionColor = [
+                        colors.primary,
+                        colors.success,
+                        colors.warning,
+                        colors.danger,
+                    ][index % 4];
                     return (
-                    <Card key={section.title} style={styles.policyCard}>
-                        <Typography
-                            variant="heading-small"
-                            style={[
-                                styles.sectionHeading,
-                                { color: sectionColor }
-                            ]}
-                        >
-                            {section.title}
-                        </Typography>
-                        {section.paragraphs?.map((paragraph) => (
+                        <Card key={section.title} style={styles.policyCard}>
                             <Typography
-                                key={paragraph}
-                                variant="body-medium"
-                                color="secondary"
+                                variant="heading-small"
                                 style={[
-                                    styles.paragraph,
+                                    styles.sectionHeading,
+                                    { color: sectionColor },
                                 ]}
                             >
-                                {paragraph}
+                                {section.title}
                             </Typography>
-                        ))}
-                        {section.bullets?.map((bullet) => (
-                            <View
-                                key={bullet}
-                                style={[
-                                    styles.bulletRow,
-                                ]}
-                            >
-                                <View
-                                    style={[
-                                    styles.bullet,
-                                    { backgroundColor: sectionColor },
-                                    isUrdu && styles.bulletRtl,
-                                    ]}
-                                />
+                            {section.paragraphs?.map((paragraph) => (
                                 <Typography
+                                    key={paragraph}
                                     variant="body-medium"
                                     color="secondary"
+                                    style={[styles.paragraph]}
+                                >
+                                    {paragraph}
+                                </Typography>
+                            ))}
+                            {section.bullets?.map((bullet) => (
+                                <View key={bullet} style={[styles.bulletRow]}>
+                                    <View
+                                        style={[
+                                            styles.bullet,
+                                            { backgroundColor: sectionColor },
+                                            isUrdu && styles.bulletRtl,
+                                        ]}
+                                    />
+                                    <Typography
+                                        variant="body-medium"
+                                        color="secondary"
+                                        style={[styles.bulletText]}
+                                    >
+                                        {bullet}
+                                    </Typography>
+                                </View>
+                            ))}
+                            {section.contact && (
+                                <Pressable
+                                    onPress={openEmail}
                                     style={[
-                                        styles.bulletText,
+                                        styles.contactButton,
+                                        { backgroundColor: colors.primary },
+                                        false && [
+                                            styles.rowReverse,
+                                            styles.contactButtonRtl,
+                                        ],
                                     ]}
                                 >
-                                    {bullet}
-                                </Typography>
-                            </View>
-                        ))}
-                        {section.contact && (
-                            <Pressable
-                                onPress={openEmail}
-                                style={[
-                                    styles.contactButton,
-                                    { backgroundColor: colors.primary },
-                                    false && [
-                                        styles.rowReverse,
-                                        styles.contactButtonRtl,
-                                    ],
-                                ]}
-                            >
-                                <Ionicons name="mail" size={18} color="#FFFFFF" />
-                                <Typography
-                                    variant="body-medium"
-                                    style={styles.contactText}
-                                >
-                                    {CONTACT_EMAIL}
-                                </Typography>
-                            </Pressable>
-                        )}
-                    </Card>
+                                    <Ionicons
+                                        name="mail"
+                                        size={18}
+                                        color="#FFFFFF"
+                                    />
+                                    <Typography
+                                        variant="body-medium"
+                                        style={styles.contactText}
+                                    >
+                                        {CONTACT_EMAIL}
+                                    </Typography>
+                                </Pressable>
+                            )}
+                        </Card>
                     );
                 })}
             </ScrollView>
@@ -486,10 +492,7 @@ const SummaryRow: React.FC<{
     return (
         <View style={[styles.summaryRow]}>
             <View
-                style={[
-                    styles.summaryIcon,
-                    { backgroundColor: `${color}15` },
-                ]}
+                style={[styles.summaryIcon, { backgroundColor: `${color}15` }]}
             >
                 <Ionicons name={icon} size={20} color={color} />
             </View>

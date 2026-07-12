@@ -206,7 +206,7 @@ export const AddCustomerScreen: React.FC = () => {
                     },
                 );
                 if (newCustomerId) {
-                    router.push("/" as any);
+                    router.back();
                 }
             }
         } catch {

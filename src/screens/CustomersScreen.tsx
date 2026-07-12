@@ -21,6 +21,7 @@ import {
 import DraggableFlatList from "react-native-draggable-flatlist";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
 import {
     ErrorScreen,
     LoadingScreen,
@@ -39,6 +40,7 @@ import { useDatabaseContext, useTheme } from "../store";
 
 type SelectionMenuOption = "toggle-all" | "delete";
 
+// ... Keep CustomerItem identical ...
 const CustomerItem = React.memo(
     ({
         item,
@@ -194,7 +196,6 @@ const CustomerItem = React.memo(
         prev.isSelected === next.isSelected &&
         prev.colors.surface === next.colors.surface,
 );
-
 CustomerItem.displayName = "CustomerItem";
 
 export const CustomersScreen: React.FC = () => {
@@ -203,6 +204,7 @@ export const CustomersScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { t } = useTranslation();
+
     const {
         customers,
         loading,
@@ -213,6 +215,7 @@ export const CustomersScreen: React.FC = () => {
         nextPage,
         bulkDeleteCustomers,
     } = useCustomersWithAccounts(db);
+
     const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
         useDeleteAuthentication();
 
@@ -234,9 +237,17 @@ export const CustomersScreen: React.FC = () => {
     const isDraggingRef = useRef(false);
     const stageDeleteAlertSuspendedRef = useRef(false);
 
+    // --- NEW: Structural Loading State Management ---
+    const initialLoadDone = useRef(false);
+    const [isFirstRender, setIsFirstRender] = useState(true);
+
     const debouncedSearch = useDebounce(searchText, 500);
 
-    React.useEffect(() => {
+    useEffect(() => {
+        setIsFirstRender(false);
+    }, []);
+
+    useEffect(() => {
         handleSearch(debouncedSearch);
     }, [debouncedSearch, handleSearch]);
 
@@ -280,7 +291,6 @@ export const CustomersScreen: React.FC = () => {
         if (!isSelectionMenuVisible) return;
     }, [isSelectionMenuVisible]);
 
-    // Aggregate summary across all customers
     const summary = useMemo(() => {
         const totalOwed = orderedCustomers.reduce((sum, c) => {
             const b = c.accounts?.[0]?.current_balance ?? 0;
@@ -367,10 +377,12 @@ export const CustomersScreen: React.FC = () => {
                 );
             }
         };
+
         if (pendingDeleteIds.size > 0) {
             await requestDeleteAuthentication(completeSelection);
             return;
         }
+
         await completeSelection();
     }, [
         pendingDeleteIds,
@@ -405,6 +417,7 @@ export const CustomersScreen: React.FC = () => {
         if (selectedIds.size === 0) return;
         setIsSelectionMenuVisible(false);
         stageDeleteAlertSuspendedRef.current = true;
+
         Alert.alert(
             t("customers.deleteTitle"),
             t("customers.stageDeleteMessage", { count: selectedIds.size }),
@@ -543,7 +556,14 @@ export const CustomersScreen: React.FC = () => {
         ],
     );
 
-    if (!db) return <LoadingScreen />;
+    // --- NEW: Evaluate Initial Load Status ---
+    if (!loading && !isFirstRender) {
+        initialLoadDone.current = true;
+    }
+
+    if (!db || (!initialLoadDone.current && loading)) {
+        return <LoadingScreen />;
+    }
 
     return (
         <ErrorScreen
@@ -639,7 +659,6 @@ export const CustomersScreen: React.FC = () => {
                             )}
                         </View>
 
-                        {/* Header actions */}
                         {!isSelectionMode ? (
                             <Pressable
                                 onPress={() => {
@@ -684,7 +703,6 @@ export const CustomersScreen: React.FC = () => {
                     </View>
                 </View>
 
-                {/* Summary cards — shown in normal mode */}
                 {!isSelectionMode && orderedCustomers.length > 0 && (
                     <View style={styles.summaryCards}>
                         <View
@@ -771,7 +789,6 @@ export const CustomersScreen: React.FC = () => {
                     </View>
                 )}
 
-                {/* List */}
                 <GestureHandlerRootView style={styles.listContainer}>
                     <DraggableFlatList
                         data={orderedCustomers}
@@ -862,7 +879,6 @@ export const CustomersScreen: React.FC = () => {
                     />
                 </GestureHandlerRootView>
 
-                {/* Selection mode FABs */}
                 {isSelectionMode && (
                     <View
                         style={[
@@ -903,7 +919,6 @@ export const CustomersScreen: React.FC = () => {
                     </View>
                 )}
 
-                {/* Add FAB */}
                 {!isSelectionMode && !isReorderMode && (
                     <Pressable
                         style={[
@@ -921,7 +936,6 @@ export const CustomersScreen: React.FC = () => {
                     </Pressable>
                 )}
 
-                {/* Selection context menu — using OptionModal for consistency */}
                 <OptionModal<SelectionMenuOption>
                     visible={isSelectionMenuVisible}
                     title={t("customers.selected", { count: selectedIds.size })}
@@ -938,16 +952,10 @@ export const CustomersScreen: React.FC = () => {
     );
 };
 
+// ... Styles remain exactly the same as your previous version ...
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: Colors.background,
-    },
-    // Header
-    header: {
-        paddingHorizontal: Spacing.md,
-        paddingVertical: 10,
-    },
+    container: { flex: 1, backgroundColor: Colors.background },
+    header: { paddingHorizontal: Spacing.lg, paddingVertical: 10 },
     headerTopRow: {
         flexDirection: "row",
         alignItems: "center",
@@ -989,9 +997,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         gap: Spacing.md,
     },
-    closeButton: {
-        padding: Spacing.xs,
-    },
+    closeButton: { padding: Spacing.xs },
     searchIconButton: {
         width: 40,
         height: 40,
@@ -1001,7 +1007,6 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginLeft: Spacing.sm,
     },
-    // Summary cards
     summaryCards: {
         flexDirection: "row",
         gap: Spacing.sm,
@@ -1025,20 +1030,13 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         flexShrink: 0,
     },
-    summaryCardText: {
-        flex: 1,
-        gap: 1,
-    },
-    // List
-    listContainer: {
-        flex: 1,
-    },
+    summaryCardText: { flex: 1, gap: 1 },
+    listContainer: { flex: 1 },
     list: {
         flexGrow: 1,
         paddingHorizontal: Spacing.md,
         paddingTop: Spacing.sm,
     },
-    // Customer row (compact, matches LedgerScreen / CustomerTransactionsScreen pattern)
     customerRow: {
         flexDirection: "row",
         alignItems: "center",
@@ -1048,18 +1046,9 @@ const styles = StyleSheet.create({
         marginBottom: 6,
         gap: Spacing.sm,
     },
-    checkbox: {
-        flexShrink: 0,
-    },
-    dragHandle: {
-        flexShrink: 0,
-    },
-    avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        flexShrink: 0,
-    },
+    checkbox: { flexShrink: 0 },
+    dragHandle: { flexShrink: 0 },
+    avatar: { width: 40, height: 40, borderRadius: 20, flexShrink: 0 },
     avatarPlaceholder: {
         width: 40,
         height: 40,
@@ -1068,20 +1057,13 @@ const styles = StyleSheet.create({
         alignItems: "center",
         flexShrink: 0,
     },
-    customerInfo: {
-        flex: 1,
-        gap: 2,
-        minWidth: 0,
-    },
+    customerInfo: { flex: 1, gap: 2, minWidth: 0 },
     customerTopRow: {
         flexDirection: "row",
         alignItems: "center",
         gap: Spacing.xs,
     },
-    customerName: {
-        flex: 1,
-        flexShrink: 1,
-    },
+    customerName: { flex: 1, flexShrink: 1 },
     inactiveBadge: {
         flexDirection: "row",
         alignItems: "center",
@@ -1092,16 +1074,8 @@ const styles = StyleSheet.create({
         paddingVertical: 2,
         flexShrink: 0,
     },
-    inactiveDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-    },
-    balanceText: {
-        flexShrink: 0,
-        maxWidth: 120,
-    },
-    // Empty state
+    inactiveDot: { width: 6, height: 6, borderRadius: 3 },
+    balanceText: { flexShrink: 0, maxWidth: 120 },
     emptyState: {
         flex: 1,
         alignItems: "center",
@@ -1109,10 +1083,7 @@ const styles = StyleSheet.create({
         gap: Spacing.sm,
         paddingHorizontal: Spacing.xxl,
     },
-    emptyStateMessage: {
-        textAlign: "center",
-    },
-    // FABs
+    emptyStateMessage: { textAlign: "center" },
     fab: {
         position: "absolute",
         width: 56,
@@ -1142,8 +1113,5 @@ const styles = StyleSheet.create({
         shadowRadius: 8,
         elevation: 8,
     },
-    footer: {
-        padding: Spacing.md,
-        alignItems: "center",
-    },
+    footer: { padding: Spacing.md, alignItems: "center" },
 });
