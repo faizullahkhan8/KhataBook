@@ -6,11 +6,17 @@ import React, {
     useRef,
     useState,
 } from "react";
-import { LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
-import { Typography } from "./Typography";
+import {
+    Animated,
+    LayoutChangeEvent,
+    Pressable,
+    StyleSheet,
+    View,
+} from "react-native";
 import { Spacing } from "../constants";
 import { useTheme } from "../store";
 import { formatCurrency, toInteger } from "../utils/currencyUtils";
+import { Typography } from "./Typography";
 
 const KEYS = [
     ["C", "÷", "×", "DEL"],
@@ -158,6 +164,42 @@ const CalculatorKeyboardComponent: React.FC<CalculatorKeyboardProps> = ({
     const [keyWidth, setKeyWidth] = useState(0);
     const keyWidthRef = useRef(keyWidth);
     keyWidthRef.current = keyWidth;
+
+    // ── Smooth show/hide ──────────────────────────────────────────────────
+    // Measure the keyboard's own rendered height once, then animate a slide
+    // + fade instead of an instant display:none. This also lets the parent
+    // collapse the space it reserves once the keyboard has actually slid
+    // away, rather than leaving a gap for a hidden-but-still-mounted view.
+    const [measuredHeight, setMeasuredHeight] = useState(0);
+    const slideAnim = useRef(new Animated.Value(hidden ? 0 : 1)).current;
+    const [isMounted, setIsMounted] = useState(!hidden);
+
+    const handleContainerLayout = useCallback(
+        (e: { nativeEvent: { layout: { height: number } } }) => {
+            const h = e.nativeEvent.layout.height;
+            if (h > 0 && Math.abs(h - measuredHeight) > 1) {
+                setMeasuredHeight(h);
+            }
+        },
+        [measuredHeight],
+    );
+
+    useEffect(() => {
+        if (!hidden) {
+            setIsMounted(true);
+        }
+        const animation = Animated.timing(slideAnim, {
+            toValue: hidden ? 0 : 1,
+            duration: 220,
+            useNativeDriver: true,
+        });
+        animation.start(({ finished }) => {
+            if (finished && hidden) {
+                setIsMounted(false);
+            }
+        });
+        return () => animation.stop();
+    }, [hidden, slideAnim]);
 
     const amount = useMemo(() => {
         if (error) return 0;
@@ -367,18 +409,30 @@ const CalculatorKeyboardComponent: React.FC<CalculatorKeyboardProps> = ({
             <Pressable
                 key={keyVal}
                 onLayout={handleLayout}
-                style={[
+                style={({ pressed }) => [
                     styles.calcKey,
                     isEquals && { backgroundColor: colors.success },
-                    isClear && { backgroundColor: colors.danger },
-                    (isOperatorKey || isDel) && {
-                        backgroundColor: colors.primary + "E0",
+                    isClear && {
+                        backgroundColor: `${colors.danger}18`,
+                        borderWidth: 1,
+                        borderColor: `${colors.danger}30`,
+                    },
+                    isDel && {
+                        backgroundColor: `${colors.primary}18`,
+                        borderWidth: 1,
+                        borderColor: `${colors.primary}30`,
+                    },
+                    isOperatorKey && {
+                        backgroundColor: `${colors.primary}15`,
+                        borderWidth: 1,
+                        borderColor: `${colors.primary}30`,
                     },
                     !isAction && {
-                        backgroundColor: colors.background,
+                        backgroundColor: colors.surface,
                         borderWidth: 1,
                         borderColor: colors.border,
                     },
+                    pressed && { opacity: 0.7 },
                 ]}
                 onPress={() => handleKeyPress(keyVal)}
                 accessibilityRole="button"
@@ -389,14 +443,14 @@ const CalculatorKeyboardComponent: React.FC<CalculatorKeyboardProps> = ({
                 {isDel ? (
                     <Ionicons
                         name="backspace-outline"
-                        size={22}
-                        color="#FFFFFF"
+                        size={20}
+                        color={colors.primary}
                     />
                 ) : (
                     <Typography
                         variant="heading-medium"
-                        color="primary"
-                        style={isAction ? styles.actionText : undefined}
+                        color={isClear ? "danger" : "primary"}
+                        style={isEquals ? styles.equalsText : undefined}
                     >
                         {keyVal}
                     </Typography>
@@ -405,18 +459,29 @@ const CalculatorKeyboardComponent: React.FC<CalculatorKeyboardProps> = ({
         );
     };
 
-    if (hidden) return null;
+    if (!isMounted) return null;
 
     return (
-        <View
+        <Animated.View
+            onLayout={handleContainerLayout}
             style={[
                 styles.container,
                 {
-                    backgroundColor: colors.surface,
-                    borderTopColor: colors.border,
+                    backgroundColor: colors.background,
                     paddingTop: Spacing.sm,
                     paddingBottom: Spacing.xs,
                     paddingHorizontal: Spacing.md,
+                },
+                measuredHeight > 0 && {
+                    opacity: slideAnim,
+                    transform: [
+                        {
+                            translateY: slideAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [measuredHeight, 0],
+                            }),
+                        },
+                    ],
                 },
             ]}
         >
@@ -436,16 +501,18 @@ const CalculatorKeyboardComponent: React.FC<CalculatorKeyboardProps> = ({
                                     </View>
                                 </View>
                                 <Pressable
-                                    style={[
+                                    style={({ pressed }) => [
                                         styles.spanRight,
                                         keyWidth > 0 && {
                                             width: keyWidth,
                                             flex: 0,
                                         },
                                         {
-                                            backgroundColor:
-                                                colors.primary + "E0",
+                                            backgroundColor: `${colors.primary}15`,
+                                            borderWidth: 1,
+                                            borderColor: `${colors.primary}30`,
                                         },
+                                        pressed && { opacity: 0.7 },
                                     ]}
                                     onPress={() => handleKeyPress("+")}
                                     accessibilityRole="button"
@@ -454,7 +521,6 @@ const CalculatorKeyboardComponent: React.FC<CalculatorKeyboardProps> = ({
                                     <Typography
                                         variant="heading-medium"
                                         color="primary"
-                                        style={styles.actionText}
                                     >
                                         +
                                     </Typography>
@@ -470,7 +536,7 @@ const CalculatorKeyboardComponent: React.FC<CalculatorKeyboardProps> = ({
                     );
                 })}
             </View>
-        </View>
+        </Animated.View>
     );
 };
 
@@ -478,7 +544,6 @@ export const CalculatorKeyboard = React.memo(CalculatorKeyboardComponent);
 
 const styles = StyleSheet.create({
     container: {
-        borderTopWidth: 1,
         paddingTop: Spacing.sm,
     },
     calculatorGrid: {
@@ -511,7 +576,7 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         paddingVertical: Spacing.sm,
     },
-    actionText: {
+    equalsText: {
         color: "#FFFFFF",
     },
 });

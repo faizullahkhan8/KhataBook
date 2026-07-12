@@ -39,9 +39,9 @@ import { useCustomerById } from "../hooks";
 import { useTransactions } from "../hooks/useTransactions";
 import { CustomerId, TransactionId, TransactionType } from "../models";
 import { TransactionService } from "../services/TransactionService";
-import { useDatabaseContext, usePasscode, useTheme } from "../store";
-import { saveToPermanentStorage, deleteFromStorage } from "../utils/fileUtils";
+import { useDatabaseContext, useTheme } from "../store";
 import { formatCurrency, toInteger } from "../utils/currencyUtils";
+import { deleteFromStorage, saveToPermanentStorage } from "../utils/fileUtils";
 
 export const AddTransactionScreen: React.FC = () => {
     const { customerId, type, transactionId } = useLocalSearchParams<{
@@ -53,7 +53,7 @@ export const AddTransactionScreen: React.FC = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-        const { t } = useTranslation();
+    const { t } = useTranslation();
 
     const { customer, loading: customerLoading } = useCustomerById(
         db,
@@ -72,6 +72,7 @@ export const AddTransactionScreen: React.FC = () => {
     const { amount, displayAmount, previewAmount } = amountState;
     const [description, setDescription] = useState("");
     const [descFocused, setDescFocused] = useState(false);
+    const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
     const [saving, setSaving] = useState(false);
 
     const [imageUri, setImageUri] = useState<string | null>(null);
@@ -93,7 +94,6 @@ export const AddTransactionScreen: React.FC = () => {
     const [micLevel, setMicLevel] = useState(0);
     // waveformHistory keeps the last N mic levels to draw a scrolling waveform
     const waveformHistory = useRef<number[]>(new Array(30).fill(0));
-    const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
     const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(
         null,
     );
@@ -135,7 +135,10 @@ export const AddTransactionScreen: React.FC = () => {
                     previewAmount: null,
                 });
             } catch {
-                Alert.alert("Error", "Failed to load transaction");
+                Alert.alert(
+                    t("addTransaction.error"),
+                    t("addTransaction.loadError"),
+                );
             } finally {
                 setTransactionLoading(false);
             }
@@ -146,22 +149,6 @@ export const AddTransactionScreen: React.FC = () => {
             cancelled = true;
         };
     }, [isEditing, transactionId, transactionService]);
-
-    useEffect(() => {
-        const showSubscription = Keyboard.addListener(
-            Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
-            () => setIsKeyboardVisible(true),
-        );
-        const hideSubscription = Keyboard.addListener(
-            Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
-            () => setIsKeyboardVisible(false),
-        );
-
-        return () => {
-            showSubscription.remove();
-            hideSubscription.remove();
-        };
-    }, []);
 
     useEffect(() => {
         if (!descFocused) return;
@@ -175,6 +162,26 @@ export const AddTransactionScreen: React.FC = () => {
         );
 
         return () => subscription.remove();
+    }, [descFocused]);
+
+    useEffect(() => {
+        const showEvent =
+            Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+        const showSubscription = Keyboard.addListener(showEvent, () => {
+            setNativeKeyboardVisible(true);
+        });
+        const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+            setNativeKeyboardVisible(false);
+        });
+
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, []);
+
+    useEffect(() => {
+        LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     }, [descFocused]);
 
     const previousVoiceState = useRef<VoiceState>(voiceState);
@@ -301,12 +308,11 @@ export const AddTransactionScreen: React.FC = () => {
                 {
                     text: t("addCustomer.cancel"),
                     style: "cancel",
-                    
                 },
                 { text: t("addCustomer.camera"), onPress: pickFromCamera },
                 { text: t("addCustomer.gallery"), onPress: pickFromGallery },
             ],
-            {  },
+            {},
         );
     };
 
@@ -315,8 +321,8 @@ export const AddTransactionScreen: React.FC = () => {
             const permission = await requestRecordingPermissionsAsync();
             if (!permission.granted) {
                 Alert.alert(
-                    "Microphone Permission Required",
-                    "Please allow microphone access to record a voice note.",
+                    t("addTransaction.micPermissionRequired"),
+                    t("addTransaction.micPermissionMessage"),
                 );
                 return;
             }
@@ -338,8 +344,8 @@ export const AddTransactionScreen: React.FC = () => {
         } catch (error) {
             console.error("Could not start recording", error);
             Alert.alert(
-                "Error",
-                "Could not start recording. Please check microphone permission and try again.",
+                t("addTransaction.error"),
+                t("addTransaction.startRecordError"),
             );
         }
     };
@@ -357,7 +363,10 @@ export const AddTransactionScreen: React.FC = () => {
             setPlaybackProgress(0);
             setPlaybackCurrentTime(0);
         } catch {
-            Alert.alert("Error", "Could not stop recording");
+            Alert.alert(
+                t("addTransaction.error"),
+                t("addTransaction.stopRecordError"),
+            );
         } finally {
         }
     };
@@ -422,14 +431,14 @@ export const AddTransactionScreen: React.FC = () => {
             if (newBalance > creditLimit) {
                 const remaining = Math.max(0, creditLimit - currentBalance);
                 Alert.alert(
-                    "Credit Limit Exceeded",
-                    `Transaction cannot be completed.\n\n` +
-                        `Credit Limit: ${formatCurrency(creditLimit)}\n` +
-                        `Current Balance: ${formatCurrency(currentBalance)}\n` +
-                        `Transaction Amount: ${formatCurrency(transactionAmount)}\n` +
-                        `New Balance Would Be: ${formatCurrency(newBalance)}\n\n` +
-                        `Remaining Available: ${formatCurrency(remaining)}`,
-                    [{ text: "OK", style: "cancel" }],
+                    t("addTransaction.creditLimitExceeded"),
+                    `${t("addTransaction.transactionCannotBeCompleted")}\n\n` +
+                        `${t("addTransaction.creditLimit")}: ${formatCurrency(creditLimit)}\n` +
+                        `${t("addTransaction.currentBalance")}: ${formatCurrency(currentBalance)}\n` +
+                        `${t("addTransaction.transactionAmount")}: ${formatCurrency(transactionAmount)}\n` +
+                        `${t("addTransaction.newBalanceWouldBe")}: ${formatCurrency(newBalance)}\n\n` +
+                        `${t("addTransaction.remainingAvailable")}: ${formatCurrency(remaining)}`,
+                    [{ text: t("addTransaction.ok"), style: "cancel" }],
                 );
                 setSaving(false);
                 return;
@@ -452,10 +461,16 @@ export const AddTransactionScreen: React.FC = () => {
                     },
                 );
 
-                if (originalImageUri.current && originalImageUri.current !== finalImageUri) {
+                if (
+                    originalImageUri.current &&
+                    originalImageUri.current !== finalImageUri
+                ) {
                     await deleteFromStorage(originalImageUri.current);
                 }
-                if (originalVoiceUri.current && originalVoiceUri.current !== finalVoiceUri) {
+                if (
+                    originalVoiceUri.current &&
+                    originalVoiceUri.current !== finalVoiceUri
+                ) {
                     await deleteFromStorage(originalVoiceUri.current);
                 }
             } else {
@@ -473,10 +488,10 @@ export const AddTransactionScreen: React.FC = () => {
             router.back();
         } catch {
             Alert.alert(
-                "Error",
+                t("addTransaction.error"),
                 isEditing
-                    ? "Failed to update transaction"
-                    : "Failed to create transaction",
+                    ? t("addTransaction.updateError")
+                    : t("addTransaction.createError"),
             );
         } finally {
             setSaving(false);
@@ -509,11 +524,12 @@ export const AddTransactionScreen: React.FC = () => {
         return <LoadingScreen />;
     }
 
-    const inputBorderColor = colors.primary + "66";
+    const amountSemanticColor = isReceive ? colors.success : colors.danger;
+    const calculatorHidden = descFocused || nativeKeyboardVisible;
 
     return (
         <KeyboardAvoidingView
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior={Platform.OS === "ios" ? "padding" : undefined}
             style={styles.container}
         >
             <View
@@ -534,6 +550,7 @@ export const AddTransactionScreen: React.FC = () => {
                             marginHorizontal: Spacing.md,
                             marginBottom: Spacing.sm,
                             borderRadius: 10,
+                            overflow: "hidden",
                             backgroundColor: colors.surface,
                             borderWidth: 1,
                             borderColor: colors.border,
@@ -545,55 +562,68 @@ export const AddTransactionScreen: React.FC = () => {
                         },
                     ]}
                 >
-                        <Pressable
-                            onPress={() => router.back()}
-                            style={[
-                                styles.backButton,
-                                { backgroundColor: `${colors.primary}18` },
-                            ]}
-                        >
-                            <Ionicons
-                                name="chevron-back" size={20}
-                                color={colors.primary}
-                            />
-                        </Pressable>
-                        <View style={styles.headerInfo}>
+                    <Pressable
+                        onPress={() => router.back()}
+                        style={[
+                            styles.backButton,
+                            { backgroundColor: `${colors.primary}18` },
+                        ]}
+                    >
+                        <Ionicons
+                            name="chevron-back"
+                            size={20}
+                            color={colors.primary}
+                        />
+                    </Pressable>
+                    <View style={styles.headerInfo}>
+                        <Typography variant="heading-medium" color="primary">
+                            {customer.name}
+                        </Typography>
+                        <Typography variant="body-small" color="muted">
+                            {t("customerProfile.currentBalance")}:{" "}
                             <Typography
-                                variant="heading-medium"
-                                color="primary"
+                                variant="body-small"
+                                color={
+                                    currentBalance > 0
+                                        ? "danger"
+                                        : currentBalance < 0
+                                          ? "success"
+                                          : "muted"
+                                }
                             >
-                                {customer.name}
-                            </Typography>
-                            <Typography variant="body-small" color="muted">
-                                {t("customerProfile.currentBalance")}:{" "}
                                 {formatCurrency(currentBalance)}
                             </Typography>
-                        </View>
-                        <View style={styles.headerSpacer} />
+                        </Typography>
+                    </View>
+                    <View style={styles.headerSpacer} />
                 </View>
 
                 <ScrollView
                     contentContainerStyle={styles.topContent}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Amount Display */}
-                    <View style={styles.amountInputContainer}>
-                        <TextInput
+                    {/* Amount Display — semantic card matching summary-card language */}
+                    <View
+                        style={[
+                            styles.amountCard,
+                            {
+                                backgroundColor: colors.surface,
+                                borderColor: `${amountSemanticColor}30`,
+                                shadowColor: amountSemanticColor,
+                            },
+                        ]}
+                    >
+                        <Typography
+                            variant="heading-large"
                             style={[
-                                styles.amountInput,
-                                {
-                                    backgroundColor: colors.surface,
-                                    borderColor: inputBorderColor,
-                                    color: colors.text.primary,
-                                },
+                                styles.amountCardValue,
+                                { color: amountSemanticColor },
                             ]}
-                            value={displayAmount}
-                            editable={false}
-                            caretHidden={false}
-                            showSoftInputOnFocus={false}
-                            placeholder="0"
-                            placeholderTextColor={colors.text.muted}
-                        />
+                            numberOfLines={1}
+                            adjustsFontSizeToFit
+                        >
+                            {displayAmount || "0"}
+                        </Typography>
                         {previewAmount && (
                             <Typography
                                 variant="body-small"
@@ -606,144 +636,137 @@ export const AddTransactionScreen: React.FC = () => {
                     </View>
 
                     {/* Description */}
-                    <View style={styles.descContainer}>
-                        <TextInput
+                    <View style={styles.descriptionActionRow}>
+                        <View
                             style={[
-                                styles.fieldInput,
+                                styles.descRow,
                                 {
                                     backgroundColor: colors.surface,
-                                    borderColor: colors.primary + "66",
-                                    color: colors.text.primary,
+                                    borderColor: descFocused
+                                        ? `${colors.primary}60`
+                                        : colors.border,
                                 },
                             ]}
-                            placeholder="Description (optional)"
-                            placeholderTextColor={colors.text.muted}
-                            value={description}
-                            onFocus={() => setDescFocused(true)}
-                            onBlur={() => setDescFocused(false)}
-                            onChangeText={setDescription}
-                            multiline
-                        />
-                    </View>
+                        >
+                            <TextInput
+                                style={[
+                                    styles.descInput,
+                                    { color: colors.text.primary },
+                                ]}
+                                placeholder={t(
+                                    "addTransaction.descriptionPlaceholder",
+                                )}
+                                placeholderTextColor={colors.text.muted}
+                                value={description}
+                                onFocus={() => setDescFocused(true)}
+                                onBlur={() => setDescFocused(false)}
+                                onChangeText={setDescription}
+                                multiline
+                                numberOfLines={3}
+                                textAlignVertical="top"
+                            />
+                        </View>
 
-                    {/* Voice & Photo */}
-                    <View style={styles.mediaRow}>
-                        {/* Voice mic button — hold to record, release to stop */}
-                        <Pressable
-                            onPressIn={() => {
-                                if (voiceState === "idle" && !voiceUri) {
-                                    startRecording();
-                                }
-                            }}
-                            onPressOut={() => {
-                                if (voiceState === "recording") {
-                                    stopRecording();
-                                }
-                            }}
-                            style={({ pressed }) => [
-                                styles.mediaButton,
-                                {
-                                    backgroundColor:
-                                        voiceState === "recording" || pressed
-                                            ? colors.danger + "22"
-                                            : colors.surface,
-                                    borderColor:
-                                        voiceState === "recording" || pressed
+                        <View style={styles.attachmentRow}>
+                            <Pressable
+                                onPressIn={() => {
+                                    if (voiceState === "idle" && !voiceUri) {
+                                        startRecording();
+                                    }
+                                }}
+                                onPressOut={() => {
+                                    if (voiceState === "recording") {
+                                        stopRecording();
+                                    }
+                                }}
+                                style={({ pressed }) => [
+                                    styles.attachmentButton,
+                                    {
+                                        backgroundColor:
+                                            voiceState === "recording" || pressed
+                                                ? `${colors.danger}15`
+                                                : colors.surface,
+                                        borderColor:
+                                            voiceState === "recording" || pressed
+                                                ? `${colors.danger}35`
+                                                : colors.border,
+                                    },
+                                    pressed && styles.attachmentButtonPressed,
+                                ]}
+                                accessibilityRole="button"
+                                accessibilityLabel={t("addTransaction.voice")}
+                            >
+                                <Ionicons
+                                    name={
+                                        voiceState === "recording"
+                                            ? "mic"
+                                            : voiceUri
+                                              ? "checkmark-circle"
+                                              : "mic-outline"
+                                    }
+                                    size={20}
+                                    color={
+                                        voiceState === "recording"
                                             ? colors.danger
-                                            : colors.primary + "66",
-                                    transform: [{ scale: pressed ? 0.96 : 1 }],
-                                },
-                            ]}
-                        >
-                            {({ pressed }) => (
-                                <View style={styles.voiceIdleBtn}>
-                                    <Ionicons
-                                        name={
-                                            voiceState === "recording"
-                                                ? "mic"
-                                                : "mic-outline"
-                                        }
-                                        size={24}
-                                        color={
-                                            voiceState === "recording" ||
-                                            pressed
-                                                ? colors.danger
-                                                : voiceUri
-                                                  ? colors.primary
-                                                  : colors.primary
-                                        }
-                                    />
-                                    <Typography
-                                        variant="small-small"
-                                        color={
-                                            voiceState === "recording" ||
-                                            pressed
-                                                ? "danger"
-                                                : "primary"
-                                        }
-                                    >
-                                        {voiceState === "recording"
-                                            ? "Recording..."
-                                            : "Voice"}
-                                    </Typography>
-                                </View>
-                            )}
-                        </Pressable>
+                                            : colors.primary
+                                    }
+                                />
+                            </Pressable>
 
-                        {/* Photo */}
-                        <Pressable
-                            onPress={showImagePickerOptions}
-                            style={[
-                                styles.mediaButton,
-                                {
-                                    backgroundColor: colors.surface,
-                                    borderColor: colors.primary + "66",
-                                },
-                            ]}
-                        >
-                            {imageUri ? (
-                                <View style={styles.mediaThumbWrapper}>
-                                    <Image
-                                        source={{ uri: imageUri }}
-                                        style={styles.mediaThumb}
-                                        contentFit="cover"
-                                    />
-                                    <Pressable
-                                        onPress={(e) => {
-                                            e.stopPropagation?.();
-                                            setImageUri(null);
-                                        }}
-                                        style={[
-                                            styles.removeMediaBtn,
-                                            {
-                                                backgroundColor:
-                                                    colors.background,
-                                            },
-                                        ]}
-                                    >
-                                        <Ionicons
-                                            name="close-circle"
-                                            size={18}
-                                            color={colors.danger}
+                            <Pressable
+                                onPress={showImagePickerOptions}
+                                style={({ pressed }) => [
+                                    styles.attachmentButton,
+                                    {
+                                        backgroundColor: colors.surface,
+                                        borderColor: imageUri
+                                            ? `${colors.primary}40`
+                                            : colors.border,
+                                    },
+                                    pressed && styles.attachmentButtonPressed,
+                                ]}
+                                accessibilityRole="button"
+                                accessibilityLabel={t("addTransaction.photo")}
+                            >
+                                {imageUri ? (
+                                    <>
+                                        <Image
+                                            source={{ uri: imageUri }}
+                                            style={styles.attachmentThumb}
+                                            contentFit="cover"
                                         />
-                                    </Pressable>
-                                </View>
-                            ) : (
-                                <>
+                                        <Pressable
+                                            onPress={(e) => {
+                                                e.stopPropagation?.();
+                                                setImageUri(null);
+                                            }}
+                                            hitSlop={8}
+                                            style={[
+                                                styles.attachmentRemoveButton,
+                                                {
+                                                    backgroundColor:
+                                                        colors.background,
+                                                },
+                                            ]}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Remove photo"
+                                        >
+                                            <Ionicons
+                                                name="close-circle"
+                                                size={16}
+                                                color={colors.danger}
+                                            />
+                                        </Pressable>
+                                    </>
+                                ) : (
                                     <Ionicons
                                         name="camera-outline"
-                                        size={24}
+                                        size={20}
                                         color={colors.primary}
                                     />
-                                    <Typography
-                                        variant="small-small"
-                                        color="primary"
-                                    >
-                                        Photo
-                                    </Typography>
-                                </>
-                            )}
-                        </Pressable>
+                                )}
+                            </Pressable>
+                        </View>
                     </View>
                 </ScrollView>
 
@@ -751,7 +774,7 @@ export const AddTransactionScreen: React.FC = () => {
                     style={[
                         {
                             borderTopColor: colors.border,
-                            paddingBottom: isKeyboardVisible
+                            paddingBottom: calculatorHidden
                                 ? Spacing.sm
                                 : Math.max(insets.bottom, Spacing.sm) +
                                   Spacing.sm,
@@ -765,7 +788,7 @@ export const AddTransactionScreen: React.FC = () => {
                                 styles.voiceBar,
                                 {
                                     backgroundColor: colors.surface,
-                                    borderColor: colors.primary + "66",
+                                    borderColor: `${colors.danger}30`,
                                     marginHorizontal: Spacing.md,
                                     marginBottom: Spacing.md,
                                 },
@@ -836,7 +859,7 @@ export const AddTransactionScreen: React.FC = () => {
                                 styles.voiceBar,
                                 {
                                     backgroundColor: colors.surface,
-                                    borderColor: colors.primary + "66",
+                                    borderColor: `${colors.primary}30`,
                                     marginHorizontal: Spacing.md,
                                     marginBottom: Spacing.md,
                                 },
@@ -906,17 +929,21 @@ export const AddTransactionScreen: React.FC = () => {
 
                     {/* Save Button */}
                     <Pressable
-                        style={[
+                        style={({ pressed }) => [
                             styles.saveButton,
                             {
                                 marginHorizontal: Spacing.md,
                                 marginBottom: Spacing.md,
                             },
                             {
-                                backgroundColor: isReceive
-                                    ? colors.success
-                                    : colors.danger,
-                                opacity: amount <= 0 || saving ? 0.5 : 1,
+                                backgroundColor: amountSemanticColor,
+                                shadowColor: amountSemanticColor,
+                                opacity:
+                                    amount <= 0 || saving
+                                        ? 0.5
+                                        : pressed
+                                          ? 0.9
+                                          : 1,
                             },
                         ]}
                         onPress={handleSave}
@@ -932,19 +959,19 @@ export const AddTransactionScreen: React.FC = () => {
                         >
                             {saving
                                 ? isEditing
-                                    ? "Updating..."
-                                    : "Saving..."
+                                    ? t("addTransaction.updating")
+                                    : t("addTransaction.saving")
                                 : isEditing
-                                  ? "Update"
+                                  ? t("addTransaction.update")
                                   : isReceive
-                                    ? "Save Receipt"
-                                    : "Save Payment"}
+                                    ? t("addTransaction.saveReceipt")
+                                    : t("addTransaction.savePayment")}
                         </Typography>
                     </Pressable>
 
                     {/* Calculator Keyboard */}
                     <CalculatorKeyboard
-                        hidden={descFocused}
+                        hidden={calculatorHidden}
                         onAmountChange={handleAmountChange}
                         initialValue={isEditing ? amount : undefined}
                     />
@@ -977,32 +1004,50 @@ const styles = StyleSheet.create({
     },
     headerInfo: { flex: 1 },
     headerSpacer: { width: 44 },
-    amountInputContainer: {
-        marginTop: Spacing.lg,
+    // ── Amount card — semantic card matching CustomersScreen summary cards ──
+    amountCard: {
+        marginTop: Spacing.md,
+        borderRadius: 10,
+        borderWidth: 1,
+        paddingVertical: Spacing.sm,
+        paddingHorizontal: Spacing.md,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+        elevation: 2,
     },
-    amountInput: {
-        borderWidth: 2,
-        borderRadius: 12,
-        padding: Spacing.md,
-        fontSize: 32,
-        fontWeight: "700",
+    amountCardValue: {
         textAlign: "right",
-        minHeight: 64,
+        fontSize: 36,
+        fontWeight: "700",
     },
     previewText: {
         textAlign: "right",
         marginTop: Spacing.xs,
-        paddingRight: Spacing.sm,
     },
-    descContainer: {
+    // Description input
+    descriptionActionRow: {
+        flexDirection: "row",
+        alignItems: "stretch",
+        gap: Spacing.sm,
         marginTop: Spacing.md,
     },
-    fieldInput: {
+    descRow: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "flex-start",
+        borderRadius: 10,
         borderWidth: 1,
-        borderRadius: 12,
-        padding: Spacing.md,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
+        gap: Spacing.sm,
+        minHeight: 104,
+    },
+    descInput: {
+        flex: 1,
         fontSize: 15,
-        minHeight: 60,
+        paddingTop: 4,
+        minHeight: 78,
     },
     // ── Voice bar (WhatsApp-style) ──
     voiceBar: {
@@ -1072,42 +1117,43 @@ const styles = StyleSheet.create({
         marginLeft: -6,
         top: -4,
     },
-    mediaRow: {
-        flexDirection: "row",
-        gap: Spacing.md,
-        marginTop: Spacing.md,
+    attachmentRow: {
+        flexDirection: "column",
+        gap: Spacing.xs,
+        flexShrink: 0,
     },
-    mediaButton: {
-        flex: 1,
-        borderRadius: 12,
+    attachmentButton: {
+        width: 48,
+        height: 48,
+        borderRadius: 10,
         borderWidth: 1,
         alignItems: "center",
         justifyContent: "center",
-        paddingVertical: Spacing.md,
-        minHeight: 56,
+        overflow: "visible",
     },
-    mediaThumbWrapper: {
-        position: "relative",
+    attachmentButtonPressed: {
+        transform: [{ scale: 0.98 }],
+        opacity: 0.88,
     },
-    mediaThumb: {
-        width: 60,
-        height: 60,
+    attachmentThumb: {
+        width: 42,
+        height: 42,
         borderRadius: 8,
     },
-    removeMediaBtn: {
+    attachmentRemoveButton: {
         position: "absolute",
-        top: -8,
-        right: -8,
-        borderRadius: 12,
-    },
-    voiceIdleBtn: {
-        alignItems: "center",
-        gap: Spacing.xs,
+        top: -6,
+        right: -6,
+        borderRadius: 9,
     },
     saveButton: {
         paddingVertical: Spacing.md,
         borderRadius: 12,
         alignItems: "center",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.25,
+        shadowRadius: 8,
+        elevation: 4,
     },
     saveButtonText: {
         fontWeight: "600",

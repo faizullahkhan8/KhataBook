@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleProp, StyleSheet, Text, TextStyle } from "react-native";
+import { StyleProp, StyleSheet, Text, TextStyle, TextProps } from "react-native";
 import { Typography as TypographySizes } from "../constants";
 import { useTheme } from "../store";
 
@@ -15,7 +15,7 @@ type TypographyVariant =
     | "small-large"
     | "small-small";
 
-interface TypographyProps {
+interface TypographyProps extends TextProps {
     children: React.ReactNode;
     variant?: TypographyVariant;
     color?:
@@ -25,8 +25,6 @@ interface TypographyProps {
         | "success"
         | "danger"
         | "warning";
-    style?: StyleProp<TextStyle>;
-    numberOfLines?: number;
 }
 
 export const Typography: React.FC<TypographyProps> = React.memo(
@@ -35,7 +33,7 @@ export const Typography: React.FC<TypographyProps> = React.memo(
         variant = "body-medium",
         color = "primary",
         style,
-        numberOfLines,
+        ...rest
     }) => {
         const { colors } = useTheme();
 
@@ -87,7 +85,7 @@ export const Typography: React.FC<TypographyProps> = React.memo(
                     },
                     style,
                 ]}
-                numberOfLines={numberOfLines}
+                {...rest}
             >
                 {children}
             </Text>
