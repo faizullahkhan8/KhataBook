@@ -1,4 +1,5 @@
 export { AboutScreen } from "./AboutScreen";
+export { BackupScreen } from "./BackupScreen";
 export { AddTransactionScreen } from "./AddTransactionScreen";
 export { CustomerProfileScreen } from "./CustomerProfileScreen";
 export { CustomersScreen } from "./CustomersScreen";

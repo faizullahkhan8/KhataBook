@@ -2,3 +2,4 @@ export * from "./currencyUtils";
 export * from "./dateUtils";
 export * from "./messageTemplates";
 export * from "./fileUtils";
+export * from "./networkUtils";

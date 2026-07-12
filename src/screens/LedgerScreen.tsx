@@ -154,9 +154,9 @@ export const LedgerScreen: React.FC = () => {
                 description:
                     entry.description ||
                     (entry.funding_source === "received" ||
-                        entry.funding_source === "settled" ||
-                        entry.funding_source === "settledAndAdded" ||
-                        entry.funding_source === "added"
+                    entry.funding_source === "settled" ||
+                    entry.funding_source === "settledAndAdded" ||
+                    entry.funding_source === "added"
                         ? t("ledger.credit")
                         : t("ledger.debit")),
                 date: entry.created_at,
@@ -189,37 +189,37 @@ export const LedgerScreen: React.FC = () => {
             const label = isSettled
                 ? t("ledger.settled")
                 : isSettledAndAdded
-                    ? t("ledger.settledAndAdded")
-                    : isAddedBalance
-                        ? t("ledger.addedBalance")
-                        : isReceived
-                            ? t("ledger.received")
-                            : isBalanceFunded
-                                ? t("ledger.paidFromBalance")
-                                : isMixedFunded
-                                    ? t("ledger.paidFromBalanceAndPocket")
-                                    : t("ledger.paidFromPocket");
+                  ? t("ledger.settledAndAdded")
+                  : isAddedBalance
+                    ? t("ledger.addedBalance")
+                    : isReceived
+                      ? t("ledger.received")
+                      : isBalanceFunded
+                        ? t("ledger.paidFromBalance")
+                        : isMixedFunded
+                          ? t("ledger.paidFromBalanceAndPocket")
+                          : t("ledger.paidFromPocket");
             const isCreditVariant =
                 isReceived || isSettled || isSettledAndAdded || isAddedBalance;
             const semanticColor: "success" | "danger" | "warning" =
                 isCreditVariant
                     ? "success"
                     : isMixedFunded
-                        ? "warning"
-                        : "danger";
+                      ? "warning"
+                      : "danger";
 
             const colorValue =
                 semanticColor === "success"
                     ? colors.success
                     : semanticColor === "warning"
-                        ? colors.warning
-                        : colors.danger;
+                      ? colors.warning
+                      : colors.danger;
 
             const typeIcon = isCreditVariant
                 ? ("arrow-down-circle" as const)
                 : isMixedFunded
-                    ? ("git-merge-outline" as const)
-                    : ("arrow-up-circle" as const);
+                  ? ("git-merge-outline" as const)
+                  : ("arrow-up-circle" as const);
 
             return (
                 <View
@@ -235,7 +235,11 @@ export const LedgerScreen: React.FC = () => {
                             { backgroundColor: `${colorValue}18` },
                         ]}
                     >
-                        <Ionicons name={typeIcon} size={18} color={colorValue} />
+                        <Ionicons
+                            name={typeIcon}
+                            size={18}
+                            color={colorValue}
+                        />
                     </View>
 
                     {/* Center: type label + customer · time on second line */}
@@ -293,7 +297,7 @@ export const LedgerScreen: React.FC = () => {
                 </View>
             );
         },
-        [colors.info, t],
+        [colors, t],
     );
 
     if (!db || (loadingEntries && transactionEntries.length === 0)) {
@@ -313,29 +317,34 @@ export const LedgerScreen: React.FC = () => {
                     { backgroundColor: colors.background },
                 ]}
             >
-                <View style={[
-                    styles.header,
-                    {
-                        marginTop: insets.top + Spacing.sm,
-                        marginHorizontal: Spacing.md,
-                        marginBottom: Spacing.sm,
-                        borderRadius: 10,
-                        overflow: "hidden",
-                        backgroundColor: colors.surface,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: 0.06,
-                        shadowRadius: 4,
-                        elevation: 2,
-                    },
-                ]}>
+                <View
+                    style={[
+                        styles.header,
+                        {
+                            marginTop: insets.top + Spacing.sm,
+                            marginHorizontal: Spacing.md,
+                            marginBottom: Spacing.sm,
+                            borderRadius: 10,
+                            overflow: "hidden",
+                            backgroundColor: colors.surface,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.06,
+                            shadowRadius: 4,
+                            elevation: 2,
+                        },
+                    ]}
+                >
                     <View style={styles.headerTopRow}>
                         <View style={styles.headerTitleRow}>
                             {!isSearchActive && (
                                 <View>
-                                    <Typography variant="heading-large" color="primary">
+                                    <Typography
+                                        variant="heading-large"
+                                        color="primary"
+                                    >
                                         {t("ledger.title")}
                                     </Typography>
                                 </View>
@@ -346,14 +355,23 @@ export const LedgerScreen: React.FC = () => {
                                         ref={searchInputRef}
                                         style={[
                                             styles.headerSearchInput,
-                                            { backgroundColor: colors.background, color: colors.text.primary },
+                                            {
+                                                backgroundColor:
+                                                    colors.background,
+                                                color: colors.text.primary,
+                                            },
                                         ]}
-                                        placeholder={t("ledger.searchPlaceholder")}
+                                        placeholder={t(
+                                            "ledger.searchPlaceholder",
+                                        )}
                                         placeholderTextColor={colors.text.muted}
                                         value={searchText}
                                         onChangeText={setSearchText}
                                         autoFocus
-                                        onBlur={() => { if (!searchText) setIsSearchActive(false); }}
+                                        onBlur={() => {
+                                            if (!searchText)
+                                                setIsSearchActive(false);
+                                        }}
                                     />
                                 </View>
                             )}
@@ -365,7 +383,10 @@ export const LedgerScreen: React.FC = () => {
                                     setIsSearchActive(false);
                                 } else {
                                     setIsSearchActive(true);
-                                    setTimeout(() => searchInputRef.current?.focus(), 100);
+                                    setTimeout(
+                                        () => searchInputRef.current?.focus(),
+                                        100,
+                                    );
                                 }
                             }}
                             style={[
@@ -397,9 +418,9 @@ export const LedgerScreen: React.FC = () => {
                     initialRange={
                         customRange?.startDate && customRange?.endDate
                             ? {
-                                startDate: customRange.startDate,
-                                endDate: customRange.endDate,
-                            }
+                                  startDate: customRange.startDate,
+                                  endDate: customRange.endDate,
+                              }
                             : undefined
                     }
                 />
@@ -481,7 +502,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.background,
     },
     header: {
-        paddingHorizontal: Spacing.lg,
+        paddingHorizontal: Spacing.md,
         paddingVertical: 10,
     },
     headerTopRow: {
@@ -531,8 +552,8 @@ const styles = StyleSheet.create({
     },
     list: {
         flexGrow: 1,
-        paddingHorizontal: Spacing.sm,
-        paddingTop: Spacing.md,
+        paddingHorizontal: Spacing.md,
+        paddingTop: Spacing.sm,
     },
     emptyState: {
         flex: 1,

@@ -9,7 +9,8 @@
         "userInterfaceStyle": "automatic",
         "newArchEnabled": true,
         "ios": {
-            "supportsTablet": true
+            "supportsTablet": true,
+            "bundleIdentifier": "com.faizullahkhan.khatabook"
         },
         "android": {
             "allowBackup": false,
@@ -51,6 +52,12 @@
                 "expo-local-authentication",
                 {
                     "faceIDPermission": "Allow KhataBook to use Face ID to unlock the app."
+                }
+            ],
+            [
+                "@react-native-google-signin/google-signin",
+                {
+                    "iosUrlScheme": "com.googleusercontent.apps.72923726304-d6uiitli0gf9no335r98dtpvtmic9tnd"
                 }
             ]
         ],

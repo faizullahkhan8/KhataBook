@@ -7,7 +7,9 @@ import { FlatList, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, OptionModal, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
+import { useGoogleAuth } from "../context/GoogleAuthContext";
 import { ThemeMode, useLanguage, usePasscode, useTheme } from "../store";
+import { formatDateTime } from "../utils";
 
 type ModalOption = "theme" | "language" | null;
 
@@ -50,6 +52,7 @@ export const SettingsScreen: React.FC = () => {
     const [developerOptionsUnlocked, setDeveloperOptionsUnlocked] =
         useState(false);
     const suppressNextAboutPress = useRef(false);
+    const { lastBackupTime } = useGoogleAuth();
 
     useEffect(() => {
         const loadDeveloperOptionsState = async () => {
@@ -114,7 +117,9 @@ export const SettingsScreen: React.FC = () => {
         {
             id: "backup",
             title: t("settings.cloudBackup"),
-            subtitle: t("settings.cloudBackupSubtitle"),
+            subtitle: lastBackupTime 
+                ? t("settings.cloudBackupSubtitle", { time: formatDateTime(Math.floor(new Date(lastBackupTime).getTime() / 1000)) })
+                : t("settings.cloudBackupNeverSynced", "Never synced"),
             icon: "cloud-upload-outline",
             type: "navigation",
             section: "Security",
@@ -198,6 +203,8 @@ export const SettingsScreen: React.FC = () => {
             router.push("/terms-of-use");
         } else if (item.id === "trash") {
             router.push("/settings/trash" as any);
+        } else if (item.id === "backup") {
+            router.push("/settings/backup" as any);
         } else if (item.id === "developer-options") {
             router.push("/developer-options" as any);
         }

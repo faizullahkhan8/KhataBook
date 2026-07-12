@@ -138,7 +138,7 @@ export const DateFilter: React.FC<DateFilterProps> = ({
 const styles = StyleSheet.create({
     wrapper: {
         marginHorizontal: Spacing.md,
-        marginBottom: Spacing.sm,
+        marginBottom: 0,
     },
     scrollContent: {
         paddingVertical: Spacing.xs,

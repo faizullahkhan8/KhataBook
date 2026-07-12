@@ -7,10 +7,12 @@ import {
     StoreProvider,
 } from "@/store";
 import { DatabaseSecurityGate, PasscodeGate } from "@/components";
+import { GoogleAuthProvider } from "../src/context/GoogleAuthContext";
 
 export default function RootLayout() {
     return (
-        <LanguageProvider>
+        <GoogleAuthProvider>
+            <LanguageProvider>
             <ThemeProvider>
                 <DatabaseProvider>
                     <DatabaseSecurityGate>
@@ -80,6 +82,10 @@ export default function RootLayout() {
                                         name="settings/trash"
                                         options={{ headerShown: false }}
                                     />
+                                    <Stack.Screen
+                                        name="settings/backup"
+                                        options={{ headerShown: false }}
+                                    />
                                 </Stack>
                             </PasscodeGate>
                         </PasscodeProvider>
@@ -88,5 +94,6 @@ export default function RootLayout() {
                 </DatabaseProvider>
             </ThemeProvider>
         </LanguageProvider>
+        </GoogleAuthProvider>
     );
 }

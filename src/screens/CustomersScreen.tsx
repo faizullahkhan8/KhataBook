@@ -539,10 +539,7 @@ export const CustomersScreen: React.FC = () => {
             activateSelectionMode,
             router,
             t,
-            colors.primary,
-            colors.warning,
-            colors.text.muted,
-            colors.surface,
+            colors,
         ],
     );
 
@@ -561,13 +558,11 @@ export const CustomersScreen: React.FC = () => {
                     { backgroundColor: colors.background },
                 ]}
             >
-                {/* Header with Store Switcher */}
                 <View
                     style={[
                         styles.header,
                         {
                             marginTop: insets.top + Spacing.sm,
-                            marginHorizontal: Spacing.md,
                             marginBottom: Spacing.sm,
                         },
                     ]}
@@ -690,103 +685,97 @@ export const CustomersScreen: React.FC = () => {
                 </View>
 
                 {/* Summary cards — shown in normal mode */}
-                {!isSelectionMode &&
-                    orderedCustomers.length > 0 && (
-                        <View style={styles.summaryCards}>
+                {!isSelectionMode && orderedCustomers.length > 0 && (
+                    <View style={styles.summaryCards}>
+                        <View
+                            style={[
+                                styles.summaryCard,
+                                {
+                                    backgroundColor: colors.surface,
+                                    borderColor: `${colors.danger}30`,
+                                    borderWidth: 1,
+                                    shadowColor: colors.danger,
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.08,
+                                    shadowRadius: 6,
+                                    elevation: 2,
+                                },
+                            ]}
+                        >
                             <View
                                 style={[
-                                    styles.summaryCard,
+                                    styles.summaryCardIcon,
                                     {
-                                        backgroundColor: colors.surface,
-                                        borderColor: `${colors.danger}30`,
-                                        borderWidth: 1,
-                                        shadowColor: colors.danger,
-                                        shadowOffset: { width: 0, height: 2 },
-                                        shadowOpacity: 0.08,
-                                        shadowRadius: 6,
-                                        elevation: 2,
+                                        backgroundColor: `${colors.danger}15`,
                                     },
                                 ]}
                             >
-                                <View
-                                    style={[
-                                        styles.summaryCardIcon,
-                                        {
-                                            backgroundColor: `${colors.danger}15`,
-                                        },
-                                    ]}
-                                >
-                                    <Ionicons
-                                        name="arrow-up"
-                                        size={14}
-                                        color={colors.danger}
-                                    />
-                                </View>
-                                <View style={styles.summaryCardText}>
-                                    <Typography
-                                        variant="small-small"
-                                        color="muted"
-                                    >
-                                        {t("customers.owed")}
-                                    </Typography>
-                                    <TouchableAmount
-                                        amount={summary.totalOwed}
-                                        variant="body-medium"
-                                        color="danger"
-                                    />
-                                </View>
+                                <Ionicons
+                                    name="arrow-up"
+                                    size={14}
+                                    color={colors.danger}
+                                />
                             </View>
-
-                            <View
-                                style={[
-                                    styles.summaryCard,
-                                    {
-                                        backgroundColor: colors.surface,
-                                        borderColor: `${colors.success}30`,
-                                        borderWidth: 1,
-                                        shadowColor: colors.success,
-                                        shadowOffset: { width: 0, height: 2 },
-                                        shadowOpacity: 0.08,
-                                        shadowRadius: 6,
-                                        elevation: 2,
-                                    },
-                                ]}
-                            >
-                                <View
-                                    style={[
-                                        styles.summaryCardIcon,
-                                        {
-                                            backgroundColor: `${colors.success}15`,
-                                        },
-                                    ]}
-                                >
-                                    <Ionicons
-                                        name="arrow-down"
-                                        size={14}
-                                        color={colors.success}
-                                    />
-                                </View>
-                                <View style={styles.summaryCardText}>
-                                    <Typography
-                                        variant="small-small"
-                                        color="muted"
-                                    >
-                                        {t("customers.credit")}
-                                    </Typography>
-                                    <TouchableAmount
-                                        amount={summary.totalCredit}
-                                        variant="body-medium"
-                                        color="success"
-                                    />
-                                </View>
+                            <View style={styles.summaryCardText}>
+                                <Typography variant="small-small" color="muted">
+                                    {t("customers.owed")}
+                                </Typography>
+                                <TouchableAmount
+                                    amount={summary.totalOwed}
+                                    variant="body-medium"
+                                    color="danger"
+                                />
                             </View>
                         </View>
-                    )}
+
+                        <View
+                            style={[
+                                styles.summaryCard,
+                                {
+                                    backgroundColor: colors.surface,
+                                    borderColor: `${colors.success}30`,
+                                    borderWidth: 1,
+                                    shadowColor: colors.success,
+                                    shadowOffset: { width: 0, height: 2 },
+                                    shadowOpacity: 0.08,
+                                    shadowRadius: 6,
+                                    elevation: 2,
+                                },
+                            ]}
+                        >
+                            <View
+                                style={[
+                                    styles.summaryCardIcon,
+                                    {
+                                        backgroundColor: `${colors.success}15`,
+                                    },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="arrow-down"
+                                    size={14}
+                                    color={colors.success}
+                                />
+                            </View>
+                            <View style={styles.summaryCardText}>
+                                <Typography variant="small-small" color="muted">
+                                    {t("customers.credit")}
+                                </Typography>
+                                <TouchableAmount
+                                    amount={summary.totalCredit}
+                                    variant="body-medium"
+                                    color="success"
+                                />
+                            </View>
+                        </View>
+                    </View>
+                )}
 
                 {/* List */}
                 <GestureHandlerRootView style={styles.listContainer}>
                     <DraggableFlatList
                         data={orderedCustomers}
+                        extraData={colors}
                         renderItem={renderCustomer}
                         keyExtractor={(item) => item.id?.toString() || ""}
                         containerStyle={styles.listContainer}
@@ -956,7 +945,7 @@ const styles = StyleSheet.create({
     },
     // Header
     header: {
-        paddingHorizontal: Spacing.lg,
+        paddingHorizontal: Spacing.md,
         paddingVertical: 10,
     },
     headerTopRow: {
@@ -1017,7 +1006,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         gap: Spacing.sm,
         marginHorizontal: Spacing.md,
-        marginBottom: Spacing.sm,
+        marginBottom: 0,
     },
     summaryCard: {
         flex: 1,
@@ -1046,8 +1035,8 @@ const styles = StyleSheet.create({
     },
     list: {
         flexGrow: 1,
-        paddingHorizontal: Spacing.sm,
-        paddingTop: Spacing.md,
+        paddingHorizontal: Spacing.md,
+        paddingTop: Spacing.sm,
     },
     // Customer row (compact, matches LedgerScreen / CustomerTransactionsScreen pattern)
     customerRow: {
