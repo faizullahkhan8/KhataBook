@@ -6,8 +6,9 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import appLogo from "../../assets/images/app-logo-without-bg.png";
 import { Button, Card, Typography } from "../components";
-import { Spacing, STORAGE_KEYS } from "../constants";
+import { STORAGE_KEYS, Spacing } from "../constants";
 import { ThemeMode, useLanguage, usePasscode, useTheme } from "../store";
 
 type OnboardingStep = "welcome" | "security" | "legal";
@@ -35,6 +36,7 @@ export const OnboardingScreen: React.FC = () => {
         isBiometricAuthenticating,
         setBiometricEnabled,
     } = usePasscode();
+
     const [step, setStep] = useState<OnboardingStep>("welcome");
     const [acceptedAgreement, setAcceptedAgreement] = useState(false);
 
@@ -125,7 +127,7 @@ export const OnboardingScreen: React.FC = () => {
         <View style={styles.screenContent}>
             <View style={styles.hero}>
                 <Image
-                    source={require("../../assets/images/app-logo-without-bg.png")}
+                    source={appLogo}
                     style={styles.logo}
                     contentFit="contain"
                 />
@@ -147,6 +149,7 @@ export const OnboardingScreen: React.FC = () => {
 
             <View style={styles.welcomeControls}>
                 {renderThemeSelector()}
+
                 <View style={styles.languageRow}>
                     {languageOptions.map((option) => {
                         const selected = language === option.value;
@@ -216,11 +219,17 @@ export const OnboardingScreen: React.FC = () => {
                     </Pressable>
                 </View>
 
-                <Card style={[styles.sectionCard, styles.securityCard]}>
+                <Card
+                    style={[
+                        styles.sectionCard,
+                        styles.securityCard,
+                        { backgroundColor: colors.surface },
+                    ]}
+                >
                     <View
                         style={[
                             styles.securityIconLarge,
-                            { backgroundColor: `${colors.primary}14` },
+                            { backgroundColor: `${colors.primary}15` },
                         ]}
                     >
                         <Ionicons
@@ -229,7 +238,6 @@ export const OnboardingScreen: React.FC = () => {
                             color={colors.primary}
                         />
                     </View>
-
                     <View style={styles.securityIntro}>
                         <Typography
                             variant="subheading-large"
@@ -519,7 +527,7 @@ const styles = StyleSheet.create({
         flex: 1,
         minHeight: 52,
         borderWidth: 1,
-        borderRadius: 8,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
     },
@@ -531,6 +539,9 @@ const styles = StyleSheet.create({
     },
     sectionCard: {
         gap: Spacing.md,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: "transparent",
     },
     themeSection: {
         gap: Spacing.sm,
@@ -543,7 +554,7 @@ const styles = StyleSheet.create({
         flex: 1,
         minHeight: 78,
         borderWidth: 1,
-        borderRadius: 8,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
         padding: Spacing.sm,
@@ -616,7 +627,7 @@ const styles = StyleSheet.create({
     biometricRow: {
         minHeight: 64,
         borderWidth: 1,
-        borderRadius: 8,
+        borderRadius: 10,
         padding: Spacing.md,
         flexDirection: "row",
         alignItems: "center",
@@ -625,7 +636,7 @@ const styles = StyleSheet.create({
     agreement: {
         minHeight: 74,
         borderWidth: 1,
-        borderRadius: 8,
+        borderRadius: 10,
         padding: Spacing.md,
         flexDirection: "row",
         alignItems: "flex-start",

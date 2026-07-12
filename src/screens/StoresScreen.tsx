@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Pressable, FlatList, Modal } from 'react-native';
+import { View, StyleSheet, Pressable, FlatList, Modal, KeyboardAvoidingView, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -119,7 +119,6 @@ export const StoresScreen = () => {
                         </Pressable>
                         <View>
                             <Typography variant="heading-large" color="primary">Stores</Typography>
-                            <Typography variant="body-small" color="muted">{stores.length} store(s)</Typography>
                         </View>
                     </View>
                 </View>
@@ -147,7 +146,10 @@ export const StoresScreen = () => {
                 animationType="fade"
                 onRequestClose={handleCloseModal}
             >
-                <View style={styles.modalOverlay}>
+                <KeyboardAvoidingView 
+                    style={styles.modalOverlay}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                >
                     <Pressable style={StyleSheet.absoluteFill} onPress={handleCloseModal} />
                     <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
                         <Typography variant="heading-medium" color="primary" style={styles.modalTitle}>
@@ -185,7 +187,7 @@ export const StoresScreen = () => {
                             />
                         </View>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
         </View>
     );
@@ -212,14 +214,15 @@ const styles = StyleSheet.create({
     storeRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        padding: Spacing.md,
+        paddingVertical: 10,
+        paddingHorizontal: Spacing.md,
         borderRadius: 12,
-        gap: Spacing.md,
+        gap: Spacing.sm,
     },
     iconBox: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
     },

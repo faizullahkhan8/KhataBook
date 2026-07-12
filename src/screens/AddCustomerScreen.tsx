@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Alert,
@@ -22,9 +22,9 @@ import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { CustomerId } from "../models";
 import { AccountService } from "../services/AccountService";
 import { CustomerService } from "../services/CustomerService";
-import { useDatabaseContext, usePasscode, useTheme } from "../store";
+import { useDatabaseContext, useTheme } from "../store";
 import { fromInteger, toInteger } from "../utils/currencyUtils";
-import { saveToPermanentStorage, deleteFromStorage } from "../utils/fileUtils";
+import { deleteFromStorage, saveToPermanentStorage } from "../utils/fileUtils";
 
 export const AddCustomerScreen: React.FC = () => {
     const {
@@ -36,13 +36,15 @@ export const AddCustomerScreen: React.FC = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-        const { t } = useTranslation();
+    const { t } = useTranslation();
     const { customerId } = useLocalSearchParams<{ customerId?: string }>();
     const { createCustomer } = useCustomersWithAccounts(db);
-    const { customer } = useCustomerById(
-        db,
-        customerId ? (parseInt(customerId) as CustomerId) : (0 as any),
-    );
+
+    const parsedCustomerId = customerId
+        ? (parseInt(customerId) as CustomerId)
+        : (0 as any);
+    const { customer } = useCustomerById(db, parsedCustomerId);
+
     const customerService = useMemo(
         () => (db ? new CustomerService(db) : null),
         [db],
@@ -70,8 +72,10 @@ export const AddCustomerScreen: React.FC = () => {
     });
 
     const [imageUri, setImageUri] = useState<string | null>(null);
-    const originalImageUri = React.useRef<string | null>(null);
+    const originalImageUri = useRef<string | null>(null);
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     useEffect(() => {
         const showSubscription = Keyboard.addListener(
@@ -82,7 +86,6 @@ export const AddCustomerScreen: React.FC = () => {
             Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
             () => setIsKeyboardVisible(false),
         );
-
         return () => {
             showSubscription.remove();
             hideSubscription.remove();
@@ -118,12 +121,8 @@ export const AddCustomerScreen: React.FC = () => {
         }
     }, [isEditMode, customer]);
 
-    const [errors, setErrors] = useState<Record<string, string>>({});
-    const [isSubmitting, setIsSubmitting] = useState(false);
-
     const validate = () => {
         const newErrors: Record<string, string> = {};
-
         if (!customerInfo.name.trim()) {
             newErrors.name = t("addCustomer.nameRequired");
         }
@@ -144,38 +143,33 @@ export const AddCustomerScreen: React.FC = () => {
         if (!accountInfo.accountNumber.trim()) {
             newErrors.accountNumber = t("addCustomer.accountRequired");
         }
-
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
     const handleSubmit = async () => {
         if (!validate()) return;
-
         setIsSubmitting(true);
         try {
             const finalImageUri = await saveToPermanentStorage(imageUri);
-
             if (isEditMode && customerId && customerService && accountService) {
-                // Update existing customer
-                await customerService.updateCustomer(
-                    parseInt(customerId) as CustomerId,
-                    {
-                        name: customerInfo.name.trim(),
-                        phone: customerInfo.phone.trim(),
-                        cnic: customerInfo.cnic.trim(),
-                        email: customerInfo.email.trim() || "",
-                        address: customerInfo.address.trim() || "",
-                        notes: customerInfo.notes.trim() || "",
-                        image_uri: finalImageUri || "",
-                    },
-                );
+                await customerService.updateCustomer(parsedCustomerId, {
+                    name: customerInfo.name.trim(),
+                    phone: customerInfo.phone.trim(),
+                    cnic: customerInfo.cnic.trim(),
+                    email: customerInfo.email.trim() || "",
+                    address: customerInfo.address.trim() || "",
+                    notes: customerInfo.notes.trim() || "",
+                    image_uri: finalImageUri || "",
+                });
 
-                if (originalImageUri.current && originalImageUri.current !== finalImageUri) {
+                if (
+                    originalImageUri.current &&
+                    originalImageUri.current !== finalImageUri
+                ) {
                     await deleteFromStorage(originalImageUri.current);
                 }
 
-                // Update account credit limit if account exists
                 const account = customer?.accounts?.[0];
                 if (account?.id) {
                     const creditLimitValue = accountInfo.creditLimit.trim();
@@ -185,13 +179,9 @@ export const AddCustomerScreen: React.FC = () => {
                             : (0 as any),
                     });
                 }
-
-                invalidate(); // Trigger global refresh
-
-                // Navigate back to customer transactions screen
+                invalidate();
                 router.back();
             } else {
-                // Create new customer
                 const newCustomerId = await createCustomer(
                     {
                         name: customerInfo.name.trim(),
@@ -215,9 +205,7 @@ export const AddCustomerScreen: React.FC = () => {
                             : 0,
                     },
                 );
-
                 if (newCustomerId) {
-                    // Navigate to customers screen
                     router.push("/" as any);
                 }
             }
@@ -259,52 +247,41 @@ export const AddCustomerScreen: React.FC = () => {
     };
 
     const pickFromCamera = async () => {
-        try {
-            const { status } =
-                await ImagePicker.requestCameraPermissionsAsync();
-            if (status !== "granted") {
-                Alert.alert(
-                    t("addCustomer.permissionRequired"),
-                    t("addCustomer.cameraPermission"),
-                );
-                return;
-            }
-
-            const result = await ImagePicker.launchCameraAsync({
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.8,
-            });
-
-            if (!result.canceled && result.assets[0]) {
-                setImageUri(result.assets[0].uri);
-            }
-        } finally {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert(
+                t("addCustomer.permissionRequired"),
+                t("addCustomer.cameraPermission"),
+            );
+            return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+        if (!result.canceled && result.assets[0]) {
+            setImageUri(result.assets[0].uri);
         }
     };
 
     const pickFromGallery = async () => {
-        try {
-            const { status } =
-                await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (status !== "granted") {
-                Alert.alert(
-                    t("addCustomer.permissionRequired"),
-                    t("addCustomer.galleryPermission"),
-                );
-                return;
-            }
-
-            const result = await ImagePicker.launchImageLibraryAsync({
-                allowsEditing: true,
-                aspect: [1, 1],
-                quality: 0.8,
-            });
-
-            if (!result.canceled && result.assets[0]) {
-                setImageUri(result.assets[0].uri);
-            }
-        } finally {
+        const { status } =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert(
+                t("addCustomer.permissionRequired"),
+                t("addCustomer.galleryPermission"),
+            );
+            return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+        if (!result.canceled && result.assets[0]) {
+            setImageUri(result.assets[0].uri);
         }
     };
 
@@ -335,24 +312,26 @@ export const AddCustomerScreen: React.FC = () => {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={[
                     styles.container,
-                    {
-                        paddingTop: insets.top,
-                        backgroundColor: colors.background,
-                    },
+                    { backgroundColor: colors.background },
                 ]}
             >
-                {/* Header */}
                 <View
                     style={[
                         styles.header,
-                    {
-                        marginTop: Spacing.sm,
-                        marginHorizontal: Spacing.md,
-                        marginBottom: Spacing.sm,
-                        borderRadius: 10,
-                        backgroundColor: colors.surface,
-                    },
-                        false && { flexDirection: "row-reverse" },
+                        {
+                            marginTop: insets.top + Spacing.sm,
+                            marginHorizontal: Spacing.md,
+                            marginBottom: Spacing.sm,
+                            borderRadius: 10,
+                            backgroundColor: colors.surface,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.06,
+                            shadowRadius: 4,
+                            elevation: 2,
+                        },
                     ]}
                 >
                     <Pressable
@@ -363,7 +342,7 @@ export const AddCustomerScreen: React.FC = () => {
                         ]}
                     >
                         <Ionicons
-                            name={false ? "chevron-forward" : "chevron-back"}
+                            name="chevron-back"
                             size={20}
                             color={colors.primary}
                         />
@@ -381,25 +360,30 @@ export const AddCustomerScreen: React.FC = () => {
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
-                    {/* Customer Information Section */}
-                    <Card style={styles.sectionCard}>
-                        <View
-                            style={[
-                                styles.sectionHeader,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Ionicons
-                                name="person-outline"
-                                size={20}
-                                color={colors.primary}
-                            />
+                    <Card
+                        style={[
+                            styles.sectionCard,
+                            { backgroundColor: colors.surface },
+                        ]}
+                    >
+                        <View style={styles.sectionHeader}>
+                            <View
+                                style={[
+                                    styles.iconWrap,
+                                    { backgroundColor: `${colors.primary}15` },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="person-outline"
+                                    size={18}
+                                    color={colors.primary}
+                                />
+                            </View>
                             <Typography variant="heading-small" color="primary">
                                 {t("addCustomer.customerInfo")}
                             </Typography>
                         </View>
 
-                        {/* Profile Image */}
                         <View style={styles.imageContainer}>
                             {imageUri ? (
                                 <View style={styles.imageWrapper}>
@@ -416,7 +400,7 @@ export const AddCustomerScreen: React.FC = () => {
                                     >
                                         <Ionicons
                                             name="close-circle"
-                                            size={24}
+                                            size={28}
                                             color={colors.danger}
                                         />
                                     </Pressable>
@@ -449,15 +433,10 @@ export const AddCustomerScreen: React.FC = () => {
                         </View>
 
                         <View style={styles.inputContainer}>
-                            <View
-                                style={[
-                                    styles.inputLabelRow,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
+                            <View style={styles.inputLabelRow}>
                                 <Ionicons
                                     name="person"
-                                    size={18}
+                                    size={16}
                                     color={colors.text.muted}
                                 />
                                 <Typography
@@ -494,15 +473,10 @@ export const AddCustomerScreen: React.FC = () => {
                         </View>
 
                         <View style={styles.inputContainer}>
-                            <View
-                                style={[
-                                    styles.inputLabelRow,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
+                            <View style={styles.inputLabelRow}>
                                 <Ionicons
                                     name="call"
-                                    size={18}
+                                    size={16}
                                     color={colors.text.muted}
                                 />
                                 <Typography
@@ -538,15 +512,10 @@ export const AddCustomerScreen: React.FC = () => {
                         </View>
 
                         <View style={styles.inputContainer}>
-                            <View
-                                style={[
-                                    styles.inputLabelRow,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
+                            <View style={styles.inputLabelRow}>
                                 <Ionicons
                                     name="id-card"
-                                    size={18}
+                                    size={16}
                                     color={colors.text.muted}
                                 />
                                 <Typography
@@ -583,15 +552,10 @@ export const AddCustomerScreen: React.FC = () => {
                         </View>
 
                         <View style={styles.inputContainer}>
-                            <View
-                                style={[
-                                    styles.inputLabelRow,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
+                            <View style={styles.inputLabelRow}>
                                 <Ionicons
                                     name="mail"
-                                    size={18}
+                                    size={16}
                                     color={colors.text.muted}
                                 />
                                 <Typography
@@ -628,15 +592,10 @@ export const AddCustomerScreen: React.FC = () => {
                         </View>
 
                         <View style={styles.inputContainer}>
-                            <View
-                                style={[
-                                    styles.inputLabelRow,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
+                            <View style={styles.inputLabelRow}>
                                 <Ionicons
                                     name="location"
-                                    size={18}
+                                    size={16}
                                     color={colors.text.muted}
                                 />
                                 <Typography
@@ -662,15 +621,10 @@ export const AddCustomerScreen: React.FC = () => {
                         </View>
 
                         <View style={styles.inputContainer}>
-                            <View
-                                style={[
-                                    styles.inputLabelRow,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
+                            <View style={styles.inputLabelRow}>
                                 <Ionicons
                                     name="document-text"
-                                    size={18}
+                                    size={16}
                                     color={colors.text.muted}
                                 />
                                 <Typography
@@ -694,34 +648,35 @@ export const AddCustomerScreen: React.FC = () => {
                         </View>
                     </Card>
 
-                    {/* Account Information Section */}
-                    <Card style={styles.sectionCard}>
-                        <View
-                            style={[
-                                styles.sectionHeader,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <Ionicons
-                                name="card-outline"
-                                size={20}
-                                color={colors.success}
-                            />
+                    <Card
+                        style={[
+                            styles.sectionCard,
+                            { backgroundColor: colors.surface },
+                        ]}
+                    >
+                        <View style={styles.sectionHeader}>
+                            <View
+                                style={[
+                                    styles.iconWrap,
+                                    { backgroundColor: `${colors.success}15` },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="card-outline"
+                                    size={18}
+                                    color={colors.success}
+                                />
+                            </View>
                             <Typography variant="heading-small" color="primary">
                                 {t("addCustomer.accountInfo")}
                             </Typography>
                         </View>
 
                         <View style={styles.inputContainer}>
-                            <View
-                                style={[
-                                    styles.inputLabelRow,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
+                            <View style={styles.inputLabelRow}>
                                 <Ionicons
                                     name="card"
-                                    size={18}
+                                    size={16}
                                     color={colors.text.muted}
                                 />
                                 <Typography
@@ -761,15 +716,10 @@ export const AddCustomerScreen: React.FC = () => {
                         </View>
 
                         <View style={styles.inputContainer}>
-                            <View
-                                style={[
-                                    styles.inputLabelRow,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
+                            <View style={styles.inputLabelRow}>
                                 <Ionicons
                                     name="cash"
-                                    size={18}
+                                    size={16}
                                     color={colors.text.muted}
                                 />
                                 <Typography
@@ -795,15 +745,10 @@ export const AddCustomerScreen: React.FC = () => {
                         </View>
 
                         <View style={styles.inputContainer}>
-                            <View
-                                style={[
-                                    styles.inputLabelRow,
-                                    false && { flexDirection: "row-reverse" },
-                                ]}
-                            >
+                            <View style={styles.inputLabelRow}>
                                 <Ionicons
                                     name="wallet"
-                                    size={18}
+                                    size={16}
                                     color={colors.text.muted}
                                 />
                                 <Typography
@@ -832,17 +777,16 @@ export const AddCustomerScreen: React.FC = () => {
                             style={[
                                 styles.accountInfo,
                                 { backgroundColor: `${colors.primary}10` },
-                                false && { flexDirection: "row-reverse" },
                             ]}
                         >
                             <Ionicons
                                 name="information-circle"
                                 size={16}
-                                color={colors.text.muted}
+                                color={colors.primary}
                             />
                             <Typography
                                 variant="small-small"
-                                color="muted"
+                                color="primary"
                                 style={styles.accountInfoText}
                             >
                                 {t("addCustomer.accountInfoMessage")}
@@ -851,15 +795,16 @@ export const AddCustomerScreen: React.FC = () => {
                     </Card>
                 </ScrollView>
 
-                {/* Footer Actions */}
                 <View
                     style={[
                         styles.footer,
                         {
+                            backgroundColor: colors.surface,
                             borderTopColor: colors.border,
                             paddingBottom: isKeyboardVisible
                                 ? Spacing.sm
-                                : Math.max(insets.bottom + Spacing.md),
+                                : Math.max(insets.bottom, Spacing.sm) +
+                                  Spacing.sm,
                         },
                     ]}
                 >
@@ -890,11 +835,9 @@ export const AddCustomerScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
     },
     header: {
         flexDirection: "row",
-        gap: Spacing.sm,
         alignItems: "center",
         justifyContent: "space-between",
         paddingHorizontal: Spacing.md,
@@ -908,23 +851,34 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     placeholder: {
-        width: 40,
+        width: 34,
     },
     scrollView: {
         flex: 1,
     },
     scrollContent: {
-        padding: Spacing.md,
+        paddingHorizontal: Spacing.md,
+        paddingBottom: Spacing.md,
         gap: Spacing.md,
     },
     sectionCard: {
         padding: Spacing.lg,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: "transparent",
     },
     sectionHeader: {
         flexDirection: "row",
         alignItems: "center",
         gap: Spacing.sm,
         marginBottom: Spacing.lg,
+    },
+    iconWrap: {
+        width: 32,
+        height: 32,
+        borderRadius: 8,
+        alignItems: "center",
+        justifyContent: "center",
     },
     inputContainer: {
         marginBottom: Spacing.md,
@@ -941,14 +895,14 @@ const styles = StyleSheet.create({
     accountInfo: {
         flexDirection: "row",
         alignItems: "flex-start",
-        gap: Spacing.xs,
+        gap: Spacing.sm,
         marginTop: Spacing.sm,
-        padding: Spacing.sm,
-        backgroundColor: `${Colors.primary}10`,
+        padding: Spacing.md,
         borderRadius: 8,
     },
     accountInfoText: {
         flex: 1,
+        marginTop: 2,
     },
     footer: {
         flexDirection: "row",
@@ -956,7 +910,6 @@ const styles = StyleSheet.create({
         paddingTop: Spacing.md,
         gap: Spacing.md,
         borderTopWidth: 1,
-        borderTopColor: Colors.border,
     },
     footerButton: {
         flex: 1,
@@ -972,22 +925,19 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: Colors.surface,
     },
     removeImageButton: {
         position: "absolute",
-        top: -8,
-        right: -8,
+        top: -4,
+        right: -4,
         backgroundColor: Colors.background,
-        borderRadius: 12,
+        borderRadius: 14,
     },
     imagePlaceholder: {
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: Colors.surface,
-        borderWidth: 2,
-        borderColor: Colors.border,
+        borderWidth: 1,
         borderStyle: "dashed",
         justifyContent: "center",
         alignItems: "center",

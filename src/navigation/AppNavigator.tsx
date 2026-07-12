@@ -1,161 +1,81 @@
+import { Spacing } from "@/constants";
+import { CustomersScreen, LedgerScreen, SettingsScreen } from "@/screens";
+import { useTheme } from "@/store";
 import { Ionicons } from "@expo/vector-icons";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 import React from "react";
-import { useTranslation } from "react-i18next";
-import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Spacing } from "../constants";
-import { CustomersScreen, LedgerScreen, SettingsScreen } from "../screens";
-import { useTheme } from "../store";
 
-export type AppTabParamList = {
-    Customers: undefined;
-    Ledger: undefined;
-    Settings: undefined;
-};
+const Tab = createMaterialTopTabNavigator();
 
-const Tab = createMaterialTopTabNavigator<AppTabParamList>();
-
-export const AppNavigator: React.FC = () => {
-    const insets = useSafeAreaInsets();
+export const AppNavigator = () => {
     const { colors } = useTheme();
-    const { t } = useTranslation();
+    const insets = useSafeAreaInsets();
 
     return (
         <Tab.Navigator
             tabBarPosition="bottom"
-            offscreenPageLimit={1}
-            overdrag={true}
             screenOptions={{
                 swipeEnabled: true,
-                animationEnabled: true,
-                lazy: false,
-                lazyPreloadDistance: 1,
-                tabBarShowIcon: true,
-                tabBarActiveTintColor: colors.primary,
-                tabBarInactiveTintColor: colors.text.muted,
                 tabBarIndicatorStyle: {
-                    display: "none", // Hide the glitchy animated indicator
+                    display: "none",
                 },
                 tabBarStyle: {
                     position: "absolute",
-                    bottom: insets.bottom + Spacing.sm,
-                    left: Spacing.xl,
-                    right: Spacing.xl,
-                    height: 56,
-                    paddingBottom: 0,
+                    bottom: Math.max(insets.bottom, Spacing.sm) + Spacing.sm,
+                    left: Spacing.md,
+                    right: Spacing.md,
+                    height: 64,
+                    borderRadius: 10,
                     backgroundColor: colors.surface,
-                    borderRadius: 16,
-                    borderTopWidth: 0,
-                    elevation: 8,
+                    borderWidth: 1,
+                    borderColor: colors.border,
                     shadowColor: "#000",
-                    shadowOffset: { width: 0, height: 4 },
-                    shadowOpacity: 0.15,
-                    shadowRadius: 12,
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.06,
+                    shadowRadius: 4,
+                    elevation: 2,
                 },
-                tabBarItemStyle: {
-                    minHeight: 56,
-                    paddingVertical: 4,
-                },
+                tabBarActiveTintColor: colors.primary,
+                tabBarInactiveTintColor: colors.text.muted,
+                tabBarShowLabel: true,
                 tabBarLabelStyle: {
-                    margin: 0,
-                    fontSize: 10,
+                    fontSize: 12,
+                    fontWeight: "600",
                     textTransform: "none",
                 },
+                tabBarItemStyle: {
+                    flexDirection: "column",
+                    alignItems: "center",
+                    justifyContent: "center",
+                },
+
             }}
         >
             <Tab.Screen
                 name="Customers"
                 component={CustomersScreen}
                 options={{
-                    tabBarLabel: t("navigation.customers"),
-                    tabBarIcon: ({ focused }) => (
-                        <View
-                            style={[
-                                {
-                                    width: 44,
-                                    height: 30,
-                                    borderRadius: 10,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                },
-                                focused && {
-                                    backgroundColor: `${colors.primary}18`,
-                                },
-                            ]}
-                        >
-                            <Ionicons
-                                name="people"
-                                size={20}
-                                color={
-                                    focused ? colors.primary : colors.text.muted
-                                }
-                            />
-                        </View>
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="people" size={22} color={color} />
                     ),
                 }}
             />
-
             <Tab.Screen
                 name="Ledger"
                 component={LedgerScreen}
                 options={{
-                    tabBarLabel: t("navigation.ledger"),
-                    tabBarIcon: ({ focused }) => (
-                        <View
-                            style={[
-                                {
-                                    width: 44,
-                                    height: 30,
-                                    borderRadius: 10,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                },
-                                focused && {
-                                    backgroundColor: `${colors.primary}18`,
-                                },
-                            ]}
-                        >
-                            <Ionicons
-                                name="list"
-                                size={20}
-                                color={
-                                    focused ? colors.primary : colors.text.muted
-                                }
-                            />
-                        </View>
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="book" size={22} color={color} />
                     ),
                 }}
             />
-
             <Tab.Screen
                 name="Settings"
                 component={SettingsScreen}
                 options={{
-                    tabBarLabel: t("navigation.settings"),
-                    tabBarIcon: ({ focused }) => (
-                        <View
-                            style={[
-                                {
-                                    width: 44,
-                                    height: 30,
-                                    borderRadius: 10,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                },
-                                focused && {
-                                    backgroundColor: `${colors.primary}18`,
-                                },
-                            ]}
-                        >
-                            <Ionicons
-                                name="settings"
-                                size={20}
-                                color={
-                                    focused ? colors.primary : colors.text.muted
-                                }
-                            />
-                        </View>
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="settings" size={22} color={color} />
                     ),
                 }}
             />

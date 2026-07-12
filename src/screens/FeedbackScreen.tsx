@@ -15,10 +15,10 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, Card, Input, OptionModal, Typography } from "../components";
+import { Card, Input, OptionModal, Typography } from "../components";
 import { Spacing } from "../constants";
-import { useLanguage, useTheme } from "../store";
 import { formatLogEntry, logService } from "../services/LogService";
+import { useLanguage, useTheme } from "../store";
 
 type FeedbackCategory = "feedback" | "suggestion" | "bug" | "error" | "other";
 
@@ -72,10 +72,7 @@ export const FeedbackScreen: React.FC = () => {
                 .join(", ");
             return `\n\nLogs: ${entries.length} total (${summary})`;
         }
-        const logText = entries
-            .slice(0, 50)
-            .map(formatLogEntry)
-            .join("\n");
+        const logText = entries.slice(0, 50).map(formatLogEntry).join("\n");
         return `\n\n---\nRecent logs (latest ${Math.min(50, entries.length)} of ${entries.length}):\n${logText}`;
     }, []);
 
@@ -87,25 +84,38 @@ export const FeedbackScreen: React.FC = () => {
         return hasCategory && hasDetails;
     };
 
-    const buildMessage = useCallback(async (compactLogs = false) => {
-        const selectedCategory = category
-            ? t(`feedback.categories.${category}`)
-            : "";
-        const logsSection = includeLogs ? await buildLogsSection(compactLogs) : "";
-        return [
-            "KhataBook Feedback & Support",
-            "",
-            `Category: ${selectedCategory}`,
-            ...(subject.trim() ? [`Subject: ${subject.trim()}`] : []),
-            "",
-            "Details:",
-            details.trim(),
-            "",
-            "App information:",
-            ...diagnosticDetails,
-            logsSection,
-        ].join("\n");
-    }, [category, subject, details, diagnosticDetails, t, buildLogsSection, includeLogs]);
+    const buildMessage = useCallback(
+        async (compactLogs = false) => {
+            const selectedCategory = category
+                ? t(`feedback.categories.${category}`)
+                : "";
+            const logsSection = includeLogs
+                ? await buildLogsSection(compactLogs)
+                : "";
+            return [
+                "KhataBook Feedback & Support",
+                "",
+                `Category: ${selectedCategory}`,
+                ...(subject.trim() ? [`Subject: ${subject.trim()}`] : []),
+                "",
+                "Details:",
+                details.trim(),
+                "",
+                "App information:",
+                ...diagnosticDetails,
+                logsSection,
+            ].join("\n");
+        },
+        [
+            category,
+            subject,
+            details,
+            diagnosticDetails,
+            t,
+            buildLogsSection,
+            includeLogs,
+        ],
+    );
 
     const showUnavailable = () =>
         Alert.alert(
@@ -190,7 +200,7 @@ export const FeedbackScreen: React.FC = () => {
                         shadowOpacity: 0.06,
                         shadowRadius: 4,
                         elevation: 2,
-                        },
+                    },
                 ]}
             >
                 <Pressable
@@ -202,7 +212,8 @@ export const FeedbackScreen: React.FC = () => {
                     hitSlop={Spacing.md}
                 >
                     <Ionicons
-                        name="chevron-back" size={20}
+                        name="chevron-back"
+                        size={20}
                         color={colors.primary}
                     />
                 </Pressable>
@@ -232,7 +243,14 @@ export const FeedbackScreen: React.FC = () => {
                         <View style={styles.categories}>
                             {CATEGORIES.map((item) => {
                                 const selected = category === item;
-                                const itemColor = item === "bug" ? colors.warning : item === "error" ? colors.danger : item === "suggestion" ? colors.success : colors.primary;
+                                const itemColor =
+                                    item === "bug"
+                                        ? colors.warning
+                                        : item === "error"
+                                          ? colors.danger
+                                          : item === "suggestion"
+                                            ? colors.success
+                                            : colors.primary;
                                 return (
                                     <Pressable
                                         key={item}
@@ -269,7 +287,14 @@ export const FeedbackScreen: React.FC = () => {
                                         />
                                         <Typography
                                             variant="body-small"
-                                            style={{ color: selected ? itemColor : colors.text.muted, fontWeight: selected ? "600" : "400" }}
+                                            style={{
+                                                color: selected
+                                                    ? itemColor
+                                                    : colors.text.muted,
+                                                fontWeight: selected
+                                                    ? "600"
+                                                    : "400",
+                                            }}
                                         >
                                             {t(`feedback.categories.${item}`)}
                                         </Typography>
@@ -312,18 +337,39 @@ export const FeedbackScreen: React.FC = () => {
                     </Card>
                     <Pressable
                         onPress={() => setIncludeLogs((prev) => !prev)}
-                        style={[styles.logsToggle, { backgroundColor: includeLogs ? `${colors.primary}10` : colors.surface, borderColor: includeLogs ? colors.primary : colors.border, borderWidth: 1 }]}
+                        style={[
+                            styles.logsToggle,
+                            {
+                                backgroundColor: includeLogs
+                                    ? `${colors.primary}10`
+                                    : colors.surface,
+                                borderColor: includeLogs
+                                    ? colors.primary
+                                    : colors.border,
+                                borderWidth: 1,
+                            },
+                        ]}
                     >
                         <Ionicons
                             name={includeLogs ? "checkbox" : "square-outline"}
                             size={22}
-                            color={includeLogs ? colors.primary : colors.text.muted}
+                            color={
+                                includeLogs ? colors.primary : colors.text.muted
+                            }
                         />
                         <View style={{ flex: 1, gap: 2 }}>
-                            <Typography variant="body-small" color="primary" style={styles.logsToggleText}>
+                            <Typography
+                                variant="body-small"
+                                color="primary"
+                                style={styles.logsToggleText}
+                            >
                                 Include app logs for debugging
                             </Typography>
-                            <Typography color="muted" variant="small-small" style={styles.logsNote}>
+                            <Typography
+                                color="muted"
+                                variant="small-small"
+                                style={styles.logsNote}
+                            >
                                 Sensitive data is redacted automatically.
                             </Typography>
                         </View>
@@ -339,10 +385,23 @@ export const FeedbackScreen: React.FC = () => {
                                 }
                             }}
                             disabled={isOpening}
-                            style={[styles.colorfulButton, { backgroundColor: colors.primary, opacity: isOpening ? 0.6 : 1 }]}
+                            style={[
+                                styles.colorfulButton,
+                                {
+                                    backgroundColor: colors.primary,
+                                    opacity: isOpening ? 0.6 : 1,
+                                },
+                            ]}
                         >
-                            <Ionicons name="paper-plane" size={20} color="#FFF" />
-                            <Typography variant="body-medium" style={styles.colorfulButtonText}>
+                            <Ionicons
+                                name="paper-plane"
+                                size={20}
+                                color="#FFF"
+                            />
+                            <Typography
+                                variant="body-medium"
+                                style={styles.colorfulButtonText}
+                            >
                                 {t("feedback.sendUsing")}
                             </Typography>
                         </Pressable>
@@ -354,17 +413,33 @@ export const FeedbackScreen: React.FC = () => {
                 visible={showSendModal}
                 title={t("feedback.sendUsing")}
                 options={[
-                    { value: "whatsapp", label: t("feedback.whatsapp"), icon: "logo-whatsapp" },
-                    { value: "email", label: t("feedback.email"), icon: "mail" },
-                    { value: "sms", label: t("feedback.sms"), icon: "chatbubble" },
+                    {
+                        value: "whatsapp",
+                        label: t("feedback.whatsapp"),
+                        icon: "logo-whatsapp",
+                    },
+                    {
+                        value: "email",
+                        label: t("feedback.email"),
+                        icon: "mail",
+                    },
+                    {
+                        value: "sms",
+                        label: t("feedback.sms"),
+                        icon: "chatbubble",
+                    },
                 ]}
                 showSelectionIndicator={false}
                 onSelect={(value) => {
                     setShowSendModal(false);
                     setTimeout(() => {
-                        if (value === "whatsapp") { void openWhatsApp(); }
-                        else if (value === "email") { void openEmail(); }
-                        else { void openSms(); }
+                        if (value === "whatsapp") {
+                            void openWhatsApp();
+                        } else if (value === "email") {
+                            void openEmail();
+                        } else {
+                            void openSms();
+                        }
                     }, 250);
                 }}
                 onClose={() => setShowSendModal(false)}

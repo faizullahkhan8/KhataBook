@@ -2,10 +2,15 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback } from "react";
+import { useTranslation } from "react-i18next";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useTranslation } from "react-i18next";
-import { Card, LoadingScreen, TouchableAmount, Typography } from "../components";
+import {
+    Card,
+    LoadingScreen,
+    TouchableAmount,
+    Typography,
+} from "../components";
 import { Colors, Spacing } from "../constants";
 import { useCustomerById } from "../hooks";
 import { AccountStatus, AccountType, CustomerId } from "../models";
@@ -17,10 +22,13 @@ export const CustomerProfileScreen: React.FC = () => {
     const { db } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
-    const { colors } = useTheme();    const { t } = useTranslation();
+    const { colors } = useTheme();
+    const { t } = useTranslation();
+
     const parsedCustomerId = parseInt(customerId || "0") as CustomerId;
     const { customer, loading, error } = useCustomerById(db, parsedCustomerId);
     const account = customer?.accounts?.[0];
+
     const fallback = t("customerProfile.notAvailable");
 
     const getAccountTypeLabel = useCallback(
@@ -55,18 +63,54 @@ export const CustomerProfileScreen: React.FC = () => {
         [fallback, t],
     );
 
-    const renderInfoRow = (label: string, value: string) => (
-        <View style={[styles.infoRow, false && styles.rowRTL]}>
-            <Typography variant="body-small" color="muted">
-                {label}
-            </Typography>
-            <Typography
-                variant="body-medium"
-                color="primary"
-                style={[styles.infoValue, false && styles.textRTL]}
-            >
-                {value}
-            </Typography>
+    const renderInfoRow = (
+        icon: keyof typeof Ionicons.glyphMap,
+        label: string,
+        value: string,
+        iconColor: string,
+    ) => (
+        <View style={styles.infoRow}>
+            <Ionicons
+                name={icon}
+                size={24}
+                color={iconColor}
+                style={styles.rowIcon}
+            />
+            <View style={styles.infoTextContainer}>
+                <Typography variant="body-medium" color="primary">
+                    {value}
+                </Typography>
+                <Typography variant="small-small" color="secondary">
+                    {label}
+                </Typography>
+            </View>
+        </View>
+    );
+
+    const renderAmountRow = (
+        icon: keyof typeof Ionicons.glyphMap,
+        label: string,
+        amount: number,
+        colorType: any,
+        iconColor: string,
+    ) => (
+        <View style={styles.infoRow}>
+            <Ionicons
+                name={icon}
+                size={24}
+                color={iconColor}
+                style={styles.rowIcon}
+            />
+            <View style={styles.infoTextContainer}>
+                <TouchableAmount
+                    amount={amount}
+                    variant="body-medium"
+                    color={colorType}
+                />
+                <Typography variant="small-small" color="secondary">
+                    {label}
+                </Typography>
+            </View>
         </View>
     );
 
@@ -74,176 +118,244 @@ export const CustomerProfileScreen: React.FC = () => {
         return <LoadingScreen />;
     }
 
-    return (
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
+    if (error || !customer) {
+        return (
             <View
                 style={[
-                    styles.header,
-                    {
-                        marginTop: insets.top + Spacing.sm,
-                        marginHorizontal: Spacing.md,
-                        marginBottom: Spacing.sm,
-                        borderRadius: 10,
-                        backgroundColor: colors.surface,
-                        borderWidth: 1,
-                        borderColor: colors.border,
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 1 },
-                        shadowOpacity: 0.06,
-                        shadowRadius: 4,
-                        elevation: 2,
-                        },
-                    false && styles.rowRTL,
+                    styles.container,
+                    { backgroundColor: colors.background },
                 ]}
             >
                 <Pressable
                     onPress={() => router.back()}
                     style={[
-                        styles.backButton,
-                        { backgroundColor: `${colors.primary}18` },
+                        styles.absoluteBackButton,
+                        {
+                            backgroundColor: `${colors.primary}18`,
+                            top: insets.top + Spacing.sm,
+                            left: Spacing.md,
+                        },
                     ]}
                 >
                     <Ionicons
-                        name={false ? "chevron-forward" : "chevron-back"}
+                        name="chevron-back"
                         size={20}
                         color={colors.primary}
                     />
                 </Pressable>
-                {customer?.image_uri ? (
-                    <Image
-                        source={{ uri: customer.image_uri }}
-                        style={styles.headerImage}
+
+                <View style={styles.emptyState}>
+                    <Ionicons
+                        name="person-circle-outline"
+                        size={56}
+                        color={colors.text.muted}
                     />
-                ) : (
-                    <View
-                        style={[
-                            styles.headerImagePlaceholder,
-                            { backgroundColor: colors.background },
-                        ]}
-                    >
-                        <Ionicons name="person" size={24} color={colors.text.muted} />
-                    </View>
-                )}
-                <View style={styles.headerText}>
-                    <Typography variant="body-small" color="muted">
-                        {t("customerProfile.title")}
+                    <Typography variant="heading-small" color="secondary">
+                        {t("customerProfile.notFoundTitle")}
                     </Typography>
                     <Typography
-                        variant="heading-large"
-                        color="primary"
-                        numberOfLines={1}
+                        variant="body-small"
+                        color="muted"
+                        style={styles.centerText}
                     >
-                        {customer?.name || t("customerProfile.customer")}
+                        {t("customerProfile.notFoundMessage")}
                     </Typography>
                 </View>
             </View>
+        );
+    }
 
-            <ScrollView
-                contentContainerStyle={[
-                    styles.content,
-                    { paddingBottom: insets.bottom + Spacing.xxl },
+    return (
+        <View
+            style={[styles.container, { backgroundColor: colors.background }]}
+        >
+            <Pressable
+                onPress={() => router.back()}
+                style={[
+                    styles.absoluteBackButton,
+                    {
+                        backgroundColor: `${colors.primary}18`,
+                        top: insets.top + Spacing.sm,
+                        left: Spacing.md,
+                    },
                 ]}
             >
-                {error || !customer ? (
-                    <View style={styles.emptyState}>
-                        <Ionicons
-                            name="person-circle-outline"
-                            size={56}
-                            color={colors.text.muted}
-                        />
-                        <Typography variant="heading-small" color="secondary">
-                            {t("customerProfile.notFoundTitle")}
-                        </Typography>
+                <Ionicons
+                    name="chevron-back"
+                    size={20}
+                    color={colors.primary}
+                />
+            </Pressable>
+
+            <ScrollView
+                contentContainerStyle={{
+                    paddingBottom: insets.bottom + Spacing.xxl,
+                }}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+            >
+                <View
+                    style={[
+                        styles.coverPhoto,
+                        { backgroundColor: `${colors.primary}25` },
+                    ]}
+                />
+
+                <View
+                    style={[
+                        styles.profileHeroCard,
+                        { backgroundColor: colors.surface },
+                    ]}
+                >
+                    <View
+                        style={[
+                            styles.avatarContainer,
+                            {
+                                borderColor: colors.surface,
+                                backgroundColor: colors.surface,
+                            },
+                        ]}
+                    >
+                        {customer.image_uri ? (
+                            <Image
+                                source={{ uri: customer.image_uri }}
+                                style={styles.avatarImage}
+                            />
+                        ) : (
+                            <View
+                                style={[
+                                    styles.avatarPlaceholder,
+                                    { backgroundColor: `${colors.primary}15` },
+                                ]}
+                            >
+                                <Ionicons
+                                    name="person"
+                                    size={50}
+                                    color={colors.primary}
+                                />
+                            </View>
+                        )}
+                    </View>
+
+                    <View style={styles.heroTextContainer}>
                         <Typography
-                            variant="body-small"
-                            color="muted"
+                            variant="heading-large"
+                            color="primary"
                             style={styles.centerText}
                         >
-                            {t("customerProfile.notFoundMessage")}
+                            {customer.name}
+                        </Typography>
+                        <Typography
+                            variant="body-medium"
+                            color="secondary"
+                            style={styles.centerText}
+                        >
+                            {customer.phone || fallback}
                         </Typography>
                     </View>
-                ) : (
-                    <>
-                        <Card style={styles.profileCard}>
+                </View>
+
+                <View style={styles.detailsContainer}>
+                    <Card
+                        style={[
+                            styles.infoCard,
+                            { backgroundColor: colors.surface },
+                        ]}
+                    >
+                        <View style={styles.cardHeader}>
                             <Typography variant="heading-small" color="primary">
                                 {t("customerProfile.customerDetails")}
                             </Typography>
-                            {renderInfoRow(t("customerProfile.name"), customer.name)}
-                            {renderInfoRow(
-                                t("customerProfile.phone"),
-                                customer.phone || fallback,
-                            )}
-                            {renderInfoRow(
-                                t("customerProfile.cnic"),
-                                customer.cnic || fallback,
-                            )}
-                            {customer.created_at &&
-                                renderInfoRow(
-                                    t("customerProfile.createdAt"),
-                                    formatDateTime(customer.created_at),
-                                )}
-                            {customer.updated_at &&
-                                renderInfoRow(
-                                    t("customerProfile.updatedAt"),
-                                    formatDateTime(customer.updated_at),
-                                )}
-                        </Card>
+                        </View>
 
-                        <Card style={styles.profileCard}>
+                        {renderInfoRow(
+                            "id-card",
+                            t("customerProfile.cnic"),
+                            customer.cnic || fallback,
+                            colors.text.muted,
+                        )}
+                        {renderInfoRow(
+                            "mail",
+                            t("addCustomer.email"),
+                            customer.email || fallback,
+                            colors.text.muted,
+                        )}
+                        {renderInfoRow(
+                            "location",
+                            t("addCustomer.address"),
+                            customer.address || fallback,
+                            colors.text.muted,
+                        )}
+
+                        {customer.created_at &&
+                            renderInfoRow(
+                                "calendar",
+                                t("customerProfile.createdAt"),
+                                formatDateTime(customer.created_at),
+                                colors.text.muted,
+                            )}
+                    </Card>
+
+                    <Card
+                        style={[
+                            styles.infoCard,
+                            { backgroundColor: colors.surface },
+                        ]}
+                    >
+                        <View style={styles.cardHeader}>
                             <Typography variant="heading-small" color="primary">
                                 {t("customerProfile.accountInformation")}
                             </Typography>
-                            {account ? (
-                                <>
-                                    {renderInfoRow(
-                                        t("customerProfile.accountNumber"),
-                                        account.account_number || fallback,
-                                    )}
-                                    {renderInfoRow(
-                                        t("customerProfile.accountType"),
-                                        getAccountTypeLabel(account.account_type),
-                                    )}
-                                    {renderInfoRow(
-                                        t("customerProfile.accountStatus"),
-                                        getAccountStatusLabel(account.status),
-                                    )}
-                                    <View style={[styles.infoRow, false && styles.rowRTL]}>
-                                        <Typography variant="body-small" color="muted">
-                                            {t("customerProfile.currentBalance")}
-                                        </Typography>
-                                        <TouchableAmount
-                                            amount={account.current_balance || 0}
-                                            variant="body-medium"
-                                            color={
-                                                (account.current_balance || 0) > 0
-                                                    ? "success"
-                                                    : (account.current_balance || 0) < 0
-                                                      ? "danger"
-                                                      : "primary"
-                                            }
-                                            style={styles.infoValue}
-                                        />
-                                    </View>
-                                    <View style={[styles.infoRow, false && styles.rowRTL]}>
-                                        <Typography variant="body-small" color="muted">
-                                            {t("customerProfile.creditLimit")}
-                                        </Typography>
-                                        <TouchableAmount
-                                            amount={account.credit_limit || 0}
-                                            variant="body-medium"
-                                            color="primary"
-                                            style={styles.infoValue}
-                                        />
-                                    </View>
-                                </>
-                            ) : (
+                        </View>
+
+                        {account ? (
+                            <>
+                                {renderInfoRow(
+                                    "card",
+                                    t("customerProfile.accountNumber"),
+                                    account.account_number || fallback,
+                                    colors.success,
+                                )}
+                                {renderInfoRow(
+                                    "pricetag",
+                                    t("customerProfile.accountType"),
+                                    getAccountTypeLabel(account.account_type),
+                                    colors.primary,
+                                )}
+                                {renderInfoRow(
+                                    "information-circle",
+                                    t("customerProfile.accountStatus"),
+                                    getAccountStatusLabel(account.status),
+                                    colors.warning,
+                                )}
+                                {renderAmountRow(
+                                    "wallet",
+                                    t("customerProfile.currentBalance"),
+                                    account.current_balance || 0,
+                                    (account.current_balance || 0) > 0
+                                        ? "success"
+                                        : (account.current_balance || 0) < 0
+                                          ? "danger"
+                                          : "primary",
+                                    colors.primary,
+                                )}
+                                {renderAmountRow(
+                                    "cash",
+                                    t("customerProfile.creditLimit"),
+                                    account.credit_limit || 0,
+                                    "primary",
+                                    colors.text.muted,
+                                )}
+                            </>
+                        ) : (
+                            <View style={styles.noAccountContainer}>
                                 <Typography variant="body-small" color="muted">
                                     {t("customerProfile.noAccount")}
                                 </Typography>
-                            )}
-                        </Card>
-                    </>
-                )}
+                            </View>
+                        )}
+                    </Card>
+                </View>
             </ScrollView>
         </View>
     );
@@ -252,71 +364,91 @@ export const CustomerProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: Colors.background,
     },
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        gap: Spacing.sm,
-        paddingHorizontal: Spacing.md,
-        paddingVertical: 10,
-    },
-    rowRTL: {
-        flexDirection: "row-reverse",
-    },
-    textRTL: {
-        textAlign: "right",
-    },
-    backButton: {
-        width: 34,
-        height: 34,
+    absoluteBackButton: {
+        position: "absolute",
+        zIndex: 10,
+        width: 38,
+        height: 38,
         borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
+        marginTop: Spacing.sm,
+        marginLeft: Spacing.sm,
     },
-    headerImage: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+    coverPhoto: {
+        height: 120,
     },
-    headerImagePlaceholder: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+    profileHeroCard: {
+        paddingHorizontal: Spacing.md,
+        paddingBottom: Spacing.lg,
+        borderBottomWidth: StyleSheet.hairlineWidth,
+        borderColor: Colors.border,
+    },
+    avatarContainer: {
+        width: 140,
+        height: 140,
+        borderRadius: 70,
+        borderWidth: 4,
+        alignSelf: "center",
+        marginTop: -70,
+        justifyContent: "center",
+        alignItems: "center",
+    },
+    avatarImage: {
+        width: "100%",
+        height: "100%",
+        borderRadius: 66,
+    },
+    avatarPlaceholder: {
+        width: "100%",
+        height: "100%",
+        borderRadius: 66,
         alignItems: "center",
         justifyContent: "center",
     },
-    headerText: {
-        flex: 1,
+    heroTextContainer: {
+        marginTop: Spacing.sm,
+        alignItems: "center",
     },
-    content: {
+    detailsContainer: {
         padding: Spacing.md,
         gap: Spacing.md,
     },
-    profileCard: {
-        padding: Spacing.lg,
-        gap: Spacing.md,
+    infoCard: {
+        padding: 0,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: "transparent",
+        overflow: "hidden",
+    },
+    cardHeader: {
+        paddingHorizontal: Spacing.lg,
+        paddingTop: Spacing.lg,
+        paddingBottom: Spacing.sm,
     },
     infoRow: {
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between",
-        gap: Spacing.md,
+        paddingVertical: Spacing.md,
+        paddingHorizontal: Spacing.lg,
     },
-    infoValue: {
-        flex: 1,
-        textAlign: "right",
+    rowIcon: {
+        marginRight: Spacing.md,
     },
-    center: {
+    infoTextContainer: {
         flex: 1,
-        alignItems: "center",
         justifyContent: "center",
     },
+    noAccountContainer: {
+        paddingHorizontal: Spacing.lg,
+        paddingBottom: Spacing.lg,
+    },
     emptyState: {
+        flex: 1,
         alignItems: "center",
         justifyContent: "center",
         gap: Spacing.sm,
-        padding: Spacing.xxl,
     },
     centerText: {
         textAlign: "center",
