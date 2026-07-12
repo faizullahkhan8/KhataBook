@@ -18,10 +18,19 @@ export const DeveloperOptionsScreen: React.FC = () => {
                 style={[
                     styles.header,
                     {
-                        paddingTop: insets.top + Spacing.md,
+                        marginTop: insets.top + Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
                         backgroundColor: colors.surface,
-                        borderBottomColor: colors.border,
-                    },
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 4,
+                        elevation: 2,
+                        },
                 ]}
             >
                 <Pressable
@@ -30,10 +39,10 @@ export const DeveloperOptionsScreen: React.FC = () => {
                     accessibilityLabel="Back"
                     style={[
                         styles.iconButton,
-                        { backgroundColor: `${colors.primary}15` },
+                        { backgroundColor: `${colors.primary}18` },
                     ]}
                 >
-                    <Ionicons name="chevron-back" size={24} color={colors.primary} />
+                    <Ionicons name="chevron-back" size={20} color={colors.primary} />
                 </Pressable>
                 <View style={styles.headerText}>
                     <Typography variant="heading-large" color="primary">
@@ -43,44 +52,41 @@ export const DeveloperOptionsScreen: React.FC = () => {
             </View>
 
             <View style={styles.content}>
-                <Pressable onPress={() => router.push("/logs" as any)}>
-                    <Card
-                        style={[
-                            styles.itemCard,
-                            {
-                                backgroundColor: colors.surface,
-                                borderColor: colors.border,
-                            },
-                        ]}
-                    >
-                        <View style={styles.itemContent}>
-                            <View
-                                style={[
-                                    styles.iconBox,
-                                    { backgroundColor: `${colors.primary}18` },
-                                ]}
-                            >
-                                <Ionicons
-                                    name="terminal-outline"
-                                    size={23}
-                                    color={colors.primary}
-                                />
-                            </View>
-                            <View style={styles.itemText}>
-                                <Typography variant="body-large" color="primary">
-                                    Logs
-                                </Typography>
-                                <Typography variant="small-small" color="muted">
-                                    View local diagnostic logs
-                                </Typography>
-                            </View>
+                <Pressable
+                    style={({ pressed }) => [
+                        styles.itemContainer,
+                        { backgroundColor: colors.surface },
+                        pressed && styles.itemPressed,
+                    ]}
+                    onPress={() => router.push("/logs" as any)}
+                >
+                    <View style={styles.itemContent}>
+                        <View
+                            style={[
+                                styles.iconBox,
+                                { backgroundColor: `${colors.primary}18` },
+                            ]}
+                        >
                             <Ionicons
-                                name="chevron-forward"
-                                size={20}
-                                color={colors.border}
+                                name="terminal-outline"
+                                size={18}
+                                color={colors.primary}
                             />
                         </View>
-                    </Card>
+                        <View style={styles.itemText}>
+                            <Typography variant="body-medium" color="primary">
+                                Logs
+                            </Typography>
+                            <Typography variant="small-small" color="muted">
+                                View local diagnostic logs
+                            </Typography>
+                        </View>
+                        <Ionicons
+                            name="chevron-forward"
+                            size={16}
+                            color={colors.text.muted}
+                        />
+                    </View>
                 </Pressable>
             </View>
         </View>
@@ -90,18 +96,16 @@ export const DeveloperOptionsScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: { flex: 1 },
     header: {
-        minHeight: 84,
-        borderBottomWidth: 1,
         paddingHorizontal: Spacing.lg,
-        paddingBottom: Spacing.md,
+        paddingVertical: 10,
         flexDirection: "row",
         alignItems: "center",
         gap: Spacing.md,
     },
     iconButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
     },
@@ -109,22 +113,30 @@ const styles = StyleSheet.create({
     content: {
         padding: Spacing.md,
     },
-    itemCard: {
-        borderWidth: 1,
-        borderRadius: 12,
-        padding: Spacing.md,
+    itemContainer: {
+        marginBottom: 6,
+        paddingVertical: 10,
+        paddingHorizontal: Spacing.md,
+        borderRadius: 10,
+    },
+    itemPressed: {
+        opacity: 0.7,
     },
     itemContent: {
         flexDirection: "row",
         alignItems: "center",
     },
     iconBox: {
-        width: 44,
-        height: 44,
+        width: 34,
+        height: 34,
         borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
         marginRight: Spacing.md,
+        flexShrink: 0,
     },
-    itemText: { flex: 1 },
+    itemText: { 
+        flex: 1,
+        gap: 2,
+    },
 });

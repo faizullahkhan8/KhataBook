@@ -22,6 +22,7 @@ interface PasscodePinInputProps extends Omit<
     showVisibilityToggle?: boolean;
     error?: boolean;
     shakeTrigger?: number;
+    disabled?: boolean;
 }
 
 export const PasscodePinInput: React.FC<PasscodePinInputProps> = ({
@@ -34,6 +35,7 @@ export const PasscodePinInput: React.FC<PasscodePinInputProps> = ({
     showVisibilityToggle = true,
     error = false,
     shakeTrigger = 0,
+    disabled = false,
     onFocus,
     onBlur,
     ...props
@@ -89,6 +91,7 @@ export const PasscodePinInput: React.FC<PasscodePinInputProps> = ({
             )} */}
             <Animated.View style={{ transform: [{ translateX: shake }] }}>
                 <Pressable
+                    disabled={disabled}
                     onPress={() => inputRef.current?.focus()}
                     style={[
                         styles.row,
@@ -147,6 +150,7 @@ export const PasscodePinInput: React.FC<PasscodePinInputProps> = ({
                         keyboardType="number-pad"
                         maxLength={length}
                         autoFocus={autoFocus}
+                        editable={!disabled}
                         onFocus={(event) => {
                             setIsFocused(true);
                             onFocus?.(event);

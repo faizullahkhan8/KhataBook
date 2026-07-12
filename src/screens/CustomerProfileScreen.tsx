@@ -80,10 +80,19 @@ export const CustomerProfileScreen: React.FC = () => {
                 style={[
                     styles.header,
                     {
-                        paddingTop: insets.top + Spacing.md,
+                        marginTop: insets.top + Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
                         backgroundColor: colors.surface,
-                        borderBottomColor: colors.border,
-                    },
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 4,
+                        elevation: 2,
+                        },
                     false && styles.rowRTL,
                 ]}
             >
@@ -91,12 +100,12 @@ export const CustomerProfileScreen: React.FC = () => {
                     onPress={() => router.back()}
                     style={[
                         styles.backButton,
-                        { backgroundColor: `${colors.primary}15` },
+                        { backgroundColor: `${colors.primary}18` },
                     ]}
                 >
                     <Ionicons
                         name={false ? "chevron-forward" : "chevron-back"}
-                        size={24}
+                        size={20}
                         color={colors.primary}
                     />
                 </Pressable>
@@ -250,8 +259,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         gap: Spacing.sm,
         paddingHorizontal: Spacing.md,
-        paddingBottom: Spacing.md,
-        borderBottomWidth: 1,
+        paddingVertical: 10,
     },
     rowRTL: {
         flexDirection: "row-reverse",
@@ -260,9 +268,9 @@ const styles = StyleSheet.create({
         textAlign: "right",
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
     },

@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, ScrollView, StyleSheet, View } from "react-native";
-import { Colors, Spacing } from "../constants";
+import { Spacing } from "../constants";
 import { useTheme } from "../store";
 import { Typography } from "./Typography";
 
@@ -66,7 +66,7 @@ export const DateFilter: React.FC<DateFilterProps> = ({
     };
 
     return (
-        <View style={[styles.container, { backgroundColor: colors.surface }]}>
+        <View style={styles.wrapper}>
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -86,24 +86,28 @@ export const DateFilter: React.FC<DateFilterProps> = ({
                             onPress={() => onFilterChange(filter.key)}
                             style={[
                                 styles.chip,
-                                isSelected && [
-                                    styles.chipSelected,
-                                    { backgroundColor: colors.primary },
-                                ],
-                                !isSelected && [
-                                    styles.chipUnselected,
-                                    {
-                                        backgroundColor: `${colors.primary}15`,
-                                        borderColor: colors.border,
-                                    },
-                                ],
-                                isCustom && showCustomLabel && styles.chipWide,
+                                isSelected
+                                    ? [
+                                          styles.chipSelected,
+                                          {
+                                              backgroundColor: colors.primary,
+                                              shadowColor: colors.primary,
+                                              borderColor: colors.primary,
+                                          },
+                                      ]
+                                    : [
+                                          styles.chipUnselected,
+                                          {
+                                              backgroundColor: `${colors.primary}10`,
+                                              borderColor: `${colors.primary}25`,
+                                          },
+                                      ],
                             ]}
                         >
                             {filter.icon && (
                                 <Ionicons
                                     name={filter.icon}
-                                    size={14}
+                                    size={13}
                                     color={
                                         isSelected ? "#FFFFFF" : colors.primary
                                     }
@@ -116,7 +120,7 @@ export const DateFilter: React.FC<DateFilterProps> = ({
                                     ...styles.chipText,
                                     color: isSelected
                                         ? "#FFFFFF"
-                                        : colors.text.primary,
+                                        : colors.text.secondary,
                                 }}
                             >
                                 {showCustomLabel
@@ -132,43 +136,34 @@ export const DateFilter: React.FC<DateFilterProps> = ({
 };
 
 const styles = StyleSheet.create({
-    container: {
-        marginTop: Spacing.md,
-        borderTopWidth: 1,
-        borderBottomWidth: 1,
-        borderColor: `${Colors.primary}15`,
+    wrapper: {
+        marginHorizontal: Spacing.md,
+        marginBottom: Spacing.sm,
     },
     scrollContent: {
-        paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.sm,
-        gap: Spacing.sm,
+        paddingVertical: Spacing.xs,
+        gap: Spacing.xs,
     },
     chip: {
         flexDirection: "row",
         alignItems: "center",
         paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.sm,
-        borderRadius: 20,
+        paddingVertical: 7,
+        borderRadius: 10,
         borderWidth: 1,
-        borderColor: "transparent",
-    },
-    chipWide: {
-        paddingHorizontal: Spacing.lg,
     },
     chipSelected: {
-        shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.15,
-        shadowRadius: 3,
-        elevation: 3,
+        shadowOpacity: 0.25,
+        shadowRadius: 6,
+        elevation: 4,
     },
-    chipUnselected: {
-        borderWidth: 1,
-    },
+    chipUnselected: {},
     chipIcon: {
-        marginRight: Spacing.xs,
+        marginRight: 5,
     },
     chipText: {
         fontWeight: "600",
+        fontSize: 13,
     },
 });

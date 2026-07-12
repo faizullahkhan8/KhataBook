@@ -1,4 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
+import * as SMS from "expo-sms";
 import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -10,6 +11,7 @@ import {
     Pressable,
     StyleSheet,
     View,
+    Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -31,15 +33,14 @@ import { useTransactions } from "../hooks/useTransactions";
 import { AccountStatus, CustomerId, TransactionType } from "../models";
 import { AccountService } from "../services/AccountService";
 import { useDatabaseContext, usePasscode, useTheme } from "../store";
-import { formatDateTime } from "../utils";
+import { formatDateTime, formatCurrency } from "../utils";
 
-type HeaderMenuOption = "view-profile" | "toggle-status" | "edit" | "delete";
+type HeaderMenuOption = "view-profile" | "toggle-status" | "edit" | "delete" | "send-sms" | "send-whatsapp";
 
 export const CustomerTransactionsScreen: React.FC = () => {
     const { customerId } = useLocalSearchParams<{ customerId: string }>();
     const { db, invalidate } = useDatabaseContext();
-    const { setAutoLockSuspended } = usePasscode();
-    const router = useRouter();
+        const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { t } = useTranslation();
@@ -84,9 +85,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
 
     useEffect(() => {
         if (!isMenuActionActive) return;
-        setAutoLockSuspended(true);
-        return () => setAutoLockSuspended(false);
-    }, [isMenuActionActive, setAutoLockSuspended]);
+    }, [isMenuActionActive]);
 
     useEffect(() => {
         if (accountId) {
@@ -156,10 +155,23 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 icon: "trash-outline" as const,
                 disabled: deleteLoading || !customer?.id,
             },
+            {
+                value: "send-sms" as const,
+                label: t("customerProfile.sendSms", "Send SMS"),
+                icon: "chatbubble-outline" as const,
+                disabled: !customer?.phone,
+            },
+            {
+                value: "send-whatsapp" as const,
+                label: t("customerProfile.sendWhatsapp", "Send WhatsApp"),
+                icon: "logo-whatsapp" as const,
+                disabled: !customer?.phone,
+            },
         ],
         [
             account?.id,
             customer?.id,
+            customer?.phone,
             deleteLoading,
             isAccountActive,
             isUpdatingStatus,
@@ -261,6 +273,71 @@ export const CustomerTransactionsScreen: React.FC = () => {
             case "delete":
                 handleDeleteCustomer();
                 break;
+            case "send-sms":
+                void handleSendSms();
+                break;
+            case "send-whatsapp":
+                void handleSendWhatsapp();
+                break;
+        }
+    };
+
+    const generateMessageBody = () => {
+        const amount = formatCurrency(Math.abs(stats.balance));
+        const appSignature = "\n\n- Sent via KhataBook App";
+        let message = "";
+
+        if (stats.balance > 0) {
+            message = t("customerMessages.balanceDue", { name: customer?.name, amount, defaultValue: `Dear ${customer?.name}, your current balance due is ${amount}. Please arrange a settlement at your earliest convenience.` });
+        } else if (stats.balance < 0) {
+            message = t("customerMessages.balanceAdvance", { name: customer?.name, amount, defaultValue: `Dear ${customer?.name}, this is a balance update. You currently have an advance balance of ${amount} with us.` });
+        } else {
+            message = t("customerMessages.balanceZero", { name: customer?.name, defaultValue: `Dear ${customer?.name}, your account balance is fully settled. Thank you for doing business with us! Keep managing your ledger easily with KhataBook.` });
+        }
+        
+        return message + appSignature;
+    };
+
+    const handleSendSms = async () => {
+        if (!customer?.phone) return;
+        setIsMenuActionActive(true);
+        setIsMenuVisible(false);
+        try {
+            const isAvailable = await SMS.isAvailableAsync();
+            if (isAvailable) {
+                await SMS.sendSMSAsync([customer.phone], generateMessageBody());
+            } else {
+                Alert.alert(t("customerProfile.error", "Error"), t("customerProfile.smsUnavailable", "SMS is not available on this device."));
+            }
+        } catch (error) {
+            Alert.alert(t("customerProfile.error", "Error"), t("customerProfile.smsError", "Failed to open SMS app."));
+        } finally {
+            setIsMenuActionActive(false);
+        }
+    };
+
+    const handleSendWhatsapp = async () => {
+        if (!customer?.phone) return;
+        setIsMenuActionActive(true);
+        setIsMenuVisible(false);
+        
+        let phone = customer.phone.replace(/\D/g, '');
+        if (phone.startsWith('0')) {
+            phone = '92' + phone.substring(1);
+        }
+
+        const url = `whatsapp://send?text=${encodeURIComponent(generateMessageBody())}&phone=${phone}`;
+        try {
+            const canOpen = await Linking.canOpenURL(url);
+            if (canOpen) {
+                await Linking.openURL(url);
+            } else {
+                Alert.alert(t("customerProfile.error", "Error"), t("customerProfile.whatsappUnavailable", "WhatsApp is not installed on this device."));
+            }
+        } catch (error) {
+            Alert.alert(t("customerProfile.error", "Error"), t("customerProfile.whatsappError", "Failed to open WhatsApp."));
+        } finally {
+            setIsMenuActionActive(false);
         }
     };
 
@@ -428,22 +505,30 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 style={[
                     styles.header,
                     {
-                        paddingTop: insets.top + Spacing.md,
+                        marginTop: insets.top + Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
                         backgroundColor: colors.surface,
-                        borderBottomColor: colors.border,
-                    },
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 4,
+                        elevation: 2,
+                        },
                 ]}
             >
                 <Pressable
                     onPress={() => router.back()}
                     style={[
                         styles.backButton,
-                        { backgroundColor: `${colors.primary}15` },
+                        { backgroundColor: `${colors.primary}18` },
                     ]}
                 >
                     <Ionicons
-                        name="chevron-back"
-                        size={24}
+                        name="chevron-back" size={20}
                         color={colors.primary}
                     />
                 </Pressable>
@@ -538,8 +623,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     disabled={!customer}
                 >
                     <Ionicons
-                        name="ellipsis-vertical"
-                        size={24}
+                        name="ellipsis-vertical" size={20}
                         color={
                             customer ? colors.text.primary : colors.text.muted
                         }
@@ -735,16 +819,16 @@ const styles = StyleSheet.create({
     },
     header: {
         paddingHorizontal: Spacing.md,
-        paddingBottom: Spacing.md,
-        borderBottomWidth: 1,
+        paddingVertical: 10,
         flexDirection: "row",
+        gap: Spacing.sm,
         alignItems: "center",
         justifyContent: "space-between",
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
     },

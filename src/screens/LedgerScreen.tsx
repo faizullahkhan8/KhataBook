@@ -313,55 +313,30 @@ export const LedgerScreen: React.FC = () => {
                     { backgroundColor: colors.background },
                 ]}
             >
-                <View
-                    style={[
-                        styles.header,
-                        {
-                            paddingTop: insets.top + Spacing.md,
-                            backgroundColor: colors.surface,
-                            borderBottomColor: colors.border,
-                        },
-                    ]}
-                >
-                    <View
-                        style={[
-                            styles.headerTopRow,
-                            false && { flexDirection: "row-reverse" },
-                        ]}
-                    >
-                        <View
-                            style={[
-                                styles.headerTitleRow,
-                                false && { flexDirection: "row-reverse" },
-                            ]}
-                        >
-                            <View
-                                style={[
-                                    styles.headerIconContainer,
-                                    { backgroundColor: `${colors.primary}20` },
-                                ]}
-                            >
-                                <Ionicons
-                                    name="book"
-                                    size={28}
-                                    color={colors.primary}
-                                />
-                            </View>
+                <View style={[
+                    styles.header,
+                    {
+                        marginTop: insets.top + Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
+                        overflow: "hidden",
+                        backgroundColor: colors.surface,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 4,
+                        elevation: 2,
+                    },
+                ]}>
+                    <View style={styles.headerTopRow}>
+                        <View style={styles.headerTitleRow}>
                             {!isSearchActive && (
                                 <View>
-                                    <Typography
-                                        variant="heading-large"
-                                        color="primary"
-                                    >
+                                    <Typography variant="heading-large" color="primary">
                                         {t("ledger.title")}
-                                    </Typography>
-                                    <Typography
-                                        variant="body-small"
-                                        color="muted"
-                                    >
-                                        {t("ledger.subtitle", {
-                                            count: filteredEntries.length,
-                                        })}
                                     </Typography>
                                 </View>
                             )}
@@ -371,23 +346,14 @@ export const LedgerScreen: React.FC = () => {
                                         ref={searchInputRef}
                                         style={[
                                             styles.headerSearchInput,
-                                            {
-                                                backgroundColor:
-                                                    colors.background,
-                                                color: colors.text.primary,
-                                            },
+                                            { backgroundColor: colors.background, color: colors.text.primary },
                                         ]}
-                                        placeholder={t(
-                                            "ledger.searchPlaceholder",
-                                        )}
+                                        placeholder={t("ledger.searchPlaceholder")}
                                         placeholderTextColor={colors.text.muted}
                                         value={searchText}
                                         onChangeText={setSearchText}
                                         autoFocus
-                                        onBlur={() => {
-                                            if (!searchText)
-                                                setIsSearchActive(false);
-                                        }}
+                                        onBlur={() => { if (!searchText) setIsSearchActive(false); }}
                                     />
                                 </View>
                             )}
@@ -399,15 +365,12 @@ export const LedgerScreen: React.FC = () => {
                                     setIsSearchActive(false);
                                 } else {
                                     setIsSearchActive(true);
-                                    setTimeout(
-                                        () => searchInputRef.current?.focus(),
-                                        100,
-                                    );
+                                    setTimeout(() => searchInputRef.current?.focus(), 100);
                                 }
                             }}
                             style={[
                                 styles.searchIconButton,
-                                { backgroundColor: `${colors.primary}15` },
+                                { backgroundColor: `${colors.primary}18` },
                             ]}
                         >
                             <Ionicons
@@ -443,6 +406,7 @@ export const LedgerScreen: React.FC = () => {
 
                 <FlatList
                     data={filteredEntries}
+                    extraData={colors}
                     renderItem={renderEntry}
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.list}
@@ -518,10 +482,7 @@ const styles = StyleSheet.create({
     },
     header: {
         paddingHorizontal: Spacing.lg,
-        paddingBottom: Spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-        backgroundColor: Colors.surface,
+        paddingVertical: 10,
     },
     headerTopRow: {
         flexDirection: "row",
@@ -557,9 +518,9 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     searchIconButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         backgroundColor: `${Colors.primary}15`,
         justifyContent: "center",
         alignItems: "center",

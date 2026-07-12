@@ -20,45 +20,16 @@ import {
     Button,
     Card,
     Input,
-    OptionModal,
     PasscodeLengthSelector,
     PasscodePinInput,
     PasscodeUnlockScreen,
     Typography,
 } from "../components";
 import { Spacing } from "../constants";
-import { AutoLockDelay, PasscodeLength, usePasscode, useTheme } from "../store";
+import { PasscodeLength, usePasscode, useTheme } from "../store";
 
 type Mode = "enable" | "authenticate" | "menu" | "change" | "disable";
 type SetupStep = 1 | 2 | 3;
-
-const AUTO_LOCK_OPTIONS = [
-    {
-        value: 10000 as AutoLockDelay,
-        label: "Immediate",
-        icon: "time-outline" as const,
-    },
-    {
-        value: 60_000 as AutoLockDelay,
-        label: "1 minute",
-        icon: "time-outline" as const,
-    },
-    {
-        value: 180_000 as AutoLockDelay,
-        label: "3 minutes",
-        icon: "time-outline" as const,
-    },
-    {
-        value: 300_000 as AutoLockDelay,
-        label: "5 minutes",
-        icon: "time-outline" as const,
-    },
-    {
-        value: 600_000 as AutoLockDelay,
-        label: "10 minutes",
-        icon: "time-outline" as const,
-    },
-];
 
 export const PasscodeScreen: React.FC = () => {
     const router = useRouter();
@@ -74,15 +45,14 @@ export const PasscodeScreen: React.FC = () => {
         biometricAvailable,
         biometricTypes,
         isBiometricAuthenticating,
-        autoLockDelay,
+
         requireDeleteAuth,
         setupPasscode,
         changePin,
         disablePasscode,
         refreshBiometricAvailability,
         setBiometricEnabled,
-        setAutoLockSuspended,
-        setAutoLockDelay,
+
         setRequireDeleteAuth,
     } = usePasscode();
     const [mode, setMode] = useState<Mode>(
@@ -97,30 +67,17 @@ export const PasscodeScreen: React.FC = () => {
     const [error, setError] = useState("");
     const [selectedLength, setSelectedLength] = useState<PasscodeLength>(6);
     const [setupStep, setSetupStep] = useState<SetupStep>(1);
-    const [showAutoLockModal, setShowAutoLockModal] = useState(false);
+
     const isWizardMode = mode === "enable" || mode === "change";
-
-    const getAutoLockLabel = (delay: AutoLockDelay) =>
-        delay === 10000
-            ? t("passcode.autoLockImmediate")
-            : delay === 60_000
-              ? t("passcode.autoLockMinute")
-              : t("passcode.autoLockMinutes", { count: delay / 60_000 });
-
-    const autoLockOptionsWithLabels = AUTO_LOCK_OPTIONS.map((opt) => ({
-        ...opt,
-        label: getAutoLockLabel(opt.value),
-    }));
 
     const handleBack = useCallback(() => {
         Keyboard.dismiss();
-        setAutoLockSuspended(false);
         if (router.canGoBack()) {
             router.back();
         } else {
             router.replace("/");
         }
-    }, [router, setAutoLockSuspended]);
+    }, [router]);
 
     useEffect(() => {
         const subscription = BackHandler.addEventListener(
@@ -132,11 +89,6 @@ export const PasscodeScreen: React.FC = () => {
         );
         return () => subscription.remove();
     }, [handleBack]);
-
-    useEffect(() => {
-        setAutoLockSuspended(mode !== "menu");
-        return () => setAutoLockSuspended(false);
-    }, [mode, setAutoLockSuspended]);
 
     useEffect(() => {
         if (mode === "menu") refreshBiometricAvailability();
@@ -362,8 +314,11 @@ export const PasscodeScreen: React.FC = () => {
                 style={[
                     styles.header,
                     {
+                        marginTop: Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
                         backgroundColor: colors.surface,
-                        borderBottomColor: colors.border,
                     },
                 ]}
             >
@@ -371,13 +326,13 @@ export const PasscodeScreen: React.FC = () => {
                     onPress={handleBack}
                     style={[
                         styles.backButton,
-                        { backgroundColor: `${colors.primary}15` },
+                        { backgroundColor: `${colors.primary}18` },
                     ]}
                     hitSlop={Spacing.md}
                 >
                     <Ionicons
                         name="chevron-back"
-                        size={24}
+                        size={20}
                         color={colors.primary}
                     />
                 </Pressable>
@@ -493,40 +448,7 @@ export const PasscodeScreen: React.FC = () => {
                                     }}
                                 />
                             </View>
-                            <View style={styles.autoLockSection}>
-                                <Pressable
-                                    onPress={() => setShowAutoLockModal(true)}
-                                    style={[
-                                        styles.biometricRow,
-                                        { borderColor: colors.border },
-                                    ]}
-                                >
-                                    <View style={styles.biometricCopy}>
-                                        <Typography variant="subheading-small">
-                                            {t("passcode.autoLock")}
-                                        </Typography>
-                                        <Typography
-                                            color="muted"
-                                            variant="small-small"
-                                        >
-                                            {t("passcode.autoLockMessage")}
-                                        </Typography>
-                                    </View>
-                                    <View style={styles.settingValue}>
-                                        <Typography
-                                            color="primary"
-                                            variant="body-small"
-                                        >
-                                            {getAutoLockLabel(autoLockDelay)}
-                                        </Typography>
-                                        <Ionicons
-                                            name="chevron-forward"
-                                            size={18}
-                                            color={colors.text.muted}
-                                        />
-                                    </View>
-                                </Pressable>
-                            </View>
+
                             <Button
                                 title={t("passcode.change")}
                                 onPress={startChangeWizard}
@@ -842,17 +764,6 @@ export const PasscodeScreen: React.FC = () => {
                     </View>
                 )}
             </KeyboardAvoidingView>
-
-            <OptionModal
-                visible={showAutoLockModal}
-                title={t("passcode.autoLock")}
-                options={autoLockOptionsWithLabels}
-                selected={autoLockDelay}
-                onSelect={(value) => {
-                    void setAutoLockDelay(value as AutoLockDelay);
-                }}
-                onClose={() => setShowAutoLockModal(false)}
-            />
         </View>
     );
 };
@@ -863,14 +774,13 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: "row",
         alignItems: "center",
-        borderBottomWidth: 1,
         padding: Spacing.lg,
         gap: Spacing.md,
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
     },

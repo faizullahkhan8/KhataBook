@@ -32,8 +32,7 @@ export const TrashScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { db } = useDatabaseContext();
-    const { setAutoLockSuspended } = usePasscode();
-    const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
+        const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
         useDeleteAuthentication();
 
     const {
@@ -138,9 +137,7 @@ export const TrashScreen: React.FC = () => {
             const releaseAutoLock = () => {
                 if (released) return;
                 released = true;
-                setAutoLockSuspended(false);
             };
-            setAutoLockSuspended(true);
             Alert.alert(
                 t("trash.restoreTitle"),
                 t("trash.restoreMessage", { count: 1 }),
@@ -177,7 +174,6 @@ export const TrashScreen: React.FC = () => {
             restoreCustomers,
             restoreTransactions,
             refresh,
-            setAutoLockSuspended,
             t,
         ],
     );
@@ -188,9 +184,7 @@ export const TrashScreen: React.FC = () => {
             const releaseAutoLock = () => {
                 if (released) return;
                 released = true;
-                setAutoLockSuspended(false);
             };
-            setAutoLockSuspended(true);
             Alert.alert(
                 t("trash.permanentDeleteTitle"),
                 t("trash.permanentDeleteMessage", { count: 1 }),
@@ -231,7 +225,6 @@ export const TrashScreen: React.FC = () => {
             permanentDeleteTransactions,
             refresh,
             requestDeleteAuthentication,
-            setAutoLockSuspended,
             t,
         ],
     );
@@ -244,9 +237,7 @@ export const TrashScreen: React.FC = () => {
         const releaseAutoLock = () => {
             if (released) return;
             released = true;
-            setAutoLockSuspended(false);
         };
-        setAutoLockSuspended(true);
         Alert.alert(
             t("trash.restoreTitle"),
             t("trash.restoreMessage", { count: selectedCount }),
@@ -286,7 +277,6 @@ export const TrashScreen: React.FC = () => {
         selectedCount,
         selectedCustomerIds,
         selectedTransactionIds,
-        setAutoLockSuspended,
         t,
     ]);
 
@@ -296,9 +286,7 @@ export const TrashScreen: React.FC = () => {
         const releaseAutoLock = () => {
             if (released) return;
             released = true;
-            setAutoLockSuspended(false);
         };
-        setAutoLockSuspended(true);
         Alert.alert(
             t("trash.permanentDeleteTitle"),
             t("trash.permanentDeleteMessage", { count: selectedCount }),
@@ -338,7 +326,6 @@ export const TrashScreen: React.FC = () => {
         selectedCount,
         selectedCustomerIds,
         selectedTransactionIds,
-        setAutoLockSuspended,
         t,
     ]);
 
@@ -349,9 +336,7 @@ export const TrashScreen: React.FC = () => {
         const releaseAutoLock = () => {
             if (released) return;
             released = true;
-            setAutoLockSuspended(false);
         };
-        setAutoLockSuspended(true);
         Alert.alert(
             t("trash.emptyTrashTitle"),
             t("trash.emptyTrashMessage"),
@@ -382,7 +367,6 @@ export const TrashScreen: React.FC = () => {
         closeSelectionMode,
         refresh,
         requestDeleteAuthentication,
-        setAutoLockSuspended,
         t,
     ]);
 
@@ -664,10 +648,19 @@ export const TrashScreen: React.FC = () => {
                 <View
                     style={[
                         styles.header,
-                        {
-                            paddingTop: insets.top + Spacing.md,
-                            backgroundColor: colors.surface,
-                            borderBottomColor: colors.border,
+                    {
+                        marginTop: insets.top + Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
+                        backgroundColor: colors.surface,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 4,
+                        elevation: 2,
                         },
                     ]}
                 >
@@ -679,13 +672,12 @@ export const TrashScreen: React.FC = () => {
                                     style={[
                                         styles.backButton,
                                         {
-                                            backgroundColor: `${colors.primary}15`,
+                                            backgroundColor: `${colors.primary}18`,
                                         },
                                     ]}
                                 >
                                     <Ionicons
-                                        name="chevron-back"
-                                        size={24}
+                                        name="chevron-back" size={20}
                                         color={colors.primary}
                                     />
                                 </Pressable>
@@ -892,8 +884,7 @@ const styles = StyleSheet.create({
     container: { flex: 1 },
     header: {
         paddingHorizontal: Spacing.lg,
-        paddingBottom: Spacing.md,
-        borderBottomWidth: 1,
+        paddingVertical: 10,
     },
     headerTopRow: {
         flexDirection: "row",
@@ -906,9 +897,9 @@ const styles = StyleSheet.create({
         gap: Spacing.md,
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
     },

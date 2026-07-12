@@ -349,6 +349,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                                 autoFocus={!biometricPreferred}
                                 error={step === "pin" && pinHasError}
                                 shakeTrigger={step === "pin" ? shakeTrigger : 0}
+                                disabled={secondsLeft > 0}
                             />
                         </>
                     ) : (
@@ -357,6 +358,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                             onChangeText={setValue}
                             placeholder={t("passcode.answerPlaceholder")}
                             autoFocus
+                            editable={secondsLeft === 0}
                         />
                     )}
 
@@ -368,6 +370,7 @@ export const PasscodeUnlockScreen: React.FC<PasscodeUnlockScreenProps> = ({
                                 setConfirmPin(text.replace(/\D/g, ""))
                             }
                             placeholder={t("passcode.confirmPin")}
+                            disabled={secondsLeft > 0}
                         />
                     )}
 

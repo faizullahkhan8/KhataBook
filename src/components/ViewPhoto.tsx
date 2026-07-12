@@ -26,15 +26,12 @@ export const ViewPhoto: React.FC<ViewPhotoProps> = ({
     closeAccessibilityLabel,
 }) => {
     const { colors } = useTheme();
-    const { setAutoLockSuspended } = usePasscode();
-    const { width, height } = useWindowDimensions();
+        const { width, height } = useWindowDimensions();
     const [visible, setVisible] = useState(false);
 
     useEffect(() => {
         if (!visible) return;
-        setAutoLockSuspended(true);
-        return () => setAutoLockSuspended(false);
-    }, [setAutoLockSuspended, visible]);
+    }, [visible]);
 
     const close = () => setVisible(false);
 

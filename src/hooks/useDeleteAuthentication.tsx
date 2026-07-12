@@ -5,7 +5,7 @@ import { usePasscode } from "../store";
 type DeleteAction = () => void | Promise<void>;
 
 export const useDeleteAuthentication = () => {
-    const { isEnabled, requireDeleteAuth, setAutoLockSuspended } =
+    const { isEnabled, requireDeleteAuth } =
         usePasscode();
     const [pendingAction, setPendingAction] = useState<DeleteAction | null>(
         null,
@@ -14,32 +14,27 @@ export const useDeleteAuthentication = () => {
 
     useEffect(() => {
         if (!pendingAction) return;
-        setAutoLockSuspended(true);
-        return () => setAutoLockSuspended(false);
-    }, [pendingAction, setAutoLockSuspended]);
+    }, [pendingAction]);
 
     const requestDeleteAuthentication = useCallback(
         async (action: DeleteAction) => {
-            setAutoLockSuspended(true);
             if (!isEnabled || !requireDeleteAuth) {
                 try {
                     await action();
                 } finally {
-                    setAutoLockSuspended(false);
                 }
                 return;
             }
             pendingActionRef.current = action;
             setPendingAction(() => action);
         },
-        [isEnabled, requireDeleteAuth, setAutoLockSuspended],
+        [isEnabled, requireDeleteAuth],
     );
 
     const cancelDeleteAuthentication = useCallback(() => {
         pendingActionRef.current = null;
         setPendingAction(null);
-        setAutoLockSuspended(false);
-    }, [setAutoLockSuspended]);
+    }, []);
 
     const completeDeleteAuthentication = useCallback(async () => {
         const action = pendingActionRef.current;
@@ -49,9 +44,8 @@ export const useDeleteAuthentication = () => {
             await new Promise<void>((resolve) => setTimeout(resolve, 0));
             await action?.();
         } finally {
-            setAutoLockSuspended(false);
         }
-    }, [setAutoLockSuspended]);
+    }, []);
 
     const deleteAuthenticationPrompt = (
         <PasscodeVerificationModal

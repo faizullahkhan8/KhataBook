@@ -7,7 +7,6 @@ export { DeveloperOptionsScreen } from "./DeveloperOptionsScreen";
 export { FeedbackScreen } from "./FeedbackScreen";
 export { LedgerScreen } from "./LedgerScreen";
 export { LogsScreen } from "./LogsScreen";
-export { MessagesScreen } from "./MessagesScreen";
 export { OnboardingScreen } from "./OnboardingScreen";
 export { PasscodeScreen } from "./PasscodeScreen";
 export { PrivacyPolicyScreen } from "./PrivacyPolicyScreen";

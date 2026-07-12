@@ -7,7 +7,7 @@ import React, {
     useState,
 } from "react";
 import { LayoutChangeEvent, Pressable, StyleSheet, View } from "react-native";
-import { Typography } from ".";
+import { Typography } from "./Typography";
 import { Spacing } from "../constants";
 import { useTheme } from "../store";
 import { formatCurrency, toInteger } from "../utils/currencyUtils";
@@ -153,9 +153,7 @@ const CalculatorKeyboardComponent: React.FC<CalculatorKeyboardProps> = ({
         return initialValue.toString();
     });
     const [evaluated, setEvaluated] = useState<number | null>(null);
-    const [resetNext, setResetNext] = useState(() =>
-        Boolean(initialValue && initialValue > 0),
-    );
+    const [resetNext, setResetNext] = useState(false);
     const [error, setError] = useState(false);
     const [keyWidth, setKeyWidth] = useState(0);
     const keyWidthRef = useRef(keyWidth);

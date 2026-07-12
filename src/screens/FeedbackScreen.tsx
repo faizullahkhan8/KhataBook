@@ -15,7 +15,7 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Button, Card, Input, Typography } from "../components";
+import { Button, Card, Input, OptionModal, Typography } from "../components";
 import { Spacing } from "../constants";
 import { useLanguage, useTheme } from "../store";
 import { formatLogEntry, logService } from "../services/LogService";
@@ -45,6 +45,7 @@ export const FeedbackScreen: React.FC = () => {
     const [detailsError, setDetailsError] = useState(false);
     const [includeLogs, setIncludeLogs] = useState(true);
     const [isOpening, setIsOpening] = useState(false);
+    const [showSendModal, setShowSendModal] = useState(false);
 
     const diagnosticDetails = useMemo(
         () => [
@@ -177,23 +178,31 @@ export const FeedbackScreen: React.FC = () => {
                 style={[
                     styles.header,
                     {
-                        paddingTop: insets.top + Spacing.md,
+                        marginTop: insets.top + Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
                         backgroundColor: colors.surface,
-                        borderBottomColor: colors.border,
-                    },
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 4,
+                        elevation: 2,
+                        },
                 ]}
             >
                 <Pressable
                     onPress={() => router.back()}
                     style={[
                         styles.backButton,
-                        { backgroundColor: `${colors.primary}15` },
+                        { backgroundColor: `${colors.primary}18` },
                     ]}
                     hitSlop={Spacing.md}
                 >
                     <Ionicons
-                        name="chevron-back"
-                        size={24}
+                        name="chevron-back" size={20}
                         color={colors.primary}
                     />
                 </Pressable>
@@ -223,6 +232,7 @@ export const FeedbackScreen: React.FC = () => {
                         <View style={styles.categories}>
                             {CATEGORIES.map((item) => {
                                 const selected = category === item;
+                                const itemColor = item === "bug" ? colors.warning : item === "error" ? colors.danger : item === "suggestion" ? colors.success : colors.primary;
                                 return (
                                     <Pressable
                                         key={item}
@@ -234,12 +244,12 @@ export const FeedbackScreen: React.FC = () => {
                                             styles.category,
                                             {
                                                 borderColor: selected
-                                                    ? colors.primary
+                                                    ? itemColor
                                                     : categoryError
                                                       ? colors.danger
                                                       : colors.border,
                                                 backgroundColor: selected
-                                                    ? `${colors.primary}15`
+                                                    ? `${itemColor}15`
                                                     : colors.surface,
                                             },
                                         ]}
@@ -247,21 +257,19 @@ export const FeedbackScreen: React.FC = () => {
                                         <Ionicons
                                             name={
                                                 selected
-                                                    ? "radio-button-on"
-                                                    : "radio-button-off"
+                                                    ? "checkmark-circle"
+                                                    : "ellipse-outline"
                                             }
-                                            size={18}
+                                            size={16}
                                             color={
                                                 selected
-                                                    ? colors.primary
+                                                    ? itemColor
                                                     : colors.text.muted
                                             }
                                         />
                                         <Typography
                                             variant="body-small"
-                                            color={
-                                                selected ? "primary" : "muted"
-                                            }
+                                            style={{ color: selected ? itemColor : colors.text.muted, fontWeight: selected ? "600" : "400" }}
                                         >
                                             {t(`feedback.categories.${item}`)}
                                         </Typography>
@@ -304,50 +312,63 @@ export const FeedbackScreen: React.FC = () => {
                     </Card>
                     <Pressable
                         onPress={() => setIncludeLogs((prev) => !prev)}
-                        style={styles.logsToggle}
+                        style={[styles.logsToggle, { backgroundColor: includeLogs ? `${colors.primary}10` : colors.surface, borderColor: includeLogs ? colors.primary : colors.border, borderWidth: 1 }]}
                     >
                         <Ionicons
                             name={includeLogs ? "checkbox" : "square-outline"}
                             size={22}
                             color={includeLogs ? colors.primary : colors.text.muted}
                         />
-                        <Typography variant="body-small" color="primary" style={styles.logsToggleText}>
-                            Include app logs for debugging
-                        </Typography>
+                        <View style={{ flex: 1, gap: 2 }}>
+                            <Typography variant="body-small" color="primary" style={styles.logsToggleText}>
+                                Include app logs for debugging
+                            </Typography>
+                            <Typography color="muted" variant="small-small" style={styles.logsNote}>
+                                Sensitive data is redacted automatically.
+                            </Typography>
+                        </View>
                     </Pressable>
-                    <Typography color="muted" variant="small-small" style={styles.logsNote}>
-                        Logs contain recent app events (navigation, CRUD, errors). Sensitive data like PINs, passwords, and full CNIC numbers are automatically redacted.
-                    </Typography>
-                    <Typography variant="subheading-small">
-                        {t("feedback.sendUsing")}
-                    </Typography>
                     <Typography color="muted" variant="small-small">
                         {t("feedback.privacyNote")}
                     </Typography>
                     <View style={styles.actions}>
-                        <Button
-                            title={t("feedback.whatsapp")}
-                            onPress={openWhatsApp}
+                        <Pressable
+                            onPress={() => {
+                                if (validate()) {
+                                    setShowSendModal(true);
+                                }
+                            }}
                             disabled={isOpening}
-                            style={styles.action}
-                        />
-                        <Button
-                            title={t("feedback.email")}
-                            onPress={openEmail}
-                            disabled={isOpening}
-                            variant="secondary"
-                            style={styles.action}
-                        />
-                        <Button
-                            title={t("feedback.sms")}
-                            onPress={openSms}
-                            disabled={isOpening}
-                            variant="secondary"
-                            style={styles.action}
-                        />
+                            style={[styles.colorfulButton, { backgroundColor: colors.primary, opacity: isOpening ? 0.6 : 1 }]}
+                        >
+                            <Ionicons name="paper-plane" size={20} color="#FFF" />
+                            <Typography variant="body-medium" style={styles.colorfulButtonText}>
+                                {t("feedback.sendUsing")}
+                            </Typography>
+                        </Pressable>
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+
+            <OptionModal
+                visible={showSendModal}
+                title={t("feedback.sendUsing")}
+                options={[
+                    { value: "whatsapp", label: t("feedback.whatsapp"), icon: "logo-whatsapp" },
+                    { value: "email", label: t("feedback.email"), icon: "mail" },
+                    { value: "sms", label: t("feedback.sms"), icon: "chatbubble" },
+                ]}
+                showSelectionIndicator={false}
+                onSelect={(value) => {
+                    setShowSendModal(false);
+                    setTimeout(() => {
+                        if (value === "whatsapp") { void openWhatsApp(); }
+                        else if (value === "email") { void openEmail(); }
+                        else { void openSms(); }
+                    }, 250);
+                }}
+                onClose={() => setShowSendModal(false)}
+            />
         </View>
     );
 };
@@ -359,34 +380,36 @@ const styles = StyleSheet.create({
         alignItems: "center",
         gap: Spacing.md,
         paddingHorizontal: Spacing.lg,
-        paddingBottom: Spacing.md,
-        borderBottomWidth: 1,
+        paddingVertical: 10,
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
     },
     content: { flex: 1 },
     scrollContent: { padding: Spacing.lg, gap: Spacing.md },
     card: { gap: Spacing.sm, padding: Spacing.lg },
-    categories: { gap: Spacing.sm },
+    categories: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
     category: {
         flexDirection: "row",
         alignItems: "center",
-        gap: Spacing.sm,
+        gap: Spacing.xs,
         borderWidth: 1,
-        borderRadius: 8,
-        padding: Spacing.md,
+        borderRadius: 20,
+        paddingVertical: 8,
+        paddingHorizontal: 12,
     },
-    detailsInput: { minHeight: 150, textAlignVertical: "top" },
+    detailsInput: { minHeight: 120, textAlignVertical: "top" },
     logsToggle: {
         flexDirection: "row",
         alignItems: "center",
-        gap: Spacing.sm,
+        gap: Spacing.md,
         marginTop: Spacing.xs,
+        padding: Spacing.md,
+        borderRadius: 12,
     },
     logsToggleText: {
         flex: 1,
@@ -395,5 +418,18 @@ const styles = StyleSheet.create({
         lineHeight: 16,
     },
     actions: { gap: Spacing.sm },
-    action: { width: "100%" },
+    colorfulButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: Spacing.sm,
+        paddingVertical: Spacing.md,
+        paddingHorizontal: Spacing.lg,
+        borderRadius: 20,
+        minHeight: 48,
+    },
+    colorfulButtonText: {
+        color: "#FFFFFF",
+        fontWeight: "600",
+    },
 });

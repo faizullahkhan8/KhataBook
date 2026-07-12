@@ -24,6 +24,7 @@ import { AccountService } from "../services/AccountService";
 import { CustomerService } from "../services/CustomerService";
 import { useDatabaseContext, usePasscode, useTheme } from "../store";
 import { fromInteger, toInteger } from "../utils/currencyUtils";
+import { saveToPermanentStorage, deleteFromStorage } from "../utils/fileUtils";
 
 export const AddCustomerScreen: React.FC = () => {
     const {
@@ -35,8 +36,7 @@ export const AddCustomerScreen: React.FC = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { setAutoLockSuspended } = usePasscode();
-    const { t } = useTranslation();
+        const { t } = useTranslation();
     const { customerId } = useLocalSearchParams<{ customerId?: string }>();
     const { createCustomer } = useCustomersWithAccounts(db);
     const { customer } = useCustomerById(
@@ -70,6 +70,7 @@ export const AddCustomerScreen: React.FC = () => {
     });
 
     const [imageUri, setImageUri] = useState<string | null>(null);
+    const originalImageUri = React.useRef<string | null>(null);
     const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
     useEffect(() => {
@@ -112,6 +113,7 @@ export const AddCustomerScreen: React.FC = () => {
             }
             if (customer.image_uri) {
                 setImageUri(customer.image_uri);
+                originalImageUri.current = customer.image_uri;
             }
         }
     }, [isEditMode, customer]);
@@ -152,6 +154,8 @@ export const AddCustomerScreen: React.FC = () => {
 
         setIsSubmitting(true);
         try {
+            const finalImageUri = await saveToPermanentStorage(imageUri);
+
             if (isEditMode && customerId && customerService && accountService) {
                 // Update existing customer
                 await customerService.updateCustomer(
@@ -160,12 +164,16 @@ export const AddCustomerScreen: React.FC = () => {
                         name: customerInfo.name.trim(),
                         phone: customerInfo.phone.trim(),
                         cnic: customerInfo.cnic.trim(),
-                        email: customerInfo.email.trim() || undefined,
-                        address: customerInfo.address.trim() || undefined,
-                        notes: customerInfo.notes.trim() || undefined,
-                        image_uri: imageUri || undefined,
+                        email: customerInfo.email.trim() || "",
+                        address: customerInfo.address.trim() || "",
+                        notes: customerInfo.notes.trim() || "",
+                        image_uri: finalImageUri || "",
                     },
                 );
+
+                if (originalImageUri.current && originalImageUri.current !== finalImageUri) {
+                    await deleteFromStorage(originalImageUri.current);
+                }
 
                 // Update account credit limit if account exists
                 const account = customer?.accounts?.[0];
@@ -192,7 +200,7 @@ export const AddCustomerScreen: React.FC = () => {
                         email: customerInfo.email.trim() || undefined,
                         address: customerInfo.address.trim() || undefined,
                         notes: customerInfo.notes.trim() || undefined,
-                        image_uri: imageUri || undefined,
+                        image_uri: finalImageUri || undefined,
                     },
                     {
                         creditLimit: accountInfo.creditLimit.trim()
@@ -251,7 +259,6 @@ export const AddCustomerScreen: React.FC = () => {
     };
 
     const pickFromCamera = async () => {
-        setAutoLockSuspended(true);
         try {
             const { status } =
                 await ImagePicker.requestCameraPermissionsAsync();
@@ -273,12 +280,10 @@ export const AddCustomerScreen: React.FC = () => {
                 setImageUri(result.assets[0].uri);
             }
         } finally {
-            setAutoLockSuspended(false);
         }
     };
 
     const pickFromGallery = async () => {
-        setAutoLockSuspended(true);
         try {
             const { status } =
                 await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -300,7 +305,6 @@ export const AddCustomerScreen: React.FC = () => {
                 setImageUri(result.assets[0].uri);
             }
         } finally {
-            setAutoLockSuspended(false);
         }
     };
 
@@ -341,7 +345,13 @@ export const AddCustomerScreen: React.FC = () => {
                 <View
                     style={[
                         styles.header,
-                        { borderBottomColor: colors.border },
+                    {
+                        marginTop: Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
+                        backgroundColor: colors.surface,
+                    },
                         false && { flexDirection: "row-reverse" },
                     ]}
                 >
@@ -349,12 +359,12 @@ export const AddCustomerScreen: React.FC = () => {
                         onPress={handleCancel}
                         style={[
                             styles.backButton,
-                            { backgroundColor: `${colors.primary}15` },
+                            { backgroundColor: `${colors.primary}18` },
                         ]}
                     >
                         <Ionicons
                             name={false ? "chevron-forward" : "chevron-back"}
-                            size={24}
+                            size={20}
                             color={colors.primary}
                         />
                     </Pressable>
@@ -884,17 +894,16 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: "row",
+        gap: Spacing.sm,
         alignItems: "center",
         justifyContent: "space-between",
         paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
+        paddingVertical: 10,
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
     },

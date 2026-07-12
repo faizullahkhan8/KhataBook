@@ -32,13 +32,113 @@ import { useDatabaseContext, usePasscode, useTheme } from "../store";
 
 type SelectionMenuOption = "toggle-all" | "delete";
 
+const CustomerItem = React.memo(({
+    item, drag, isActive, isSelectionMode, isReorderMode, isSelected,
+    colors, t, onRowPress, onRowLongPress, balance, isInactive
+}: any) => {
+    return (
+        <Pressable
+            onPress={onRowPress}
+            onLongPress={onRowLongPress}
+            disabled={isActive}
+            style={[
+                styles.customerRow,
+                { backgroundColor: isSelected ? `${colors.primary}12` : colors.surface },
+                isSelected && { borderColor: colors.primary, borderWidth: 1 },
+            ]}
+        >
+            {isSelectionMode && (
+                <Ionicons
+                    name={isSelected ? "checkbox" : "square-outline"}
+                    size={22}
+                    color={isSelected ? colors.primary : colors.text.muted}
+                    style={styles.checkbox}
+                />
+            )}
+            {isReorderMode && (
+                <Ionicons
+                    name="reorder-three"
+                    size={22}
+                    color={colors.text.muted}
+                    style={styles.dragHandle}
+                />
+            )}
+            {item.image_uri ? (
+                <ViewPhoto
+                    source={{ uri: item.image_uri }}
+                    enabled={!isSelectionMode && !isReorderMode}
+                    accessibilityLabel={t("photoViewer.openCustomer", { name: item.name })}
+                    closeAccessibilityLabel={t("photoViewer.close")}
+                >
+                    <Image
+                        source={{ uri: item.image_uri }}
+                        style={styles.avatar}
+                        contentFit="cover"
+                        transition={isReorderMode ? 0 : 200}
+                        priority="high"
+                        cachePolicy="memory-disk"
+                    />
+                </ViewPhoto>
+            ) : (
+                <View style={[styles.avatarPlaceholder, { backgroundColor: `${colors.primary}15` }]}>
+                    <Ionicons name="person" size={20} color={colors.text.muted} />
+                </View>
+            )}
+            <View style={styles.customerInfo}>
+                <View style={styles.customerTopRow}>
+                    <Typography
+                        variant="body-medium"
+                        color="primary"
+                        numberOfLines={1}
+                        style={styles.customerName}
+                    >
+                        {item.name}
+                    </Typography>
+                    {isInactive && (
+                        <View style={[
+                            styles.inactiveBadge,
+                            {
+                                backgroundColor: `${colors.warning}18`,
+                                borderColor: `${colors.warning}60`,
+                            },
+                        ]}>
+                            <View style={[styles.inactiveDot, { backgroundColor: colors.warning }]} />
+                            <Typography variant="small-small" color="warning" numberOfLines={1}>
+                                {t("customers.inactive")}
+                            </Typography>
+                        </View>
+                    )}
+                </View>
+                <Typography variant="small-small" color="muted" numberOfLines={1}>
+                    {item.phone?.trim() || t("customers.noPhoneNumber")}
+                </Typography>
+            </View>
+            <TouchableAmount
+                amount={balance}
+                variant="body-medium"
+                color={balance > 0 ? "danger" : balance < 0 ? "success" : "primary"}
+                style={styles.balanceText}
+            />
+            {!isSelectionMode && !isReorderMode && (
+                <Ionicons name="chevron-forward" size={14} color={colors.text.muted} />
+            )}
+        </Pressable>
+    );
+}, (prev, next) => 
+    prev.item.id === next.item.id && 
+    prev.isActive === next.isActive &&
+    prev.isSelectionMode === next.isSelectionMode &&
+    prev.isReorderMode === next.isReorderMode &&
+    prev.isSelected === next.isSelected &&
+    prev.colors.surface === next.colors.surface
+);
+
 export const CustomersScreen: React.FC = () => {
     const { db } = useDatabaseContext();
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { setAutoLockSuspended } = usePasscode();
-    const { t } = useTranslation();
+        const { t } = useTranslation();
     const {
         customers,
         loading,
@@ -101,9 +201,7 @@ export const CustomersScreen: React.FC = () => {
 
     useEffect(() => {
         if (!isSelectionMenuVisible) return;
-        setAutoLockSuspended(true);
-        return () => setAutoLockSuspended(false);
-    }, [isSelectionMenuVisible, setAutoLockSuspended]);
+    }, [isSelectionMenuVisible]);
 
     // Aggregate summary across all customers
     const summary = useMemo(() => {
@@ -121,8 +219,7 @@ export const CustomersScreen: React.FC = () => {
     const releaseStageDeleteAlertSuspension = useCallback(() => {
         if (!stageDeleteAlertSuspendedRef.current) return;
         stageDeleteAlertSuspendedRef.current = false;
-        setAutoLockSuspended(false);
-    }, [setAutoLockSuspended]);
+    }, []);
 
     const persistCustomerOrder = useCallback(
         async (data: CustomerWithAccounts[]) => {
@@ -216,7 +313,6 @@ export const CustomersScreen: React.FC = () => {
         if (selectedIds.size === 0) return;
         setIsSelectionMenuVisible(false);
         stageDeleteAlertSuspendedRef.current = true;
-        setAutoLockSuspended(true);
         Alert.alert(
             t("customers.deleteTitle"),
             t("customers.stageDeleteMessage", { count: selectedIds.size }),
@@ -241,7 +337,7 @@ export const CustomersScreen: React.FC = () => {
             ],
             { onDismiss: releaseStageDeleteAlertSuspension },
         );
-    }, [releaseStageDeleteAlertSuspension, selectedIds, setAutoLockSuspended, t]);
+    }, [releaseStageDeleteAlertSuspension, selectedIds, t]);
 
     const selectionMenuOptions = useMemo<
         { value: SelectionMenuOption; label: string; icon: React.ComponentProps<typeof Ionicons>["name"] }[]
@@ -281,117 +377,38 @@ export const CustomersScreen: React.FC = () => {
             const isInactive = item.accounts?.[0]?.status === AccountStatus.INACTIVE;
             const isSelected = item.id !== undefined && selectedIds.has(item.id);
 
+            const onRowPress = () => {
+                if (isDraggingRef.current) return;
+                if (isSelectionMode && item.id) {
+                    toggleSelection(item.id);
+                } else if (!isReorderMode && item.id) {
+                    router.push(`../customer-transactions?customerId=${item.id}` as any);
+                }
+            };
+
+            const onRowLongPress = () => {
+                if (!isSelectionMode && item.id) {
+                    activateSelectionMode(item.id);
+                } else if (isReorderMode) {
+                    drag();
+                }
+            };
+
             return (
-                <Pressable
-                    onPress={() => {
-                        if (isDraggingRef.current) return;
-                        if (isSelectionMode && item.id) {
-                            toggleSelection(item.id);
-                        } else if (!isReorderMode && item.id) {
-                            router.push(`../customer-transactions?customerId=${item.id}` as any);
-                        }
-                    }}
-                    onLongPress={() => {
-                        if (!isSelectionMode && item.id) {
-                            activateSelectionMode(item.id);
-                        } else if (isReorderMode) {
-                            drag();
-                        }
-                    }}
-                    disabled={isActive}
-                    style={[
-                        styles.customerRow,
-                        { backgroundColor: isSelected ? `${colors.primary}12` : colors.surface },
-                        isSelected && { borderColor: colors.primary, borderWidth: 1 },
-                    ]}
-                >
-                    {/* Selection checkbox */}
-                    {isSelectionMode && (
-                        <Ionicons
-                            name={isSelected ? "checkbox" : "square-outline"}
-                            size={22}
-                            color={isSelected ? colors.primary : colors.text.muted}
-                            style={styles.checkbox}
-                        />
-                    )}
-
-                    {/* Drag handle */}
-                    {isReorderMode && (
-                        <Ionicons
-                            name="reorder-three"
-                            size={22}
-                            color={colors.text.muted}
-                            style={styles.dragHandle}
-                        />
-                    )}
-
-                    {/* Avatar */}
-                    {item.image_uri ? (
-                        <ViewPhoto
-                            source={{ uri: item.image_uri }}
-                            enabled={!isSelectionMode && !isReorderMode}
-                            accessibilityLabel={t("photoViewer.openCustomer", { name: item.name })}
-                            closeAccessibilityLabel={t("photoViewer.close")}
-                        >
-                            <Image
-                                source={{ uri: item.image_uri }}
-                                style={styles.avatar}
-                                contentFit="cover"
-                                transition={isReorderMode ? 0 : 200}
-                                priority="high"
-                                cachePolicy="memory-disk"
-                            />
-                        </ViewPhoto>
-                    ) : (
-                        <View style={[styles.avatarPlaceholder, { backgroundColor: `${colors.primary}15` }]}>
-                            <Ionicons name="person" size={20} color={colors.text.muted} />
-                        </View>
-                    )}
-
-                    {/* Info */}
-                    <View style={styles.customerInfo}>
-                        <View style={styles.customerTopRow}>
-                            <Typography
-                                variant="body-medium"
-                                color="primary"
-                                numberOfLines={1}
-                                style={styles.customerName}
-                            >
-                                {item.name}
-                            </Typography>
-                            {isInactive && (
-                                <View style={[
-                                    styles.inactiveBadge,
-                                    {
-                                        backgroundColor: `${colors.warning}18`,
-                                        borderColor: `${colors.warning}60`,
-                                    },
-                                ]}>
-                                    <View style={[styles.inactiveDot, { backgroundColor: colors.warning }]} />
-                                    <Typography variant="small-small" color="warning" numberOfLines={1}>
-                                        {t("customers.inactive")}
-                                    </Typography>
-                                </View>
-                            )}
-                        </View>
-                        <Typography variant="small-small" color="muted" numberOfLines={1}>
-                            {item.phone?.trim() || t("customers.noPhoneNumber")}
-                        </Typography>
-                    </View>
-
-                    {/* Balance */}
-                    <TouchableAmount
-                        amount={balance}
-                        variant="body-medium"
-                        color={balance > 0 ? "danger" : balance < 0 ? "success" : "primary"}
-                        style={styles.balanceText}
-                    />
-
-                    {/* Chevron (normal mode only) */}
-                    {!isSelectionMode && !isReorderMode && (
-                        <Ionicons name="chevron-forward" size={14} color={colors.text.muted} />
-                    )}
-                </Pressable>
+                <CustomerItem
+                    item={item}
+                    drag={drag}
+                    isActive={isActive}
+                    isSelectionMode={isSelectionMode}
+                    isReorderMode={isReorderMode}
+                    isSelected={isSelected}
+                    colors={colors}
+                    t={t}
+                    balance={balance}
+                    isInactive={isInactive}
+                    onRowPress={onRowPress}
+                    onRowLongPress={onRowLongPress}
+                />
             );
         },
         [
@@ -410,22 +427,30 @@ export const CustomersScreen: React.FC = () => {
                 {/* Header */}
                 <View style={[
                     styles.header,
-                    { paddingTop: insets.top + Spacing.md, backgroundColor: colors.surface, borderBottomColor: colors.border },
+                    {
+                        marginTop: insets.top + Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
+                        overflow: "hidden",
+                        backgroundColor: colors.surface,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 4,
+                        elevation: 2,
+                    },
                 ]}>
                     <View style={styles.headerTopRow}>
                         <View style={styles.headerTitleRow}>
                             {!isSelectionMode ? (
                                 <>
-                                    <View style={[styles.headerIconContainer, { backgroundColor: `${colors.primary}20` }]}>
-                                        <Ionicons name="people" size={28} color={colors.primary} />
-                                    </View>
                                     {!isSearchActive && (
                                         <View>
                                             <Typography variant="heading-large" color="primary">
                                                 {t("customers.title")}
-                                            </Typography>
-                                            <Typography variant="body-small" color="muted">
-                                                {t("customers.totalCustomers", { count: customers.length })}
                                             </Typography>
                                         </View>
                                     )}
@@ -472,44 +497,85 @@ export const CustomersScreen: React.FC = () => {
                                     }
                                 }}
                                 style={[
-                                    styles.actionButton,
-                                    { backgroundColor: isSearchActive ? colors.primary : `${colors.primary}15` },
+                                    styles.searchIconButton,
+                                    { backgroundColor: `${colors.primary}18` },
                                 ]}
                             >
                                 <Ionicons
                                     name={isSearchActive ? "close" : "search"}
-                                    size={22}
-                                    color={isSearchActive ? colors.text.primary : colors.primary}
+                                    size={24}
+                                    color={colors.primary}
                                 />
                             </Pressable>
                         ) : (
                             <Pressable
                                 onPress={() => setIsSelectionMenuVisible(true)}
-                                style={[styles.actionButton, { backgroundColor: `${colors.primary}15` }]}
+                                style={[
+                                    styles.searchIconButton,
+                                    { backgroundColor: `${colors.primary}18` },
+                                ]}
                             >
-                                <Ionicons name="ellipsis-vertical" size={22} color={colors.primary} />
+                                <Ionicons
+                                    name="ellipsis-vertical"
+                                    size={22}
+                                    color={colors.primary}
+                                />
                             </Pressable>
                         )}
                     </View>
                 </View>
 
-                {/* Summary bar — shown in normal mode */}
+                {/* Summary cards — shown in normal mode */}
                 {!isSelectionMode && !isSearchActive && orderedCustomers.length > 0 && (
-                    <View style={[styles.summaryBar, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
-                        <View style={styles.summaryStat}>
-                            <View style={[styles.summaryDot, { backgroundColor: colors.danger }]} />
-                            <Typography variant="small-small" color="muted">
-                                {t("customers.owed")}
-                            </Typography>
-                            <TouchableAmount amount={summary.totalOwed} variant="body-small" color="danger" />
+                    <View style={styles.summaryCards}>
+                        <View style={[styles.summaryCard, {
+                            backgroundColor: colors.surface,
+                            borderColor: `${colors.danger}30`,
+                            borderWidth: 1,
+                            shadowColor: colors.danger,
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.08,
+                            shadowRadius: 6,
+                            elevation: 2,
+                        }]}>
+                            <View style={[styles.summaryCardIcon, { backgroundColor: `${colors.danger}15` }]}>
+                                <Ionicons name="arrow-up" size={14} color={colors.danger} />
+                            </View>
+                            <View style={styles.summaryCardText}>
+                                <Typography variant="small-small" color="muted">
+                                    {t("customers.owed")}
+                                </Typography>
+                                <TouchableAmount
+                                    amount={summary.totalOwed}
+                                    variant="body-medium"
+                                    color="danger"
+                                />
+                            </View>
                         </View>
-                        <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
-                        <View style={styles.summaryStat}>
-                            <View style={[styles.summaryDot, { backgroundColor: colors.success }]} />
-                            <Typography variant="small-small" color="muted">
-                                {t("customers.credit")}
-                            </Typography>
-                            <TouchableAmount amount={summary.totalCredit} variant="body-small" color="success" />
+
+                        <View style={[styles.summaryCard, {
+                            backgroundColor: colors.surface,
+                            borderColor: `${colors.success}30`,
+                            borderWidth: 1,
+                            shadowColor: colors.success,
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.08,
+                            shadowRadius: 6,
+                            elevation: 2,
+                        }]}>
+                            <View style={[styles.summaryCardIcon, { backgroundColor: `${colors.success}15` }]}>
+                                <Ionicons name="arrow-down" size={14} color={colors.success} />
+                            </View>
+                            <View style={styles.summaryCardText}>
+                                <Typography variant="small-small" color="muted">
+                                    {t("customers.credit")}
+                                </Typography>
+                                <TouchableAmount
+                                    amount={summary.totalCredit}
+                                    variant="body-medium"
+                                    color="success"
+                                />
+                            </View>
                         </View>
                     </View>
                 )}
@@ -578,7 +644,7 @@ export const CustomersScreen: React.FC = () => {
 
                 {/* Selection mode FABs */}
                 {isSelectionMode && (
-                    <View style={[styles.selectionFabContainer, { right: Spacing.lg }]}>
+                    <View style={[styles.selectionFabContainer, { right: Spacing.lg, bottom: insets.bottom + 80 }]}>
                         <Pressable
                             accessibilityLabel={t("customers.cancel")}
                             onPress={cancelSelectionMode}
@@ -599,7 +665,7 @@ export const CustomersScreen: React.FC = () => {
                 {/* Add FAB */}
                 {!isSelectionMode && !isReorderMode && (
                     <Pressable
-                        style={[styles.fab, { bottom: 20, right: Spacing.lg, backgroundColor: colors.primary, shadowColor: colors.primary }]}
+                        style={[styles.fab, { bottom: insets.bottom + 80, right: Spacing.lg, backgroundColor: colors.primary, shadowColor: colors.primary }]}
                         onPress={() => router.push("/add-customer" as any)}
                     >
                         <Ionicons name="add" size={28} color="#FFFFFF" />
@@ -631,10 +697,7 @@ const styles = StyleSheet.create({
     // Header
     header: {
         paddingHorizontal: Spacing.lg,
-        paddingBottom: Spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-        backgroundColor: Colors.surface,
+        paddingVertical: 10,
     },
     headerTopRow: {
         flexDirection: "row",
@@ -677,38 +740,42 @@ const styles = StyleSheet.create({
     closeButton: {
         padding: Spacing.xs,
     },
-    actionButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: `${Colors.primary}15`,
+    searchIconButton: {
+        width: 34,
+        height: 34,
+        borderRadius: 10,
+        backgroundColor: `${Colors.primary}18`,
         justifyContent: "center",
         alignItems: "center",
+        marginLeft: Spacing.sm,
     },
-    // Summary bar
-    summaryBar: {
+    // Summary cards
+    summaryCards: {
         flexDirection: "row",
-        alignItems: "center",
-        marginTop: Spacing.md,
-        paddingHorizontal: Spacing.lg,
-        paddingVertical: Spacing.sm,
-        borderBottomWidth: 1,
+        gap: Spacing.sm,
+        marginHorizontal: Spacing.md,
+        marginBottom: Spacing.sm,
     },
-    summaryStat: {
+    summaryCard: {
         flex: 1,
         flexDirection: "row",
         alignItems: "center",
-        gap: 5,
+        gap: Spacing.sm,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: Spacing.sm,
+        borderRadius: 10,
     },
-    summaryDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
+    summaryCardIcon: {
+        width: 30,
+        height: 30,
+        borderRadius: 8,
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
     },
-    summaryDivider: {
-        width: 1,
-        height: 20,
-        marginHorizontal: Spacing.sm,
+    summaryCardText: {
+        flex: 1,
+        gap: 1,
     },
     // List
     listContainer: {

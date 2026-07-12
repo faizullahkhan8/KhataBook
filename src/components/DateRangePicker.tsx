@@ -39,8 +39,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
     initialRange,
 }) => {
     const { colors } = useTheme();
-    const { setAutoLockSuspended } = usePasscode();
-    const { t } = useTranslation();
+        const { t } = useTranslation();
     const [startDate, setStartDate] = useState<Date | null>(null);
     const [endDate, setEndDate] = useState<Date | null>(null);
     const [activePicker, setActivePicker] = useState<PickerMode>(null);
@@ -49,9 +48,7 @@ export const DateRangePicker: React.FC<DateRangePickerProps> = ({
 
     useEffect(() => {
         if (!visible) return;
-        setAutoLockSuspended(true);
-        return () => setAutoLockSuspended(false);
-    }, [setAutoLockSuspended, visible]);
+    }, [visible]);
 
     // Reset state when modal opens with initial values
     useEffect(() => {

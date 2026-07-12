@@ -1,6 +1,7 @@
 import { SQLiteDatabase } from "../db/types";
 import { CustomerId, TransactionId } from "../models/types";
 import { logger } from "./LogService";
+import { deleteFromStorage } from "../utils/fileUtils";
 
 export interface TrashedCustomer {
     id: CustomerId;
@@ -143,10 +144,20 @@ export class TrashService {
         if (ids.length === 0) return;
         try {
             const placeholders = ids.map(() => "?").join(", ");
+            const rows = await this.db.getAllAsync<{ image_uri: string | null }>(
+                `SELECT image_uri FROM customers WHERE id IN (${placeholders}) AND is_deleted = 1`,
+                ids
+            );
+
             await this.db.runAsync(
                 `DELETE FROM customers WHERE id IN (${placeholders}) AND is_deleted = 1`,
                 ids,
             );
+
+            for (const row of rows) {
+                if (row.image_uri) await deleteFromStorage(row.image_uri);
+            }
+
             void logger.info("trash", "Customers permanently deleted", { count: ids.length });
         } catch (error) {
             void logger.error("trash", "Error permanently deleting customers", error);
@@ -158,12 +169,23 @@ export class TrashService {
         if (ids.length === 0) return;
         try {
             const placeholders = ids.map(() => "?").join(", ");
+            const rows = await this.db.getAllAsync<{ image_uri: string | null; voice_uri: string | null }>(
+                `SELECT image_uri, voice_uri FROM transactions WHERE id IN (${placeholders}) AND is_deleted = 1`,
+                ids
+            );
+
             // The trig_trans_delete_balance trigger won't fire because the balance was already
             // reverted when the transaction was soft-deleted. Hard DELETE is safe here.
             await this.db.runAsync(
                 `DELETE FROM transactions WHERE id IN (${placeholders}) AND is_deleted = 1`,
                 ids,
             );
+
+            for (const row of rows) {
+                if (row.image_uri) await deleteFromStorage(row.image_uri);
+                if (row.voice_uri) await deleteFromStorage(row.voice_uri);
+            }
+
             void logger.info("trash", "Transactions permanently deleted", { count: ids.length });
         } catch (error) {
             void logger.error("trash", "Error permanently deleting transactions", error);
@@ -173,6 +195,13 @@ export class TrashService {
 
     async emptyTrash(): Promise<void> {
         try {
+            const cRows = await this.db.getAllAsync<{ image_uri: string | null }>(
+                "SELECT image_uri FROM customers WHERE is_deleted = 1"
+            );
+            const tRows = await this.db.getAllAsync<{ image_uri: string | null; voice_uri: string | null }>(
+                "SELECT image_uri, voice_uri FROM transactions WHERE is_deleted = 1"
+            );
+
             await this.db.withTransactionAsync(async () => {
                 await this.db.runAsync(
                     "DELETE FROM customers WHERE is_deleted = 1",
@@ -181,6 +210,15 @@ export class TrashService {
                     "DELETE FROM transactions WHERE is_deleted = 1",
                 );
             });
+
+            for (const row of cRows) {
+                if (row.image_uri) await deleteFromStorage(row.image_uri);
+            }
+            for (const row of tRows) {
+                if (row.image_uri) await deleteFromStorage(row.image_uri);
+                if (row.voice_uri) await deleteFromStorage(row.voice_uri);
+            }
+
             void logger.info("trash", "Trash emptied");
         } catch (error) {
             void logger.error("trash", "Error emptying trash", error);

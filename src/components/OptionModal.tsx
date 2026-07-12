@@ -39,15 +39,12 @@ export const OptionModal = <T extends string | number>({
     onClose,
 }: OptionModalProps<T>) => {
     const { colors } = useTheme();
-    const { setAutoLockSuspended } = usePasscode();
-    const scaleAnim = useRef(new Animated.Value(0)).current;
+        const scaleAnim = useRef(new Animated.Value(0)).current;
     const opacityAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
         if (!visible) return;
-        setAutoLockSuspended(true);
-        return () => setAutoLockSuspended(false);
-    }, [setAutoLockSuspended, visible]);
+    }, [visible]);
 
     useEffect(() => {
         if (visible) {

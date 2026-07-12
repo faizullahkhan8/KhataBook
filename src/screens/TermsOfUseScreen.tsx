@@ -331,8 +331,18 @@ export const TermsOfUseScreen: React.FC = () => {
                 style={[
                     styles.header,
                     {
+                        marginTop: Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
                         backgroundColor: colors.surface,
-                        borderBottomColor: colors.border,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 4,
+                        elevation: 2,
                     },
                 ]}
             >
@@ -340,12 +350,11 @@ export const TermsOfUseScreen: React.FC = () => {
                     onPress={() => router.back()}
                     style={[
                         styles.backButton,
-                        { backgroundColor: `${colors.primary}15` },
+                        { backgroundColor: `${colors.primary}18` },
                     ]}
                 >
                     <Ionicons
-                        name="chevron-back"
-                        size={24}
+                        name="chevron-back" size={20}
                         color={colors.primary}
                     />
                 </Pressable>
@@ -418,22 +427,28 @@ export const TermsOfUseScreen: React.FC = () => {
                     >
                         {isUrdu ? "اہم باتیں ایک نظر میں" : "Key terms at a glance"}
                     </Typography>
-                    {summary.map((item) => (
-                        <SummaryRow
-                            key={item.text}
-                            icon={item.icon}
-                            text={item.text}
-                        />
-                    ))}
+                    {summary.map((item, index) => {
+                        const itemColor = [colors.primary, colors.success, colors.warning, colors.danger][index % 4];
+                        return (
+                            <SummaryRow
+                                key={item.text}
+                                icon={item.icon}
+                                text={item.text}
+                                color={itemColor}
+                            />
+                        );
+                    })}
                 </Card>
 
-                {sections.map((section) => (
+                {sections.map((section, index) => {
+                    const sectionColor = [colors.primary, colors.success, colors.warning, colors.danger][index % 4];
+                    return (
                     <Card key={section.title} style={styles.card}>
                         <Typography
                             variant="heading-small"
-                            color="primary"
                             style={[
                                 styles.sectionHeading,
+                                { color: sectionColor }
                             ]}
                         >
                             {section.title}
@@ -460,7 +475,7 @@ export const TermsOfUseScreen: React.FC = () => {
                                 <View
                                     style={[
                                         styles.bullet,
-                                        { backgroundColor: colors.primary },
+                                        { backgroundColor: sectionColor },
                                         isUrdu && styles.bulletRtl,
                                     ]}
                                 />
@@ -521,7 +536,8 @@ export const TermsOfUseScreen: React.FC = () => {
                             </Pressable>
                         )}
                     </Card>
-                ))}
+                    );
+                })}
             </ScrollView>
         </View>
     );
@@ -530,18 +546,17 @@ export const TermsOfUseScreen: React.FC = () => {
 const SummaryRow: React.FC<{
     icon: keyof typeof Ionicons.glyphMap;
     text: string;
-}> = ({ icon, text }) => {
-    const { colors } = useTheme();
-
+    color: string;
+}> = ({ icon, text, color }) => {
     return (
         <View style={[styles.summaryRow]}>
             <View
                 style={[
                     styles.summaryIcon,
-                    { backgroundColor: `${colors.primary}15` },
+                    { backgroundColor: `${color}15` },
                 ]}
             >
-                <Ionicons name={icon} size={20} color={colors.primary} />
+                <Ionicons name={icon} size={20} color={color} />
             </View>
             <Typography
                 variant="body-medium"
@@ -561,19 +576,18 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: "row",
+        gap: Spacing.sm,
         alignItems: "center",
         paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.md,
-        borderBottomWidth: 1,
-        backgroundColor: Colors.surface,
+        paddingVertical: 10,
     },
     rowReverse: {
         flexDirection: "row-reverse",
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
         marginHorizontal: Spacing.sm,

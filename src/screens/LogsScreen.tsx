@@ -43,13 +43,60 @@ const levelColors: Record<LogLevel, "muted" | "primary" | "warning" | "danger"> 
 const labelize = (value: string) =>
     value.charAt(0).toUpperCase() + value.slice(1);
 
+const LogItem = React.memo(({ item, colors, copyLog }: { item: LogEntry; colors: any; copyLog: (entry: LogEntry) => void }) => {
+    const levelColorName = levelColors[item.level];
+    const accentColor = levelColorName === "muted" ? colors.text.muted : colors[levelColorName];
+    
+    return (
+        <View
+            style={[
+                styles.logCard,
+                {
+                    backgroundColor: colors.surface,
+                    borderLeftColor: accentColor,
+                },
+            ]}
+        >
+            <View style={styles.logHeader}>
+                <View style={styles.logTitle}>
+                    <Typography variant="small-small" style={{ color: accentColor, fontWeight: "bold" }}>
+                        {item.level.toUpperCase()}
+                    </Typography>
+                    <Typography variant="small-small" color="muted">
+                        • {labelize(item.category)} • {new Date(item.timestamp).toLocaleTimeString()}
+                    </Typography>
+                </View>
+                <Pressable
+                    onPress={() => copyLog(item)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Copy log"
+                    style={styles.smallIconButton}
+                >
+                    <Ionicons name="copy-outline" size={16} color={colors.text.muted} />
+                </Pressable>
+            </View>
+            <Typography variant="body-small" color="primary" style={styles.message}>
+                {item.message}
+            </Typography>
+            {!!item.details && (
+                <Typography variant="small-small" color="secondary" style={styles.mono}>
+                    {item.details}
+                </Typography>
+            )}
+            {item.level === "error" && !!item.stack && (
+                <Typography variant="small-small" color="danger" style={styles.mono}>
+                    {item.stack}
+                </Typography>
+            )}
+        </View>
+    );
+}, (prev, next) => prev.item.id === next.item.id && prev.colors.surface === next.colors.surface);
+
 export const LogsScreen: React.FC = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { setAutoLockSuspended } = usePasscode();
     const [logs, setLogs] = useState<LogEntry[]>([]);
-    const [search, setSearch] = useState("");
     const [selectedLevels, setSelectedLevels] = useState<Set<LogLevel>>(
         new Set(),
     );
@@ -57,6 +104,7 @@ export const LogsScreen: React.FC = () => {
         Set<LogCategory>
     >(new Set());
     const [isReloadingLogs, setIsReloadingLogs] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
     const { page, pageSize, nextPage } = usePagination({ pageSize: 50 });
     const clearLogsAlertSuspendedRef = React.useRef(false);
     const reloadInProgressRef = useRef(false);
@@ -100,7 +148,6 @@ export const LogsScreen: React.FC = () => {
     }, [isReloadingLogs, reloadSpinAnim]);
 
     const filteredLogs = useMemo(() => {
-        const query = search.trim().toLowerCase();
         return logs.filter((entry) => {
             if (
                 selectedLevels.size > 0 &&
@@ -114,19 +161,9 @@ export const LogsScreen: React.FC = () => {
             ) {
                 return false;
             }
-            if (!query) return true;
-
-            return [
-                entry.level,
-                entry.category,
-                entry.message,
-                entry.details,
-                entry.stack,
-            ]
-                .filter(Boolean)
-                .some((value) => String(value).toLowerCase().includes(query));
+            return true;
         });
-    }, [logs, search, selectedCategories, selectedLevels]);
+    }, [logs, selectedCategories, selectedLevels]);
 
     const paginatedLogs = useMemo(
         () => filteredLogs.slice(0, (page + 1) * pageSize),
@@ -153,50 +190,57 @@ export const LogsScreen: React.FC = () => {
         });
     };
 
-    const copyLog = async (entry: LogEntry) => {
+    const copyLog = useCallback(async (entry: LogEntry) => {
         await Clipboard.setStringAsync(formatLogEntry(entry));
         Alert.alert("Copied", "Log copied to clipboard.");
-    };
+    }, []);
 
     const exportLogs = async () => {
-        const entries = await logService.getLogs();
-        const content =
-            entries.length > 0
-                ? entries.map(formatLogEntry).join("\n\n---\n\n")
-                : "No logs.";
-        const directory = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
-        if (!directory) {
-            Alert.alert("Export failed", "No writable directory is available.");
-            return;
-        }
+        if (isExporting) return;
+        setIsExporting(true);
+        try {
+            const entries = await logService.getLogs();
+            const content =
+                entries.length > 0
+                    ? entries.map(formatLogEntry).join("\n\n---\n\n")
+                    : "No logs.";
+            const directory = FileSystem.cacheDirectory ?? FileSystem.documentDirectory;
+            if (!directory) {
+                Alert.alert("Export failed", "No writable directory is available.");
+                return;
+            }
 
-        const fileUri = `${directory}khatabook-logs-${new Date()
-            .toISOString()
-            .replace(/[:.]/g, "-")}.txt`;
-        await FileSystem.writeAsStringAsync(fileUri, content, {
-            encoding: FileSystem.EncodingType.UTF8,
-        });
-
-        if (await Sharing.isAvailableAsync()) {
-            await Sharing.shareAsync(fileUri, {
-                dialogTitle: "Export logs",
-                mimeType: "text/plain",
+            const fileUri = `${directory}khatabook-logs-${new Date()
+                .toISOString()
+                .replace(/[:.]/g, "-")}.txt`;
+            await FileSystem.writeAsStringAsync(fileUri, content, {
+                encoding: FileSystem.EncodingType.UTF8,
             });
-            return;
-        }
 
-        Alert.alert("Logs exported", fileUri);
+            if (await Sharing.isAvailableAsync()) {
+                await Sharing.shareAsync(fileUri, {
+                    dialogTitle: "Export logs",
+                    mimeType: "text/plain",
+                });
+                return;
+            }
+
+            Alert.alert("Logs exported", fileUri);
+        } catch (error) {
+            console.error("Export failed:", error);
+            Alert.alert("Export failed", "Failed to export logs.");
+        } finally {
+            setIsExporting(false);
+        }
     };
 
     const clearLogs = () => {
         const releaseAlertSuspension = () => {
             if (!clearLogsAlertSuspendedRef.current) return;
             clearLogsAlertSuspendedRef.current = false;
-            setAutoLockSuspended(false);
         };
 
         clearLogsAlertSuspendedRef.current = true;
-        setAutoLockSuspended(true);
         const buttons = [
             {
                 text: "Cancel",
@@ -226,7 +270,10 @@ export const LogsScreen: React.FC = () => {
         value: T,
         selected: boolean,
         onPress: () => void,
-    ) => (
+        chipColorType: "primary" | "success" | "warning" | "danger" | "muted" = "primary"
+    ) => {
+        const chipHex = chipColorType === "muted" ? colors.text.muted : colors[chipColorType];
+        return (
         <Pressable
             key={value}
             onPress={onPress}
@@ -234,69 +281,24 @@ export const LogsScreen: React.FC = () => {
                 styles.chip,
                 { borderColor: colors.border },
                 selected && {
-                    borderColor: colors.primary,
-                    backgroundColor: `${colors.primary}15`,
+                    borderColor: chipHex,
+                    backgroundColor: `${chipHex}15`,
                 },
             ]}
         >
             <Typography
                 variant="small-small"
-                color={selected ? "primary" : "muted"}
+                color={selected ? chipColorType : "muted"}
             >
                 {labelize(value)}
             </Typography>
         </Pressable>
-    );
+        );
+    };
 
-    const renderLog = ({ item }: { item: LogEntry }) => (
-        <Card
-            style={[
-                styles.logCard,
-                {
-                    backgroundColor: colors.surface,
-                    borderColor: colors.border,
-                },
-            ]}
-        >
-            <View style={styles.logHeader}>
-                <View style={styles.logTitle}>
-                    <Typography variant="small-small" color={levelColors[item.level]}>
-                        {item.level.toUpperCase()}
-                    </Typography>
-                    <Typography variant="small-small" color="muted">
-                        {labelize(item.category)}
-                    </Typography>
-                </View>
-                <Pressable
-                    onPress={() => copyLog(item)}
-                    accessibilityRole="button"
-                    accessibilityLabel="Copy log"
-                    style={[
-                        styles.smallIconButton,
-                        { backgroundColor: `${colors.primary}12` },
-                    ]}
-                >
-                    <Ionicons name="copy-outline" size={18} color={colors.primary} />
-                </Pressable>
-            </View>
-            <Typography variant="small-small" color="muted">
-                {new Date(item.timestamp).toLocaleString()}
-            </Typography>
-            <Typography variant="body-small" color="primary" style={styles.message}>
-                {item.message}
-            </Typography>
-            {!!item.details && (
-                <Typography variant="small-small" color="secondary" style={styles.mono}>
-                    {item.details}
-                </Typography>
-            )}
-            {item.level === "error" && !!item.stack && (
-                <Typography variant="small-small" color="danger" style={styles.mono}>
-                    {item.stack}
-                </Typography>
-            )}
-        </Card>
-    );
+    const renderLog = useCallback(({ item }: { item: LogEntry }) => (
+        <LogItem item={item} colors={colors} copyLog={copyLog} />
+    ), [colors, copyLog]);
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -304,10 +306,20 @@ export const LogsScreen: React.FC = () => {
                 style={[
                     styles.header,
                     {
-                        paddingTop: insets.top + Spacing.md,
+                        marginTop: insets.top + Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
+                        overflow: "hidden",
                         backgroundColor: colors.surface,
-                        borderBottomColor: colors.border,
-                    },
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 4,
+                        elevation: 2,
+                        },
                 ]}
             >
                 <Pressable
@@ -316,17 +328,14 @@ export const LogsScreen: React.FC = () => {
                     accessibilityLabel="Back"
                     style={[
                         styles.iconButton,
-                        { backgroundColor: `${colors.primary}15` },
+                        { backgroundColor: `${colors.primary}18` },
                     ]}
                 >
-                    <Ionicons name="chevron-back" size={24} color={colors.primary} />
+                    <Ionicons name="chevron-back" size={20} color={colors.primary} />
                 </Pressable>
                 <View style={styles.headerText}>
                     <Typography variant="heading-large" color="primary">
                         Logs
-                    </Typography>
-                    <Typography variant="small-small" color="muted">
-                        {filteredLogs.length} of {logs.length}
                     </Typography>
                 </View>
                 <View style={styles.headerActions}>
@@ -337,7 +346,7 @@ export const LogsScreen: React.FC = () => {
                         disabled={isReloadingLogs}
                         style={[
                             styles.iconButton,
-                            { backgroundColor: `${colors.primary}15` },
+                            { backgroundColor: `${colors.primary}18` },
                         ]}
                     >
                         <Animated.View
@@ -363,12 +372,13 @@ export const LogsScreen: React.FC = () => {
                         onPress={exportLogs}
                         accessibilityRole="button"
                         accessibilityLabel="Export logs"
+                        disabled={isExporting}
                         style={[
                             styles.iconButton,
-                            { backgroundColor: `${colors.primary}15` },
+                            { backgroundColor: `${colors.primary}${isExporting ? '08' : '18'}` },
                         ]}
                     >
-                        <Ionicons name="share-outline" size={22} color={colors.primary} />
+                        <Ionicons name="share-outline" size={22} color={colors.primary} style={isExporting && { opacity: 0.5 }} />
                     </Pressable>
                     <Pressable
                         onPress={clearLogs}
@@ -376,7 +386,7 @@ export const LogsScreen: React.FC = () => {
                         accessibilityLabel="Clear logs"
                         style={[
                             styles.iconButton,
-                            { backgroundColor: `${colors.danger}15` },
+                            { backgroundColor: `${colors.danger}18` },
                         ]}
                     >
                         <Ionicons name="trash-outline" size={22} color={colors.danger} />
@@ -385,14 +395,6 @@ export const LogsScreen: React.FC = () => {
             </View>
 
             <View style={styles.filters}>
-                <Input
-                    value={search}
-                    onChangeText={setSearch}
-                    placeholder="Search logs"
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    containerStyle={styles.searchInput}
-                />
                 <View style={styles.filterSection}>
                     <Typography variant="small-small" color="muted">
                         Level
@@ -401,6 +403,7 @@ export const LogsScreen: React.FC = () => {
                         {LOG_LEVELS.map((level) =>
                             renderChip(level, selectedLevels.has(level), () =>
                                 toggleLevel(level),
+                                levelColors[level]
                             ),
                         )}
                     </View>
@@ -425,6 +428,10 @@ export const LogsScreen: React.FC = () => {
                 data={paginatedLogs}
                 keyExtractor={(item) => item.id}
                 renderItem={renderLog}
+                initialNumToRender={15}
+                maxToRenderPerBatch={10}
+                windowSize={5}
+                removeClippedSubviews={true}
                 contentContainerStyle={[
                     styles.logList,
                     { paddingBottom: insets.bottom + Spacing.xl },
@@ -461,10 +468,8 @@ export const LogsScreen: React.FC = () => {
 const styles = StyleSheet.create({
     container: { flex: 1 },
     header: {
-        minHeight: 84,
-        borderBottomWidth: 1,
         paddingHorizontal: Spacing.lg,
-        paddingBottom: Spacing.md,
+        paddingVertical: 10,
         flexDirection: "row",
         alignItems: "center",
         gap: Spacing.md,
@@ -478,9 +483,9 @@ const styles = StyleSheet.create({
         gap: Spacing.xs,
     },
     iconButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
     },
@@ -488,9 +493,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.md,
         paddingTop: Spacing.md,
         gap: Spacing.sm,
-    },
-    searchInput: {
-        marginBottom: 0,
     },
     filterSection: {
         gap: Spacing.xs,
@@ -516,9 +518,13 @@ const styles = StyleSheet.create({
         flexGrow: 1,
     },
     logCard: {
-        borderWidth: 1,
+        marginBottom: 8,
+        paddingVertical: 12,
+        paddingHorizontal: Spacing.md,
         borderRadius: 8,
-        padding: Spacing.md,
+        borderTopLeftRadius: 4,
+        borderBottomLeftRadius: 4,
+        borderLeftWidth: 4,
         gap: Spacing.xs,
     },
     logHeader: {
@@ -532,6 +538,11 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         gap: Spacing.sm,
+    },
+    levelBadge: {
+        paddingHorizontal: Spacing.xs,
+        paddingVertical: 2,
+        borderRadius: 6,
     },
     smallIconButton: {
         width: 36,

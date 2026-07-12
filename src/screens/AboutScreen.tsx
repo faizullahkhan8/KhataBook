@@ -13,7 +13,7 @@ export const AboutScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const router = useRouter();
     const { colors } = useTheme();
-    const { t } = useTranslation();
+    const { t } = useTranslation();
     const handleCall = (phone: string) => {
         Linking.openURL(`tel:${phone.replace(/\s/g, "")}`);
     };
@@ -37,8 +37,18 @@ export const AboutScreen: React.FC = () => {
                 style={[
                     styles.header,
                     {
+                        marginTop: Spacing.sm,
+                        marginHorizontal: Spacing.md,
+                        marginBottom: Spacing.sm,
+                        borderRadius: 10,
                         backgroundColor: colors.surface,
-                        borderBottomColor: colors.border,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 4,
+                        elevation: 2,
                     },
                     false && { flexDirection: "row-reverse" },
                 ]}
@@ -47,13 +57,13 @@ export const AboutScreen: React.FC = () => {
                     onPress={() => router.back()}
                     style={[
                         styles.backButton,
-                        { backgroundColor: `${colors.primary}15` },
+                        { backgroundColor: `${colors.primary}18` },
                         false && { marginRight: 0, marginLeft: Spacing.sm },
                     ]}
                 >
                     <Ionicons
                         name={false ? "chevron-forward" : "chevron-back"}
-                        size={24}
+                        size={20}
                         color={colors.primary}
                     />
                 </Pressable>
@@ -373,7 +383,7 @@ export const AboutScreen: React.FC = () => {
                             <Ionicons
                                 name="business"
                                 size={16}
-                                color={colors.primary}
+                                color={colors.warning}
                             />
                             <Typography variant="body-medium" color="secondary">
                                 {company}
@@ -407,7 +417,7 @@ export const AboutScreen: React.FC = () => {
                         <Ionicons
                             name="school"
                             size={18}
-                            color={colors.primary}
+                            color={colors.danger}
                         />
                         <View>
                             <Typography variant="body-medium" color="secondary">
@@ -462,18 +472,17 @@ export const AboutScreen: React.FC = () => {
                             onPress={() => handleCall("+92 332 8753452")}
                             style={[
                                 styles.businessButton,
-                                { backgroundColor: colors.primary },
+                                { backgroundColor: colors.warning },
                             ]}
                         >
                             <Ionicons
                                 name="call"
                                 size={20}
-                                color={colors.text.primary}
+                                color="#FFFFFF"
                             />
                             <Typography
                                 variant="body-small"
-                                color="primary"
-                                style={styles.buttonText}
+                                style={[styles.buttonText, { color: "#FFFFFF" }]}
                             >
                                 {t("about.callNow")}
                             </Typography>
@@ -484,18 +493,17 @@ export const AboutScreen: React.FC = () => {
                             }
                             style={[
                                 styles.businessButton,
-                                { backgroundColor: colors.primary },
+                                { backgroundColor: colors.success },
                             ]}
                         >
                             <Ionicons
                                 name="mail"
                                 size={20}
-                                color={colors.text.primary}
+                                color="#FFFFFF"
                             />
                             <Typography
                                 variant="body-small"
-                                color="primary"
-                                style={styles.buttonText}
+                                style={[styles.buttonText, { color: "#FFFFFF" }]}
                             >
                                 {t("about.emailUs")}
                             </Typography>
@@ -514,17 +522,15 @@ const styles = StyleSheet.create({
     },
     header: {
         flexDirection: "row",
+        gap: Spacing.sm,
         alignItems: "center",
         paddingHorizontal: Spacing.md,
-        paddingVertical: Spacing.md,
-        borderBottomWidth: 1,
-        borderBottomColor: Colors.border,
-        backgroundColor: Colors.surface,
+        paddingVertical: 10,
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
         marginRight: Spacing.sm,

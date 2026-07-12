@@ -40,6 +40,7 @@ import { useTransactions } from "../hooks/useTransactions";
 import { CustomerId, TransactionId, TransactionType } from "../models";
 import { TransactionService } from "../services/TransactionService";
 import { useDatabaseContext, usePasscode, useTheme } from "../store";
+import { saveToPermanentStorage, deleteFromStorage } from "../utils/fileUtils";
 import { formatCurrency, toInteger } from "../utils/currencyUtils";
 
 export const AddTransactionScreen: React.FC = () => {
@@ -52,8 +53,7 @@ export const AddTransactionScreen: React.FC = () => {
     const router = useRouter();
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
-    const { setAutoLockSuspended } = usePasscode();
-    const { t } = useTranslation();
+        const { t } = useTranslation();
 
     const { customer, loading: customerLoading } = useCustomerById(
         db,
@@ -98,6 +98,9 @@ export const AddTransactionScreen: React.FC = () => {
         null,
     );
 
+    const originalImageUri = useRef<string | null>(null);
+    const originalVoiceUri = useRef<string | null>(null);
+
     const isEditing = Boolean(transactionId);
     const [transactionLoading, setTransactionLoading] = useState(isEditing);
     const transactionService = useMemo(
@@ -120,6 +123,8 @@ export const AddTransactionScreen: React.FC = () => {
                 setDescription(tx.description || "");
                 setImageUri(tx.image_uri || null);
                 setVoiceUri(tx.voice_uri || null);
+                originalImageUri.current = tx.image_uri || null;
+                originalVoiceUri.current = tx.voice_uri || null;
                 if (tx.voice_uri) {
                     setVoiceState("playback");
                 }
@@ -262,7 +267,6 @@ export const AddTransactionScreen: React.FC = () => {
                 setImageUri(result.assets[0].uri);
             }
         } finally {
-            setAutoLockSuspended(false);
         }
     };
 
@@ -286,12 +290,10 @@ export const AddTransactionScreen: React.FC = () => {
                 setImageUri(result.assets[0].uri);
             }
         } finally {
-            setAutoLockSuspended(false);
         }
     };
 
     const showImagePickerOptions = () => {
-        setAutoLockSuspended(true);
         Alert.alert(
             t("addCustomer.selectPhoto"),
             t("addCustomer.selectPhotoMessage"),
@@ -299,21 +301,19 @@ export const AddTransactionScreen: React.FC = () => {
                 {
                     text: t("addCustomer.cancel"),
                     style: "cancel",
-                    onPress: () => setAutoLockSuspended(false),
+                    
                 },
                 { text: t("addCustomer.camera"), onPress: pickFromCamera },
                 { text: t("addCustomer.gallery"), onPress: pickFromGallery },
             ],
-            { onDismiss: () => setAutoLockSuspended(false) },
+            {  },
         );
     };
 
     const startRecording = async () => {
-        setAutoLockSuspended(true);
         try {
             const permission = await requestRecordingPermissionsAsync();
             if (!permission.granted) {
-                setAutoLockSuspended(false);
                 Alert.alert(
                     "Microphone Permission Required",
                     "Please allow microphone access to record a voice note.",
@@ -336,7 +336,6 @@ export const AddTransactionScreen: React.FC = () => {
                 setRecordingDuration((prev) => prev + 1);
             }, 1000);
         } catch (error) {
-            setAutoLockSuspended(false);
             console.error("Could not start recording", error);
             Alert.alert(
                 "Error",
@@ -360,7 +359,6 @@ export const AddTransactionScreen: React.FC = () => {
         } catch {
             Alert.alert("Error", "Could not stop recording");
         } finally {
-            setAutoLockSuspended(false);
         }
     };
 
@@ -439,25 +437,35 @@ export const AddTransactionScreen: React.FC = () => {
         }
 
         try {
+            const finalImageUri = await saveToPermanentStorage(imageUri);
+            const finalVoiceUri = await saveToPermanentStorage(voiceUri);
+
             if (isEditing) {
                 await updateTransaction(
                     parseInt(transactionId, 10) as TransactionId,
                     {
                         amount: transactionAmount,
                         type: transactionType,
-                        description: description || undefined,
-                        image_uri: imageUri || undefined,
-                        voice_uri: voiceUri || undefined,
+                        description: description || "",
+                        image_uri: finalImageUri || "",
+                        voice_uri: finalVoiceUri || "",
                     },
                 );
+
+                if (originalImageUri.current && originalImageUri.current !== finalImageUri) {
+                    await deleteFromStorage(originalImageUri.current);
+                }
+                if (originalVoiceUri.current && originalVoiceUri.current !== finalVoiceUri) {
+                    await deleteFromStorage(originalVoiceUri.current);
+                }
             } else {
                 await createTransaction({
                     account_id: accountId,
                     amount: transactionAmount,
                     type: transactionType,
                     description: description || undefined,
-                    image_uri: imageUri || undefined,
-                    voice_uri: voiceUri || undefined,
+                    image_uri: finalImageUri || undefined,
+                    voice_uri: finalVoiceUri || undefined,
                 });
             }
 
@@ -511,33 +519,41 @@ export const AddTransactionScreen: React.FC = () => {
             <View
                 style={[
                     styles.container,
-                    { backgroundColor: colors.background },
+                    {
+                        paddingTop: insets.top,
+                        backgroundColor: colors.background,
+                    },
                 ]}
             >
-                <ScrollView
-                    contentContainerStyle={[
-                        styles.topContent,
-                        { paddingTop: insets.top },
+                {/* Header */}
+                <View
+                    style={[
+                        styles.header,
+                        {
+                            marginTop: Spacing.sm,
+                            marginHorizontal: Spacing.md,
+                            marginBottom: Spacing.sm,
+                            borderRadius: 10,
+                            backgroundColor: colors.surface,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                            shadowColor: "#000",
+                            shadowOffset: { width: 0, height: 1 },
+                            shadowOpacity: 0.06,
+                            shadowRadius: 4,
+                            elevation: 2,
+                        },
                     ]}
-                    keyboardShouldPersistTaps="handled"
                 >
-                    {/* Header */}
-                    <View
-                        style={[
-                            styles.header,
-                            { borderBottomColor: colors.border },
-                        ]}
-                    >
                         <Pressable
                             onPress={() => router.back()}
                             style={[
                                 styles.backButton,
-                                { backgroundColor: `${colors.primary}15` },
+                                { backgroundColor: `${colors.primary}18` },
                             ]}
                         >
                             <Ionicons
-                                name="chevron-back"
-                                size={24}
+                                name="chevron-back" size={20}
                                 color={colors.primary}
                             />
                         </Pressable>
@@ -554,8 +570,12 @@ export const AddTransactionScreen: React.FC = () => {
                             </Typography>
                         </View>
                         <View style={styles.headerSpacer} />
-                    </View>
+                </View>
 
+                <ScrollView
+                    contentContainerStyle={styles.topContent}
+                    keyboardShouldPersistTaps="handled"
+                >
                     {/* Amount Display */}
                     <View style={styles.amountInputContainer}>
                         <TextInput
@@ -944,14 +964,14 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: "row",
         alignItems: "center",
-        paddingVertical: Spacing.md,
-        borderBottomWidth: 1,
+        paddingVertical: 10,
+        paddingHorizontal: Spacing.md,
         gap: Spacing.md,
     },
     backButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
+        width: 34,
+        height: 34,
+        borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
     },
