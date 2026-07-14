@@ -350,7 +350,7 @@ export default function AddReminderScreen() {
                 >
                     <Typography
                         variant="body-medium"
-                        style={{ color: colors.background, fontWeight: 'bold' }}
+                        style={{ color: "#FFFFFF", fontWeight: 'bold' }}
                     >
                         {loading ? "Saving..." : "Save Reminder"}
                     </Typography>

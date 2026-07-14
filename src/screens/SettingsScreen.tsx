@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FlatList, Pressable, StyleSheet, View } from "react-native";
+import { Animated, FlatList, Pressable, StyleSheet, View, DeviceEventEmitter } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, OptionModal, Typography } from "../components";
 import { Colors, Spacing } from "../constants";
@@ -24,6 +24,7 @@ interface SettingItem {
 
 const DEVELOPER_OPTIONS_KEY = "khatabook.developerOptionsUnlocked";
 const DEVELOPER_UNLOCK_HOLD_MS = 5000;
+const ABOUT_VISITED_KEY = "khatabook.aboutDeveloperVisited_banner";
 
 const THEME_OPTIONS = [
     { value: "light" as ThemeMode, label: "Light", icon: "sunny" as const },
@@ -51,6 +52,8 @@ export const SettingsScreen: React.FC = () => {
     const [activeModal, setActiveModal] = useState<ModalOption>(null);
     const [developerOptionsUnlocked, setDeveloperOptionsUnlocked] =
         useState(false);
+    const [hasVisitedAbout, setHasVisitedAbout] = useState(true);
+    const pulseAnim = useRef(new Animated.Value(1)).current;
     const suppressNextAboutPress = useRef(false);
     const { lastBackupTime } = useGoogleAuth();
 
@@ -60,8 +63,30 @@ export const SettingsScreen: React.FC = () => {
             setDeveloperOptionsUnlocked(stored === "true");
         };
 
+        const checkAboutVisited = async () => {
+            const stored = await AsyncStorage.getItem(ABOUT_VISITED_KEY);
+            if (stored !== "true") {
+                setHasVisitedAbout(false);
+                Animated.loop(
+                    Animated.sequence([
+                        Animated.timing(pulseAnim, {
+                            toValue: 1.25,
+                            duration: 500,
+                            useNativeDriver: true,
+                        }),
+                        Animated.timing(pulseAnim, {
+                            toValue: 1,
+                            duration: 500,
+                            useNativeDriver: true,
+                        }),
+                    ])
+                ).start();
+            }
+        };
+
         void loadDeveloperOptionsState();
-    }, []);
+        void checkAboutVisited();
+    }, [pulseAnim]);
 
     const SETTINGS_DATA: SettingItem[] = [
         {
@@ -176,10 +201,15 @@ export const SettingsScreen: React.FC = () => {
         setDeveloperOptionsUnlocked(true);
     };
 
-    const handleAboutPress = () => {
+    const handleAboutPress = async () => {
         if (suppressNextAboutPress.current) {
             suppressNextAboutPress.current = false;
             return;
+        }
+        if (!hasVisitedAbout) {
+            setHasVisitedAbout(true);
+            await AsyncStorage.setItem(ABOUT_VISITED_KEY, "true");
+            DeviceEventEmitter.emit("aboutVisited");
         }
         router.push("/about");
     };
@@ -290,6 +320,27 @@ export const SettingsScreen: React.FC = () => {
                                 {item.subtitle}
                             </Typography>
                         </View>
+                        {item.id === "about" && !hasVisitedAbout && (
+                            <Animated.View
+                                style={{
+                                    backgroundColor: colors.danger,
+                                    width: 18,
+                                    height: 18,
+                                    borderRadius: 9,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    marginRight: Spacing.xs,
+                                    transform: [{ scale: pulseAnim }],
+                                }}
+                            >
+                                <Typography
+                                    variant="small-small"
+                                    style={{ color: "#FFF", fontWeight: "bold", fontSize: 10 }}
+                                >
+                                    1
+                                </Typography>
+                            </Animated.View>
+                        )}
                         <Ionicons
                             name="chevron-forward"
                             size={16}

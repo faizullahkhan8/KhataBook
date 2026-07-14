@@ -507,6 +507,7 @@ export const CustomersScreen: React.FC = () => {
             value: SelectionMenuOption;
             label: string;
             icon: React.ComponentProps<typeof Ionicons>["name"];
+            color?: any;
         }[]
     >(
         () => [
@@ -525,6 +526,7 @@ export const CustomersScreen: React.FC = () => {
                 value: "delete" as const,
                 label: t("customers.delete"),
                 icon: "trash-outline",
+                color: "danger",
             },
         ],
         [selectedIds.size, t],
@@ -960,12 +962,12 @@ export const CustomersScreen: React.FC = () => {
                                             <Ionicons
                                                 name="add"
                                                 size={20}
-                                                color={colors.background}
+                                                color="#FFFFFF"
                                             />
                                             <Typography
                                                 variant="body-medium"
                                                 style={{
-                                                    color: colors.background,
+                                                    color: "#FFFFFF",
                                                     marginLeft: Spacing.xs,
                                                     fontWeight: "bold",
                                                 }}

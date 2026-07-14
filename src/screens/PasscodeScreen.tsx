@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
     Alert,
@@ -14,6 +14,7 @@ import {
     StyleSheet,
     Switch,
     View,
+    useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -58,6 +59,8 @@ export const PasscodeScreen: React.FC = () => {
     const [mode, setMode] = useState<Mode>(
         isEnabled ? "authenticate" : "enable",
     );
+    const { height: windowHeight } = useWindowDimensions();
+    const scrollViewRef = useRef<ScrollView>(null);
     const [pin, setPin] = useState("");
     const [confirmPin, setConfirmPin] = useState("");
     const [currentPin, setCurrentPin] = useState("");
@@ -125,6 +128,52 @@ export const PasscodeScreen: React.FC = () => {
             return false;
         }
         return true;
+    };
+
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    useEffect(() => {
+        const showEvent =
+            Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
+        const hideEvent =
+            Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+        const showSub = Keyboard.addListener(showEvent, (e) => {
+            if (Platform.OS === "android") {
+                setKeyboardHeight(e.endCoordinates.height);
+            }
+        });
+        const hideSub = Keyboard.addListener(hideEvent, () => {
+            if (Platform.OS === "android") {
+                setKeyboardHeight(0);
+            }
+        });
+
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
+    }, []);
+
+    const authenticate = async () => {
+        setError("");
+        const question =
+            questionChoice === "custom"
+                ? customQuestion.trim()
+                : t(`passcode.questions.${questionChoice}`);
+        if (!validateNewPin()) return;
+        if (!question || !answer.trim()) {
+            setError(t("passcode.recoveryRequired"));
+            return;
+        }
+        await setupPasscode(pin, selectedLength, question, answer);
+        setCurrentPin(pin);
+        resetEditFields();
+        if (params.returnTo === "onboarding") {
+            router.replace("/onboarding?step=security" as any);
+            return;
+        }
+        setMode("menu");
     };
 
     const handleEnable = async () => {
@@ -270,6 +319,14 @@ export const PasscodeScreen: React.FC = () => {
                 visibleByDefault
                 showVisibilityToggle={false}
                 autoFocus
+                onFocus={() => {
+                    if (windowHeight < 850) {
+                        scrollViewRef.current?.scrollTo({
+                            y: 160,
+                            animated: true,
+                        });
+                    }
+                }}
             />
             <View style={styles.fieldGroup}>
                 <Typography variant="subheading-small">
@@ -286,6 +343,14 @@ export const PasscodeScreen: React.FC = () => {
                 placeholder={t("passcode.confirmPin")}
                 visibleByDefault
                 showVisibilityToggle={false}
+                onFocus={() => {
+                    if (windowHeight < 850) {
+                        scrollViewRef.current?.scrollTo({
+                            y: 240,
+                            animated: true,
+                        });
+                    }
+                }}
             />
         </View>
     );
@@ -318,7 +383,15 @@ export const PasscodeScreen: React.FC = () => {
                         marginHorizontal: Spacing.md,
                         marginBottom: Spacing.sm,
                         borderRadius: 10,
+                        overflow: "hidden",
                         backgroundColor: colors.surface,
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                        shadowColor: "#000",
+                        shadowOffset: { width: 0, height: 1 },
+                        shadowOpacity: 0.06,
+                        shadowRadius: 4,
+                        elevation: 2,
                     },
                 ]}
             >
@@ -336,16 +409,25 @@ export const PasscodeScreen: React.FC = () => {
                         color={colors.primary}
                     />
                 </Pressable>
-                <Typography variant="heading-medium">
+                <Typography variant="heading-large" color="primary">
                     {t("passcode.title")}
                 </Typography>
             </View>
             <KeyboardAvoidingView
-                style={styles.keyboardAvoiding}
-                behavior={Platform.OS === "ios" ? "padding" : "height"}
+                style={[
+                    styles.keyboardAvoiding,
+                    Platform.OS === "android" && {
+                        paddingBottom:
+                            keyboardHeight > 0
+                                ? keyboardHeight + Spacing.md
+                                : 0,
+                    },
+                ]}
+                behavior={Platform.OS === "ios" ? "padding" : undefined}
                 keyboardVerticalOffset={insets.top}
             >
                 <ScrollView
+                    ref={scrollViewRef}
                     contentContainerStyle={[
                         styles.content,
                         { paddingBottom: insets.bottom + Spacing.xxxl },
@@ -674,6 +756,11 @@ export const PasscodeScreen: React.FC = () => {
                                             placeholder={t(
                                                 "passcode.customQuestion",
                                             )}
+                                            onFocus={() => {
+                                                if (windowHeight < 850) {
+                                                    scrollViewRef.current?.scrollTo({ y: 380, animated: true });
+                                                }
+                                            }}
                                         />
                                     )}
                                     <Input
@@ -682,6 +769,11 @@ export const PasscodeScreen: React.FC = () => {
                                         placeholder={t(
                                             "passcode.answerPlaceholder",
                                         )}
+                                        onFocus={() => {
+                                            if (windowHeight < 850) {
+                                                scrollViewRef.current?.scrollTo({ y: 460, animated: true });
+                                            }
+                                        }}
                                     />
                                     {mode === "change" && (
                                         <Typography
@@ -774,7 +866,8 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: "row",
         alignItems: "center",
-        padding: Spacing.lg,
+        paddingHorizontal: Spacing.md,
+        paddingVertical: 10,
         gap: Spacing.md,
     },
     backButton: {
@@ -783,6 +876,9 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         alignItems: "center",
         justifyContent: "center",
+    },
+    placeholder: {
+        width: 34,
     },
     content: { padding: Spacing.lg },
     card: { gap: Spacing.lg, padding: Spacing.lg },

@@ -258,11 +258,13 @@ export default function TransactionDetailScreen() {
                 label: "WhatsApp Receipt",
                 icon: "logo-whatsapp" as const,
                 disabled: !customer?.phone,
+                color: "success",
             },
             {
                 value: "send-email" as const,
                 label: "Email Receipt",
                 icon: "mail-outline" as const,
+                color: "primary",
             },
             {
                 value: "send-sms" as const,
@@ -279,6 +281,7 @@ export default function TransactionDetailScreen() {
                 value: "delete" as const,
                 label: "Delete",
                 icon: "trash-outline" as const,
+                color: "danger",
             },
             {
                 value: "set-reminder" as const,

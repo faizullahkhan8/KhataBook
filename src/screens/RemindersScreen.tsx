@@ -323,12 +323,12 @@ export default function RemindersScreen() {
                             <Ionicons
                                 name="add"
                                 size={20}
-                                color={colors.background}
+                                color="#FFFFFF"
                             />
                             <Typography
                                 variant="body-medium"
                                 style={{
-                                    color: colors.background,
+                                    color: "#FFFFFF",
                                     marginLeft: Spacing.xs,
                                     fontWeight: "bold",
                                 }}
@@ -350,7 +350,7 @@ export default function RemindersScreen() {
                     },
                 ]}
             >
-                <Ionicons name="add" size={28} color={colors.background} />
+                <Ionicons name="add" size={28} color="#FFFFFF" />
             </Pressable>
         </View>
     );

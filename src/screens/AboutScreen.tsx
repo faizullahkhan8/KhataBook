@@ -1,9 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Animated, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Card, Typography, ViewPhoto } from "../components";
 import { Colors, Spacing } from "../constants";
@@ -14,6 +14,24 @@ export const AboutScreen: React.FC = () => {
     const router = useRouter();
     const { colors } = useTheme();
     const { t } = useTranslation();
+    const pulseAnim = useRef(new Animated.Value(1)).current;
+
+    useEffect(() => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(pulseAnim, {
+                    toValue: 1.08,
+                    duration: 600,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(pulseAnim, {
+                    toValue: 1,
+                    duration: 600,
+                    useNativeDriver: true,
+                }),
+            ])
+        ).start();
+    }, [pulseAnim]);
     const handleCall = (phone: string) => {
         Linking.openURL(`tel:${phone.replace(/\s/g, "")}`);
     };
@@ -130,20 +148,41 @@ export const AboutScreen: React.FC = () => {
 
                 {/* Developer Info */}
                 <Card style={styles.card}>
-                    <Typography
-                        variant="heading-medium"
-                        color="primary"
-                        style={
-                            false
-                                ? {
-                                      marginBottom: Spacing.md,
-                                      textAlign: "right",
-                                  }
-                                : styles.sectionTitle
-                        }
-                    >
-                        {t("about.developer")}
-                    </Typography>
+                    <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: Spacing.md }}>
+                        <Typography
+                            variant="heading-medium"
+                            color="primary"
+                            style={
+                                false
+                                    ? {
+                                          textAlign: "right",
+                                      }
+                                    : {}
+                            }
+                        >
+                            {t("about.developer")}
+                        </Typography>
+
+                        <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+                            <Pressable
+                                style={{
+                                    backgroundColor: colors.primary,
+                                    paddingHorizontal: Spacing.md,
+                                    paddingVertical: 6,
+                                    borderRadius: 16,
+                                    flexDirection: "row",
+                                    alignItems: "center",
+                                    gap: 4,
+                                }}
+                                onPress={() => handleEmail("faizullahofficial0@gmail.com")}
+                            >
+                                <Ionicons name="briefcase" size={14} color="#FFF" />
+                                <Typography variant="body-small" style={{ color: "#FFF", fontWeight: "bold" }}>
+                                    Hire Me
+                                </Typography>
+                            </Pressable>
+                        </Animated.View>
+                    </View>
 
                     <View
                         style={[
@@ -181,6 +220,38 @@ export const AboutScreen: React.FC = () => {
                                 {t("about.fullStackDeveloper")}
                             </Typography>
                         </View>
+                    </View>
+
+                    {/* Seeking Banner */}
+                    <View
+                        style={{
+                            backgroundColor: colors.primary,
+                            padding: Spacing.md,
+                            borderRadius: 12,
+                            marginBottom: Spacing.md,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: Spacing.sm,
+                            shadowColor: colors.primary,
+                            shadowOffset: { width: 0, height: 4 },
+                            shadowOpacity: 0.2,
+                            shadowRadius: 8,
+                            elevation: 4,
+                        }}
+                    >
+                        <Ionicons
+                            name="rocket"
+                            size={24}
+                            color="#FFF"
+                        />
+                        <Typography
+                            variant="body-medium"
+                            style={{ color: "#FFF", fontWeight: "bold", flex: 1 }}
+                        >
+                            Actively seeking a potential team or company to bring
+                            value, collaborate on innovative projects, and grow
+                            together.
+                        </Typography>
                     </View>
 
                     {/* Contact Info */}
@@ -340,7 +411,7 @@ export const AboutScreen: React.FC = () => {
                         ]}
                     >
                         <Ionicons
-                            name="time"
+                            name="desktop-outline"
                             size={18}
                             color={colors.success}
                         />
@@ -368,10 +439,9 @@ export const AboutScreen: React.FC = () => {
                     </Typography>
 
                     {[
-                        "Elite Tech Solution",
-                        "Heckta Connects",
-                        "Developers Hub Co.",
-                        "Syed Software Institute Bannu (Current)",
+                        "Elite Tech Solution (Remote Internship)",
+                        "Heckta Connects (Remote Internship)",
+                        "Syed Software Institute Bannu (Onsite Internship)",
                     ].map((company, index) => (
                         <View
                             key={index}

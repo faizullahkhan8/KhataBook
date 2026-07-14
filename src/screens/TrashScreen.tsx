@@ -371,7 +371,7 @@ export const TrashScreen: React.FC = () => {
     ]);
 
     const selectionMenuOptions = useMemo<
-        { value: SelectionMenuOption; label: string; icon: any }[]
+        { value: SelectionMenuOption; label: string; icon: any; color?: any }[]
     >(
         () => [
             {
@@ -389,11 +389,13 @@ export const TrashScreen: React.FC = () => {
                 value: "restore",
                 label: t("trash.restore"),
                 icon: "refresh-outline",
+                color: "success",
             },
             {
                 value: "delete",
                 label: t("trash.permanentDelete"),
                 icon: "trash-outline",
+                color: "danger",
             },
         ],
         [selectedCount, t],

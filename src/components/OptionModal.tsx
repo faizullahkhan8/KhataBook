@@ -17,6 +17,7 @@ export interface Option<T extends string | number = string> {
     label: string;
     icon?: keyof typeof Ionicons.glyphMap;
     disabled?: boolean;
+    color?: "primary" | "secondary" | "danger" | "warning" | "success" | "muted";
 }
 
 interface OptionModalProps<T extends string | number> {
@@ -188,6 +189,14 @@ export const OptionModal = <T extends string | number>({
                                                                       .muted
                                                                 : isSelected
                                                                   ? colors.primary
+                                                                  : option.color === "danger"
+                                                                  ? colors.danger
+                                                                  : option.color === "warning"
+                                                                  ? colors.warning
+                                                                  : option.color === "success"
+                                                                  ? colors.success
+                                                                  : option.color === "primary"
+                                                                  ? colors.primary
                                                                   : colors.text
                                                                         .muted
                                                         }
@@ -200,7 +209,7 @@ export const OptionModal = <T extends string | number>({
                                                             ? "muted"
                                                             : isSelected
                                                               ? "primary"
-                                                              : "secondary"
+                                                              : option.color || "secondary"
                                                     }
                                                     style={styles.optionText}
                                                 >

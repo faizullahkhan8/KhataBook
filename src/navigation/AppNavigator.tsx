@@ -3,14 +3,34 @@ import { CustomersScreen, LedgerScreen, SettingsScreen, RemindersScreen } from "
 import { useTheme } from "@/store";
 import { Ionicons } from "@expo/vector-icons";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
-import React from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useEffect, useState } from "react";
+import { DeviceEventEmitter, View, Text } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const ABOUT_VISITED_KEY = "khatabook.aboutDeveloperVisited_banner";
 
 const Tab = createMaterialTopTabNavigator();
 
 export const AppNavigator = () => {
     const { colors } = useTheme();
     const insets = useSafeAreaInsets();
+    const [hasVisitedAbout, setHasVisitedAbout] = useState(true);
+
+    useEffect(() => {
+        const checkAboutVisited = async () => {
+            const stored = await AsyncStorage.getItem(ABOUT_VISITED_KEY);
+            if (stored !== "true") {
+                setHasVisitedAbout(false);
+            }
+        };
+        void checkAboutVisited();
+
+        const sub = DeviceEventEmitter.addListener("aboutVisited", () => {
+            setHasVisitedAbout(true);
+        });
+        return () => sub.remove();
+    }, []);
 
     return (
         <Tab.Navigator
@@ -84,7 +104,34 @@ export const AppNavigator = () => {
                 component={SettingsScreen}
                 options={{
                     tabBarIcon: ({ color }) => (
-                        <Ionicons name="settings" size={22} color={color} />
+                        <View>
+                            <Ionicons name="settings" size={22} color={color} />
+                            {!hasVisitedAbout && (
+                                <View
+                                    style={{
+                                        position: "absolute",
+                                        right: -6,
+                                        top: -4,
+                                        backgroundColor: colors.danger,
+                                        width: 14,
+                                        height: 14,
+                                        borderRadius: 7,
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                    }}
+                                >
+                                    <Text
+                                        style={{
+                                            color: "#FFF",
+                                            fontWeight: "bold",
+                                            fontSize: 8,
+                                        }}
+                                    >
+                                        1
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
                     ),
                 }}
             />

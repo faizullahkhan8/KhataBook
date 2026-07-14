@@ -485,16 +485,19 @@ export const FeedbackScreen: React.FC = () => {
                         value: "whatsapp",
                         label: t("feedback.whatsapp"),
                         icon: "logo-whatsapp",
+                        color: "success",
                     },
                     {
                         value: "email",
                         label: t("feedback.email"),
                         icon: "mail",
+                        color: "primary",
                     },
                     {
                         value: "sms",
                         label: t("feedback.sms"),
                         icon: "chatbubble",
+                        color: "primary",
                     },
                 ]}
                 showSelectionIndicator={false}

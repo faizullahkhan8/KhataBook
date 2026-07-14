@@ -13,6 +13,7 @@ import {
     ScrollView,
     StyleSheet,
     View,
+    useWindowDimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Button, Card, ErrorScreen, Input, Typography } from "../components";
@@ -37,6 +38,8 @@ export const AddCustomerScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { t } = useTranslation();
+    const { height: windowHeight } = useWindowDimensions();
+    const scrollViewRef = useRef<ScrollView>(null);
     const { customerId } = useLocalSearchParams<{ customerId?: string }>();
     const { createCustomer } = useCustomersWithAccounts(db);
 
@@ -356,6 +359,7 @@ export const AddCustomerScreen: React.FC = () => {
                 </View>
 
                 <ScrollView
+                    ref={scrollViewRef}
                     style={styles.scrollView}
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
@@ -460,6 +464,11 @@ export const AddCustomerScreen: React.FC = () => {
                                         setErrors({ ...errors, name: "" });
                                 }}
                                 error={!!errors.name}
+                                onFocus={() => {
+                                    if (windowHeight < 850) {
+                                        scrollViewRef.current?.scrollTo({ y: 50, animated: true });
+                                    }
+                                }}
                             />
                             {errors.name && (
                                 <Typography
@@ -499,6 +508,11 @@ export const AddCustomerScreen: React.FC = () => {
                                 }}
                                 error={!!errors.phone}
                                 keyboardType="phone-pad"
+                                onFocus={() => {
+                                    if (windowHeight < 850) {
+                                        scrollViewRef.current?.scrollTo({ y: 150, animated: true });
+                                    }
+                                }}
                             />
                             {errors.phone && (
                                 <Typography
@@ -539,6 +553,11 @@ export const AddCustomerScreen: React.FC = () => {
                                 error={!!errors.cnic}
                                 keyboardType="phone-pad"
                                 maxLength={15}
+                                onFocus={() => {
+                                    if (windowHeight < 850) {
+                                        scrollViewRef.current?.scrollTo({ y: 250, animated: true });
+                                    }
+                                }}
                             />
                             {errors.cnic && (
                                 <Typography
@@ -579,6 +598,11 @@ export const AddCustomerScreen: React.FC = () => {
                                 error={!!errors.email}
                                 keyboardType="email-address"
                                 autoCapitalize="none"
+                                onFocus={() => {
+                                    if (windowHeight < 850) {
+                                        scrollViewRef.current?.scrollTo({ y: 350, animated: true });
+                                    }
+                                }}
                             />
                             {errors.email && (
                                 <Typography
@@ -617,6 +641,11 @@ export const AddCustomerScreen: React.FC = () => {
                                     })
                                 }
                                 multiline
+                                onFocus={() => {
+                                    if (windowHeight < 850) {
+                                        scrollViewRef.current?.scrollTo({ y: 450, animated: true });
+                                    }
+                                }}
                             />
                         </View>
 
@@ -644,6 +673,11 @@ export const AddCustomerScreen: React.FC = () => {
                                     })
                                 }
                                 multiline
+                                onFocus={() => {
+                                    if (windowHeight < 850) {
+                                        scrollViewRef.current?.scrollTo({ y: 550, animated: true });
+                                    }
+                                }}
                             />
                         </View>
                     </Card>
@@ -703,6 +737,11 @@ export const AddCustomerScreen: React.FC = () => {
                                         });
                                 }}
                                 error={!!errors.accountNumber}
+                                onFocus={() => {
+                                    if (windowHeight < 850) {
+                                        scrollViewRef.current?.scrollTo({ y: 680, animated: true });
+                                    }
+                                }}
                             />
                             {errors.accountNumber && (
                                 <Typography
@@ -741,6 +780,11 @@ export const AddCustomerScreen: React.FC = () => {
                                     })
                                 }
                                 keyboardType="decimal-pad"
+                                onFocus={() => {
+                                    if (windowHeight < 850) {
+                                        scrollViewRef.current?.scrollTo({ y: 780, animated: true });
+                                    }
+                                }}
                             />
                         </View>
 

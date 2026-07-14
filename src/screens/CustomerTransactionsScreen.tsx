@@ -163,6 +163,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     ? ("pause-circle-outline" as const)
                     : ("checkmark-circle-outline" as const),
                 disabled: !account?.id || isUpdatingStatus,
+                color: isAccountActive ? "warning" : "success",
             },
             {
                 value: "edit" as const,
@@ -175,6 +176,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 label: t("customerProfile.delete"),
                 icon: "trash-outline" as const,
                 disabled: deleteLoading || !customer?.id,
+                color: "danger",
             },
             {
                 value: "send-sms" as const,
@@ -187,6 +189,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 label: t("customerProfile.sendWhatsapp", "Send WhatsApp"),
                 icon: "logo-whatsapp" as const,
                 disabled: !customer?.phone,
+                color: "success",
             },
             {
                 value: "set-reminder" as const,
@@ -838,7 +841,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <Ionicons
                         name="arrow-down"
                         size={24}
-                        color={colors.background}
+                        color="#FFFFFF"
                     />
                 </Pressable>
 
@@ -859,7 +862,7 @@ export const CustomerTransactionsScreen: React.FC = () => {
                     <Ionicons
                         name="arrow-up"
                         size={24}
-                        color={colors.background}
+                        color="#FFFFFF"
                     />
                 </Pressable>
             </View>

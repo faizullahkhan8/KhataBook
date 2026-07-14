@@ -33,7 +33,7 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { CalculatorKeyboard, LoadingScreen, Typography } from "../components";
+import { LoadingScreen, Typography } from "../components";
 import { Spacing } from "../constants";
 import { useCustomerById } from "../hooks";
 import { useTransactions } from "../hooks/useTransactions";
@@ -42,6 +42,17 @@ import { TransactionService } from "../services/TransactionService";
 import { useDatabaseContext, useTheme } from "../store";
 import { formatCurrency, toInteger } from "../utils/currencyUtils";
 import { deleteFromStorage, saveToPermanentStorage } from "../utils/fileUtils";
+
+const safeEval = (expr: string): number => {
+    const clean = expr.replace(/[^0-9+\-*/.]/g, "").replace(/[+\-*/.]+$/, "");
+    if (!clean) return 0;
+    try {
+        const result = new Function(`return ${clean}`)();
+        return Number.isFinite(result) ? result : 0;
+    } catch {
+        return 0;
+    }
+};
 
 export const AddTransactionScreen: React.FC = () => {
     const { customerId, type, transactionId } = useLocalSearchParams<{
@@ -56,7 +67,7 @@ export const AddTransactionScreen: React.FC = () => {
     const { t } = useTranslation();
     const { customer, loading: customerLoading } = useCustomerById(
         db,
-        parseInt(customerId || "0") as CustomerId,
+        parseInt(customerId || "0", 10) as CustomerId,
     );
     const { createTransaction, updateTransaction, fetchTransactionsByAccount } =
         useTransactions(db);
@@ -68,6 +79,13 @@ export const AddTransactionScreen: React.FC = () => {
         previewAmount: null as string | null,
     });
     const { amount, displayAmount, previewAmount } = amountState;
+    const [isAmountFocused, setIsAmountFocused] = useState(false);
+    const [amountSelection, setAmountSelection] = useState({
+        start: 0,
+        end: 0,
+    });
+    const amountInputRef = useRef<TextInput>(null);
+
     const [description, setDescription] = useState("");
     const [descFocused, setDescFocused] = useState(false);
     const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
@@ -113,18 +131,12 @@ export const AddTransactionScreen: React.FC = () => {
                 if (audioRecorder && audioRecorder.isRecording) {
                     audioRecorder.stop().catch(() => {});
                 }
-            } catch (e) {
-                // Ignore already released error
-            }
-            
+            } catch (e) {}
             try {
                 if (voicePlayer) {
                     voicePlayer.pause();
                 }
-            } catch (e) {
-                // Ignore already released error
-            }
-
+            } catch (e) {}
             if (durationTimerRef.current) {
                 clearInterval(durationTimerRef.current);
             }
@@ -152,7 +164,7 @@ export const AddTransactionScreen: React.FC = () => {
                 const parsed = parseFloat((tx.amount / 100).toFixed(2));
                 setAmountState({
                     amount: parsed,
-                    displayAmount: parsed.toLocaleString("en-PK"),
+                    displayAmount: parsed.toString(),
                     previewAmount: null,
                 });
             } catch {
@@ -171,7 +183,7 @@ export const AddTransactionScreen: React.FC = () => {
     }, [isEditing, transactionId, transactionService]);
 
     useEffect(() => {
-        if (!descFocused) return;
+        if (!descFocused && !isAmountFocused) return;
         const subscription = BackHandler.addEventListener(
             "hardwareBackPress",
             () => {
@@ -180,17 +192,30 @@ export const AddTransactionScreen: React.FC = () => {
             },
         );
         return () => subscription.remove();
-    }, [descFocused]);
+    }, [descFocused, isAmountFocused]);
+
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
 
     useEffect(() => {
         const showEvent =
             Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow";
-        const showSubscription = Keyboard.addListener(showEvent, () => {
+        const hideEvent =
+            Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide";
+
+        const showSubscription = Keyboard.addListener(showEvent, (e) => {
             setNativeKeyboardVisible(true);
+            if (Platform.OS === "android") {
+                setKeyboardHeight(e.endCoordinates.height);
+            }
         });
-        const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
+
+        const hideSubscription = Keyboard.addListener(hideEvent, () => {
             setNativeKeyboardVisible(false);
+            if (Platform.OS === "android") {
+                setKeyboardHeight(0);
+            }
         });
+
         return () => {
             showSubscription.remove();
             hideSubscription.remove();
@@ -199,7 +224,7 @@ export const AddTransactionScreen: React.FC = () => {
 
     useEffect(() => {
         LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    }, [descFocused]);
+    }, [descFocused, isAmountFocused, nativeKeyboardVisible]);
 
     const previousVoiceState = useRef<VoiceState>(voiceState);
     useEffect(() => {
@@ -247,20 +272,56 @@ export const AddTransactionScreen: React.FC = () => {
     const currentBalance = customer?.accounts?.[0]?.current_balance || 0;
     const creditLimit = customer?.accounts?.[0]?.credit_limit || 0;
 
-    const handleAmountChange = useCallback(
-        (val: number, dsp: string, prev: string | null) => {
-            setAmountState((current) => {
-                if (
-                    current.amount === val &&
-                    current.displayAmount === dsp &&
-                    current.previewAmount === prev
-                ) {
-                    return current;
-                }
-                return { amount: val, displayAmount: dsp, previewAmount: prev };
+    const handleDisplayAmountChange = useCallback(
+        (text: string) => {
+            const sanitized = text.replace(/[^0-9+\-*/.]/g, "");
+            let preview = null;
+            let currentAmt = amountState.amount;
+
+            if (/[+\-*/]/.test(sanitized)) {
+                const evalResult = safeEval(sanitized);
+                preview = evalResult.toString();
+                currentAmt = evalResult;
+            } else {
+                currentAmt = parseFloat(sanitized) || 0;
+            }
+
+            setAmountState({
+                amount: currentAmt,
+                displayAmount: sanitized,
+                previewAmount: preview,
             });
         },
-        [],
+        [amountState.amount],
+    );
+
+    const insertOperator = useCallback(
+        (operator: string) => {
+            if (operator === "=") {
+                const result = safeEval(displayAmount);
+                setAmountState({
+                    amount: result,
+                    displayAmount: result.toString(),
+                    previewAmount: null,
+                });
+                amountInputRef.current?.focus();
+                return;
+            }
+
+            const start = amountSelection.start || displayAmount.length;
+            const end = amountSelection.end || displayAmount.length;
+            const newText =
+                displayAmount.substring(0, start) +
+                operator +
+                displayAmount.substring(end);
+
+            handleDisplayAmountChange(newText);
+
+            const newPos = start + operator.length;
+            setAmountSelection({ start: newPos, end: newPos });
+            amountInputRef.current?.focus();
+        },
+        [displayAmount, amountSelection, handleDisplayAmountChange],
     );
 
     const pickFromCamera = async () => {
@@ -493,6 +554,7 @@ export const AddTransactionScreen: React.FC = () => {
         updateTransaction,
         fetchTransactionsByAccount,
         router,
+        t,
     ]);
 
     const formatDuration = (secs: number) => {
@@ -506,12 +568,20 @@ export const AddTransactionScreen: React.FC = () => {
     }
 
     const amountSemanticColor = isReceive ? colors.success : colors.danger;
-    const calculatorHidden = descFocused || nativeKeyboardVisible;
+    const showMathToolbar = isAmountFocused;
+    const bottomPadding = nativeKeyboardVisible
+        ? Spacing.sm
+        : Math.max(insets.bottom, Spacing.sm) + Spacing.sm;
 
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === "ios" ? "padding" : undefined}
-            style={styles.container}
+            style={[
+                styles.container,
+                Platform.OS === "android" && {
+                    paddingBottom: keyboardHeight + Spacing.xxl,
+                },
+            ]}
         >
             <View
                 style={[
@@ -592,17 +662,45 @@ export const AddTransactionScreen: React.FC = () => {
                             },
                         ]}
                     >
-                        <Typography
-                            variant="heading-large"
+                        <TextInput
+                            ref={amountInputRef}
                             style={[
                                 styles.amountCardValue,
-                                { color: amountSemanticColor },
+                                {
+                                    color: amountSemanticColor,
+                                    padding: 0,
+                                    margin: 0,
+                                },
                             ]}
-                            numberOfLines={1}
-                            adjustsFontSizeToFit
-                        >
-                            {displayAmount || "0"}
-                        </Typography>
+                            value={displayAmount}
+                            placeholder="0"
+                            placeholderTextColor={`${amountSemanticColor}80`}
+                            keyboardType="decimal-pad"
+                            onChangeText={handleDisplayAmountChange}
+                            onFocus={() => {
+                                setIsAmountFocused(true);
+                                setDescFocused(false);
+                            }}
+                            onBlur={() => {
+                                setIsAmountFocused(false);
+                                setAmountState((current) => {
+                                    if (current.previewAmount) {
+                                        const result = safeEval(
+                                            current.displayAmount,
+                                        );
+                                        return {
+                                            amount: result,
+                                            displayAmount: result.toString(),
+                                            previewAmount: null,
+                                        };
+                                    }
+                                    return current;
+                                });
+                            }}
+                            onSelectionChange={(e) =>
+                                setAmountSelection(e.nativeEvent.selection)
+                            }
+                        />
                         {previewAmount && (
                             <Typography
                                 variant="body-small"
@@ -636,8 +734,10 @@ export const AddTransactionScreen: React.FC = () => {
                                 )}
                                 placeholderTextColor={colors.text.muted}
                                 value={description}
-                                onFocus={() => setDescFocused(true)}
-                                onBlur={() => setDescFocused(false)}
+                                onFocus={() => {
+                                    setDescFocused(true);
+                                    setIsAmountFocused(false);
+                                }}
                                 onChangeText={setDescription}
                                 multiline
                                 numberOfLines={3}
@@ -669,6 +769,8 @@ export const AddTransactionScreen: React.FC = () => {
                                                 : colors.border,
                                     },
                                 ]}
+                                accessibilityRole="button"
+                                accessibilityLabel={t("addTransaction.voice")}
                             >
                                 <Ionicons
                                     name={
@@ -688,10 +790,18 @@ export const AddTransactionScreen: React.FC = () => {
                             </Pressable>
                             <Pressable
                                 onPress={showImagePickerOptions}
-                                style={[
+                                style={({ pressed }) => [
                                     styles.attachmentButton,
-                                    { borderColor: colors.border, backgroundColor: colors.surface }
+                                    {
+                                        backgroundColor: colors.surface,
+                                        borderColor: imageUri
+                                            ? `${colors.primary}40`
+                                            : colors.border,
+                                    },
+                                    pressed && styles.attachmentButtonPressed,
                                 ]}
+                                accessibilityRole="button"
+                                accessibilityLabel={t("addTransaction.photo")}
                             >
                                 {imageUri ? (
                                     <>
@@ -705,6 +815,7 @@ export const AddTransactionScreen: React.FC = () => {
                                                 e.stopPropagation?.();
                                                 setImageUri(null);
                                             }}
+                                            hitSlop={8}
                                             style={[
                                                 styles.attachmentRemoveButton,
                                                 {
@@ -712,6 +823,8 @@ export const AddTransactionScreen: React.FC = () => {
                                                         colors.background,
                                                 },
                                             ]}
+                                            accessibilityRole="button"
+                                            accessibilityLabel="Remove photo"
                                         >
                                             <Ionicons
                                                 name="close-circle"
@@ -731,13 +844,10 @@ export const AddTransactionScreen: React.FC = () => {
                         </View>
                     </View>
                 </ScrollView>
-
                 <View
                     style={{
                         borderTopColor: colors.border,
-                        paddingBottom: calculatorHidden
-                            ? Spacing.sm
-                            : Math.max(insets.bottom, Spacing.sm) + Spacing.sm,
+                        paddingBottom: bottomPadding,
                     }}
                 >
                     {voiceState === "recording" && (
@@ -768,7 +878,10 @@ export const AddTransactionScreen: React.FC = () => {
                                 />
                                 <Typography
                                     variant="small-small"
-                                    style={{ color: colors.danger }}
+                                    style={[
+                                        styles.voiceTimer,
+                                        { color: colors.danger },
+                                    ]}
                                 >
                                     {formatDuration(recordingDuration)}
                                 </Typography>
@@ -781,7 +894,10 @@ export const AddTransactionScreen: React.FC = () => {
                                             styles.voiceWaveBar,
                                             {
                                                 backgroundColor: colors.primary,
-                                                height: Math.max(4, (lvl || 0) * 28),
+                                                height: Math.max(
+                                                    4,
+                                                    (lvl || 0) * 28,
+                                                ),
                                                 opacity: 0.5 + (lvl || 0) * 0.5,
                                             },
                                         ]}
@@ -790,6 +906,7 @@ export const AddTransactionScreen: React.FC = () => {
                             </View>
                             <Pressable
                                 onPress={stopRecording}
+                                hitSlop={10}
                                 style={[
                                     styles.voiceCircleBtn,
                                     { backgroundColor: colors.danger },
@@ -818,6 +935,7 @@ export const AddTransactionScreen: React.FC = () => {
                                     styles.voiceCircleBtn,
                                     { backgroundColor: colors.primary },
                                 ]}
+                                hitSlop={8}
                             >
                                 <Ionicons
                                     name={isPlaying ? "pause" : "play"}
@@ -852,7 +970,7 @@ export const AddTransactionScreen: React.FC = () => {
                                       )
                                     : formatDuration(Math.round(voiceDuration))}
                             </Typography>
-                            <Pressable onPress={discardRecording}>
+                            <Pressable onPress={discardRecording} hitSlop={10}>
                                 <Ionicons
                                     name="close-circle-outline"
                                     size={20}
@@ -863,13 +981,23 @@ export const AddTransactionScreen: React.FC = () => {
                     )}
 
                     <Pressable
-                        style={[
+                        style={({ pressed }) => [
                             styles.saveButton,
                             {
                                 marginHorizontal: Spacing.md,
-                                marginBottom: Spacing.md,
+                                marginBottom: showMathToolbar
+                                    ? Spacing.md
+                                    : -20,
+                            },
+                            {
                                 backgroundColor: amountSemanticColor,
-                                opacity: amount <= 0 || saving ? 0.5 : 1,
+                                shadowColor: amountSemanticColor,
+                                opacity:
+                                    amount <= 0 || saving
+                                        ? 0.5
+                                        : pressed
+                                          ? 0.9
+                                          : 1,
                             },
                         ]}
                         onPress={handleSave}
@@ -891,11 +1019,42 @@ export const AddTransactionScreen: React.FC = () => {
                         </Typography>
                     </Pressable>
 
-                    <CalculatorKeyboard
-                        hidden={calculatorHidden}
-                        onAmountChange={handleAmountChange}
-                        initialValue={isEditing ? amount : undefined}
-                    />
+                    {showMathToolbar && (
+                        <View style={styles.mathToolbar}>
+                            {["+", "-", "*", "/", "="].map((op) => (
+                                <Pressable
+                                    key={op}
+                                    onPressIn={(e) => {
+                                        e.preventDefault();
+                                        insertOperator(op);
+                                    }}
+                                    style={[
+                                        styles.mathButton,
+                                        {
+                                            backgroundColor: colors.surface,
+                                            borderColor: colors.border,
+                                        },
+                                        op === "=" && {
+                                            backgroundColor: colors.primary,
+                                            borderColor: colors.primary,
+                                        },
+                                    ]}
+                                >
+                                    <Typography
+                                        variant="heading-medium"
+                                        style={{
+                                            color:
+                                                op === "="
+                                                    ? "#FFFFFF"
+                                                    : colors.primary,
+                                        }}
+                                    >
+                                        {op}
+                                    </Typography>
+                                </Pressable>
+                            ))}
+                        </View>
+                    )}
                 </View>
             </View>
         </KeyboardAvoidingView>
@@ -956,6 +1115,26 @@ const styles = StyleSheet.create({
         minHeight: 104,
     },
     descInput: { flex: 1, fontSize: 15, paddingTop: 4, minHeight: 78 },
+    mathToolbar: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: Spacing.sm,
+        paddingHorizontal: Spacing.md,
+    },
+    mathButton: {
+        flex: 1,
+        height: 48,
+        borderRadius: 8,
+        alignItems: "center",
+        justifyContent: "center",
+        borderWidth: 1,
+        elevation: 1,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+    },
     voiceBar: {
         flexDirection: "row",
         alignItems: "center",
@@ -979,6 +1158,7 @@ const styles = StyleSheet.create({
         gap: Spacing.xs,
     },
     recDot: { width: 8, height: 8, borderRadius: 4 },
+    voiceTimer: { fontVariant: ["tabular-nums"], minWidth: 32 },
     voiceLiveWaveform: {
         flex: 1,
         flexDirection: "row",
@@ -1019,6 +1199,10 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
     },
+    attachmentButtonPressed: {
+        opacity: 0.7,
+        transform: [{ scale: 0.96 }],
+    },
     attachmentThumb: { width: 42, height: 42, borderRadius: 8 },
     attachmentRemoveButton: {
         position: "absolute",
@@ -1030,5 +1214,8 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.md,
         borderRadius: 12,
         alignItems: "center",
+    },
+    saveButtonText: {
+        fontWeight: "600",
     },
 });
