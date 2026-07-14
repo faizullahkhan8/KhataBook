@@ -4,3 +4,4 @@ export * from "./MessageTemplate";
 export * from "./Store";
 export * from "./Transaction";
 export * from "./types";
+export * from "./Reminder";

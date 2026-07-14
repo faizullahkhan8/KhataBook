@@ -10,6 +10,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 import {
+    ActivityIndicator,
     Alert,
     Platform,
     Pressable,
@@ -32,11 +33,14 @@ import {
     ViewPhoto,
 } from "../components";
 import { Colors, Spacing } from "../constants";
+import { useGoogleAuth } from "../context/GoogleAuthContext";
 import { useCustomersWithAccounts } from "../hooks/useCustomersWithAccounts";
 import { useDebounce } from "../hooks/useDebounce";
 import { useDeleteAuthentication } from "../hooks/useDeleteAuthentication";
 import { AccountStatus, CustomerId, CustomerWithAccounts } from "../models";
-import { useDatabaseContext, useTheme } from "../store";
+import { GoogleDriveService } from "../services/GoogleDriveService";
+import { useDatabaseContext, useStoreContext, useTheme } from "../store";
+import { checkInternetConnection } from "../utils";
 
 type SelectionMenuOption = "toggle-all" | "delete";
 
@@ -213,14 +217,68 @@ export const CustomersScreen: React.FC = () => {
         refresh,
         hasMore,
         nextPage,
+        isInitialFetchDone,
         bulkDeleteCustomers,
     } = useCustomersWithAccounts(db);
+
+    const { activeStoreId } = useStoreContext();
+    const { isAuthenticated, updateBackupTimestamp } = useGoogleAuth();
 
     const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
         useDeleteAuthentication();
 
     const [searchText, setSearchText] = useState("");
     const [isSearchActive, setIsSearchActive] = useState(false);
+    const [isBackingUp, setIsBackingUp] = useState(false);
+
+    const handleQuickBackup = async () => {
+        if (!isAuthenticated) {
+            Alert.alert(
+                t("backup.loginRequiredTitle", "Login Required"),
+                t(
+                    "backup.loginRequiredMessage",
+                    "Please login to Google Drive in Settings to enable backup.",
+                ),
+                [
+                    { text: t("common.cancel", "Cancel"), style: "cancel" },
+                    {
+                        text: t("common.settings", "Settings"),
+                        onPress: () => router.push("/settings/backup"),
+                    },
+                ],
+            );
+            return;
+        }
+
+        const isOnline = await checkInternetConnection();
+        if (!isOnline) {
+            Alert.alert(
+                t("backup.noInternetTitle", "No Internet"),
+                t(
+                    "backup.noInternetMessage",
+                    "Please check your internet connection and try again.",
+                ),
+            );
+            return;
+        }
+
+        setIsBackingUp(true);
+        try {
+            await GoogleDriveService.uploadBackup(db);
+            await updateBackupTimestamp();
+            Alert.alert(
+                t("common.success", "Success"),
+                t("backup.successMessage", "Backup uploaded successfully!"),
+            );
+        } catch (error) {
+            Alert.alert(
+                t("common.error", "Error"),
+                t("backup.errorMessage", "Backup generation failed."),
+            );
+        } finally {
+            setIsBackingUp(false);
+        }
+    };
     const [isReorderMode, setIsReorderMode] = useState(false);
     const [isSelectionMode, setIsSelectionMode] = useState(false);
     const [isSelectionMenuVisible, setIsSelectionMenuVisible] = useState(false);
@@ -237,15 +295,7 @@ export const CustomersScreen: React.FC = () => {
     const isDraggingRef = useRef(false);
     const stageDeleteAlertSuspendedRef = useRef(false);
 
-    // --- NEW: Structural Loading State Management ---
-    const initialLoadDone = useRef(false);
-    const [isFirstRender, setIsFirstRender] = useState(true);
-
     const debouncedSearch = useDebounce(searchText, 500);
-
-    useEffect(() => {
-        setIsFirstRender(false);
-    }, []);
 
     useEffect(() => {
         handleSearch(debouncedSearch);
@@ -556,12 +606,9 @@ export const CustomersScreen: React.FC = () => {
         ],
     );
 
-    // --- NEW: Evaluate Initial Load Status ---
-    if (!loading && !isFirstRender) {
-        initialLoadDone.current = true;
-    }
-
-    if (!db || (!initialLoadDone.current && loading)) {
+    // Show a single loader until: db is ready, a store is selected, AND the first customer fetch has finished.
+    const isAppReady = !!db && !!activeStoreId && isInitialFetchDone.current;
+    if (!isAppReady) {
         return <LoadingScreen />;
     }
 
@@ -660,31 +707,68 @@ export const CustomersScreen: React.FC = () => {
                         </View>
 
                         {!isSelectionMode ? (
-                            <Pressable
-                                onPress={() => {
-                                    if (isSearchActive) {
-                                        setSearchText("");
-                                        setIsSearchActive(false);
-                                    } else {
-                                        setIsSearchActive(true);
-                                        setTimeout(
-                                            () =>
-                                                searchInputRef.current?.focus(),
-                                            100,
-                                        );
-                                    }
+                            <View
+                                style={{
+                                    flexDirection: "row",
+                                    gap: Spacing.xs,
                                 }}
-                                style={[
-                                    styles.searchIconButton,
-                                    { backgroundColor: `${colors.primary}18` },
-                                ]}
                             >
-                                <Ionicons
-                                    name={isSearchActive ? "close" : "search"}
-                                    size={26}
-                                    color={colors.primary}
-                                />
-                            </Pressable>
+                                <Pressable
+                                    onPress={
+                                        isBackingUp
+                                            ? undefined
+                                            : handleQuickBackup
+                                    }
+                                    style={[
+                                        styles.searchIconButton,
+                                        {
+                                            backgroundColor: `${colors.primary}18`,
+                                        },
+                                    ]}
+                                >
+                                    {isBackingUp ? (
+                                        <ActivityIndicator
+                                            size="small"
+                                            color={colors.primary}
+                                        />
+                                    ) : (
+                                        <Ionicons
+                                            name="cloud-upload-outline"
+                                            size={22}
+                                            color={colors.primary}
+                                        />
+                                    )}
+                                </Pressable>
+                                <Pressable
+                                    onPress={() => {
+                                        if (isSearchActive) {
+                                            setSearchText("");
+                                            setIsSearchActive(false);
+                                        } else {
+                                            setIsSearchActive(true);
+                                            setTimeout(
+                                                () =>
+                                                    searchInputRef.current?.focus(),
+                                                100,
+                                            );
+                                        }
+                                    }}
+                                    style={[
+                                        styles.searchIconButton,
+                                        {
+                                            backgroundColor: `${colors.primary}18`,
+                                        },
+                                    ]}
+                                >
+                                    <Ionicons
+                                        name={
+                                            isSearchActive ? "close" : "search"
+                                        }
+                                        size={24}
+                                        color={colors.primary}
+                                    />
+                                </Pressable>
+                            </View>
                         ) : (
                             <Pressable
                                 onPress={() => setIsSelectionMenuVisible(true)}
@@ -802,33 +886,94 @@ export const CustomersScreen: React.FC = () => {
                         ]}
                         ListEmptyComponent={
                             !loading ? (
-                                <View style={styles.emptyState}>
+                                <View
+                                    style={[
+                                        styles.emptyState,
+                                        !searchText
+                                            ? { paddingBottom: 120 }
+                                            : {},
+                                    ]}
+                                >
                                     <Ionicons
                                         name={
                                             searchText
                                                 ? "search-outline"
                                                 : "people-outline"
                                         }
-                                        size={48}
-                                        color={colors.text.muted}
+                                        size={searchText ? 48 : 72}
+                                        color={
+                                            searchText
+                                                ? colors.text.muted
+                                                : `${colors.primary}40`
+                                        }
                                     />
                                     <Typography
-                                        variant="heading-small"
-                                        color="secondary"
+                                        variant={
+                                            searchText
+                                                ? "heading-small"
+                                                : "heading-medium"
+                                        }
+                                        color={
+                                            searchText ? "secondary" : "primary"
+                                        }
+                                        style={
+                                            !searchText
+                                                ? { marginTop: Spacing.lg }
+                                                : {}
+                                        }
                                     >
                                         {searchText
                                             ? t("customers.noResults")
                                             : t("customers.emptyTitle")}
                                     </Typography>
                                     <Typography
-                                        variant="body-small"
+                                        variant="body-medium"
                                         color="muted"
-                                        style={styles.emptyStateMessage}
+                                        style={
+                                            !searchText
+                                                ? {
+                                                      textAlign: "center",
+                                                      marginTop: Spacing.sm,
+                                                      paddingHorizontal:
+                                                          Spacing.xl,
+                                                  }
+                                                : styles.emptyStateMessage
+                                        }
                                     >
                                         {searchText
                                             ? t("customers.noResultsMessage")
                                             : t("customers.emptyMessage")}
                                     </Typography>
+                                    {!searchText && (
+                                        <Pressable
+                                            style={[
+                                                styles.emptyStateButton,
+                                                {
+                                                    backgroundColor:
+                                                        colors.primary,
+                                                },
+                                            ]}
+                                            onPress={() =>
+                                                router.push("/add-customer")
+                                            }
+                                        >
+                                            <Ionicons
+                                                name="add"
+                                                size={20}
+                                                color={colors.background}
+                                            />
+                                            <Typography
+                                                variant="body-medium"
+                                                style={{
+                                                    color: colors.background,
+                                                    marginLeft: Spacing.xs,
+                                                    fontWeight: "bold",
+                                                }}
+                                            >
+                                                Add New Customer
+                                            </Typography>
+                                        </Pressable>
+                                    )}
                                 </View>
                             ) : null
                         }
@@ -924,7 +1069,7 @@ export const CustomersScreen: React.FC = () => {
                         style={[
                             styles.fab,
                             {
-                                bottom: insets.bottom + 80,
+                                bottom: insets.bottom + 90,
                                 right: Spacing.lg,
                                 backgroundColor: colors.primary,
                                 shadowColor: colors.primary,
@@ -1084,6 +1229,20 @@ const styles = StyleSheet.create({
         paddingHorizontal: Spacing.xxl,
     },
     emptyStateMessage: { textAlign: "center" },
+    emptyStateButton: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        paddingVertical: 12,
+        paddingHorizontal: Spacing.xl,
+        borderRadius: 24,
+        marginTop: Spacing.xl,
+        elevation: 2,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 1.41,
+    },
     fab: {
         position: "absolute",
         width: 56,

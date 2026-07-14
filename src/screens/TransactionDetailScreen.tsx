@@ -1,13 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useAudioPlayer, useAudioPlayerStatus } from "expo-audio";
 import { Image } from "expo-image";
+import * as MailComposer from "expo-mail-composer";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import * as Sharing from "expo-sharing";
 import * as SMS from "expo-sms";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Alert, Linking, Pressable, ScrollView, StyleSheet, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Share from "react-native-share";
 import ViewShot from "react-native-view-shot";
 import {
     LoadingScreen,
@@ -16,8 +17,6 @@ import {
     Typography,
     ViewPhoto,
 } from "../components";
-
-type TransactionMenuOption = "edit" | "delete" | "send-sms" | "send-whatsapp";
 import { Spacing } from "../constants";
 import {
     LedgerFundingSource,
@@ -35,6 +34,14 @@ import {
 import { TransactionService } from "../services/TransactionService";
 import { useDatabaseContext, useTheme } from "../store";
 import { formatCurrency, formatDateTime } from "../utils";
+
+type TransactionMenuOption =
+    | "edit"
+    | "delete"
+    | "send-sms"
+    | "send-whatsapp"
+    | "set-reminder"
+    | "send-email";
 
 export default function TransactionDetailScreen() {
     const { transactionId, customerId } = useLocalSearchParams<{
@@ -71,7 +78,9 @@ export default function TransactionDetailScreen() {
     const [playbackCurrentTime, setPlaybackCurrentTime] = useState(0);
     const [voiceDuration, setVoiceDuration] = useState(0);
     const [isMenuVisible, setIsMenuVisible] = useState(false);
-    const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(null);
+    const [imageAspectRatio, setImageAspectRatio] = useState<number | null>(
+        null,
+    );
 
     const { requestDeleteAuthentication, deleteAuthenticationPrompt } =
         useDeleteAuthentication();
@@ -246,9 +255,14 @@ export default function TransactionDetailScreen() {
         () => [
             {
                 value: "send-whatsapp" as const,
-                label: "WhatsApp",
+                label: "WhatsApp Receipt",
                 icon: "logo-whatsapp" as const,
                 disabled: !customer?.phone,
+            },
+            {
+                value: "send-email" as const,
+                label: "Email Receipt",
+                icon: "mail-outline" as const,
             },
             {
                 value: "send-sms" as const,
@@ -266,6 +280,11 @@ export default function TransactionDetailScreen() {
                 label: "Delete",
                 icon: "trash-outline" as const,
             },
+            {
+                value: "set-reminder" as const,
+                label: "Set Reminder",
+                icon: "alarm-outline" as const,
+            },
         ],
         [customer?.phone],
     );
@@ -276,6 +295,9 @@ export default function TransactionDetailScreen() {
             case "send-whatsapp":
                 void handleSendWhatsAppReceipt();
                 break;
+            case "send-email":
+                void handleSendEmailReceipt();
+                break;
             case "send-sms":
                 void handleSendSmsReceipt();
                 break;
@@ -284,6 +306,11 @@ export default function TransactionDetailScreen() {
                 break;
             case "delete":
                 handleDelete();
+                break;
+            case "set-reminder":
+                router.push(
+                    `/add-reminder?customerId=${customer?.id}&transactionId=${transaction?.id}` as any,
+                );
                 break;
         }
     };
@@ -328,6 +355,14 @@ export default function TransactionDetailScreen() {
           ? "warning"
           : "danger";
 
+    const generateReceiptMessage = () => {
+        const amountStr = formatCurrency(transaction.amount);
+        const dateStr = formatDateTime(
+            transaction.created_at || Date.now() / 1000,
+        );
+        return `Transaction Receipt\nCustomer: ${customer.name}\nAmount: ${amountStr} (${isCreditVariant ? "Received" : "Paid"})\nDate: ${dateStr}${transaction.description ? "\nNotes: " + transaction.description : ""}`;
+    };
+
     const handleSendWhatsAppReceipt = async () => {
         if (!customer?.phone) {
             Alert.alert(
@@ -337,25 +372,62 @@ export default function TransactionDetailScreen() {
             return;
         }
 
-        const amountStr = formatCurrency(transaction.amount);
-        const dateStr = formatDateTime(
-            transaction.created_at || Date.now() / 1000,
-        );
-        const appSignature = "\n\n- Sent via KhataBook App";
-        const msg = `Transaction Receipt:\nCustomer: ${customer.name}\nAmount: ${amountStr} (${isCreditVariant ? "Received" : "Paid"})\nDate: ${dateStr}${transaction.description ? "\nNotes: " + transaction.description : ""}${appSignature}`;
-        
-        const formattedPhone = customer.phone.replace(/[^0-9]/g, "");
-        const url = `whatsapp://send?phone=${formattedPhone}&text=${encodeURIComponent(msg)}`;
-        
         try {
-            const canOpen = await Linking.canOpenURL(url);
-            if (canOpen) {
-                await Linking.openURL(url);
-            } else {
-                Alert.alert("Error", "WhatsApp is not installed on this device.");
+            const uri = await viewShotRef.current?.capture?.();
+            if (!uri) throw new Error("Could not capture receipt");
+
+            let formattedPhone = customer.phone.replace(/[^0-9]/g, "");
+
+            // Auto-format phone number with country code if missing
+            if (
+                formattedPhone.startsWith("03") &&
+                formattedPhone.length === 11
+            ) {
+                formattedPhone = "92" + formattedPhone.substring(1); // Pakistan
+            } else if (
+                formattedPhone.length === 10 &&
+                /^[6-9]/.test(formattedPhone)
+            ) {
+                formattedPhone = "91" + formattedPhone; // India
+            } else if (formattedPhone.startsWith("0")) {
+                // Fallback for other leading zero formats, assuming Pakistan for this context
+                formattedPhone = "92" + formattedPhone.substring(1);
             }
+
+            const message = generateReceiptMessage();
+
+            await Share.shareSingle({
+                social: Share.Social.WHATSAPP,
+                message: message,
+                url: uri,
+                whatsAppNumber: formattedPhone,
+            });
         } catch (error) {
-            Alert.alert("Error", "Failed to open WhatsApp.");
+            console.error(error);
+            Alert.alert("Error", "Failed to send WhatsApp receipt.");
+        }
+    };
+
+    const handleSendEmailReceipt = async () => {
+        try {
+            const uri = await viewShotRef.current?.capture?.();
+            if (!uri) throw new Error("Could not capture receipt");
+
+            const isAvailable = await MailComposer.isAvailableAsync();
+            if (!isAvailable) {
+                Alert.alert("Error", "Email services are not available.");
+                return;
+            }
+
+            const message = generateReceiptMessage();
+            await MailComposer.composeAsync({
+                subject: `Receipt: KhataBook Transaction with ${customer?.name}`,
+                body: message + "\n\n- Sent via KhataBook App",
+                attachments: [uri],
+            });
+        } catch (error) {
+            console.error(error);
+            Alert.alert("Error", "Failed to send Email receipt.");
         }
     };
 
@@ -418,7 +490,11 @@ export default function TransactionDetailScreen() {
                         color={colors.primary}
                     />
                 </Pressable>
-                <Typography variant="heading-medium" color="primary" style={{ flex: 1 }}>
+                <Typography
+                    variant="heading-medium"
+                    color="primary"
+                    style={{ flex: 1 }}
+                >
                     Transaction Details
                 </Typography>
                 <Pressable
@@ -726,14 +802,20 @@ export default function TransactionDetailScreen() {
                                     source={{ uri: transaction.image_uri }}
                                     style={[
                                         styles.photo,
-                                        imageAspectRatio 
-                                            ? { aspectRatio: imageAspectRatio, height: undefined } 
-                                            : { height: 200 }
+                                        imageAspectRatio
+                                            ? {
+                                                  aspectRatio: imageAspectRatio,
+                                                  height: undefined,
+                                              }
+                                            : { height: 200 },
                                     ]}
                                     contentFit="contain"
                                     onLoad={(e) => {
                                         if (e.source.width && e.source.height) {
-                                            setImageAspectRatio(e.source.width / e.source.height);
+                                            setImageAspectRatio(
+                                                e.source.width /
+                                                    e.source.height,
+                                            );
                                         }
                                     }}
                                 />

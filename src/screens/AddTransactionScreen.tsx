@@ -54,7 +54,6 @@ export const AddTransactionScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { t } = useTranslation();
-
     const { customer, loading: customerLoading } = useCustomerById(
         db,
         parseInt(customerId || "0") as CustomerId,
@@ -63,7 +62,6 @@ export const AddTransactionScreen: React.FC = () => {
         useTransactions(db);
 
     const isReceive = type === "receive";
-
     const [amountState, setAmountState] = useState({
         amount: 0,
         displayAmount: "",
@@ -74,7 +72,6 @@ export const AddTransactionScreen: React.FC = () => {
     const [descFocused, setDescFocused] = useState(false);
     const [nativeKeyboardVisible, setNativeKeyboardVisible] = useState(false);
     const [saving, setSaving] = useState(false);
-
     const [imageUri, setImageUri] = useState<string | null>(null);
 
     const audioRecorder = useAudioRecorder({
@@ -92,25 +89,50 @@ export const AddTransactionScreen: React.FC = () => {
     const [playbackCurrentTime, setPlaybackCurrentTime] = useState(0);
     const [voiceDuration, setVoiceDuration] = useState(0);
     const [micLevel, setMicLevel] = useState(0);
-    // waveformHistory keeps the last N mic levels to draw a scrolling waveform
-    const waveformHistory = useRef<number[]>(new Array(30).fill(0));
+
+    const waveformHistory = useRef<number[]>(new Array(40).fill(0));
     const durationTimerRef = useRef<ReturnType<typeof setInterval> | null>(
         null,
     );
-
     const originalImageUri = useRef<string | null>(null);
     const originalVoiceUri = useRef<string | null>(null);
-
     const isEditing = Boolean(transactionId);
     const [transactionLoading, setTransactionLoading] = useState(isEditing);
+
     const transactionService = useMemo(
         () => (db ? new TransactionService(db) : null),
         [db],
     );
 
+    const voicePlayer = useAudioPlayer(voiceUri ? { uri: voiceUri } : null);
+    const playerStatus = useAudioPlayerStatus(voicePlayer);
+
+    useEffect(() => {
+        return () => {
+            try {
+                if (audioRecorder && audioRecorder.isRecording) {
+                    audioRecorder.stop().catch(() => {});
+                }
+            } catch (e) {
+                // Ignore already released error
+            }
+            
+            try {
+                if (voicePlayer) {
+                    voicePlayer.pause();
+                }
+            } catch (e) {
+                // Ignore already released error
+            }
+
+            if (durationTimerRef.current) {
+                clearInterval(durationTimerRef.current);
+            }
+        };
+    }, [voicePlayer, audioRecorder]);
+
     useEffect(() => {
         if (!isEditing || !transactionService) return;
-
         let cancelled = false;
         const load = async () => {
             setTransactionLoading(true);
@@ -119,7 +141,6 @@ export const AddTransactionScreen: React.FC = () => {
                     parseInt(transactionId, 10) as TransactionId,
                 );
                 if (!tx || cancelled) return;
-
                 setDescription(tx.description || "");
                 setImageUri(tx.image_uri || null);
                 setVoiceUri(tx.voice_uri || null);
@@ -143,7 +164,6 @@ export const AddTransactionScreen: React.FC = () => {
                 setTransactionLoading(false);
             }
         };
-
         void load();
         return () => {
             cancelled = true;
@@ -152,7 +172,6 @@ export const AddTransactionScreen: React.FC = () => {
 
     useEffect(() => {
         if (!descFocused) return;
-
         const subscription = BackHandler.addEventListener(
             "hardwareBackPress",
             () => {
@@ -160,7 +179,6 @@ export const AddTransactionScreen: React.FC = () => {
                 return true;
             },
         );
-
         return () => subscription.remove();
     }, [descFocused]);
 
@@ -173,7 +191,6 @@ export const AddTransactionScreen: React.FC = () => {
         const hideSubscription = Keyboard.addListener("keyboardDidHide", () => {
             setNativeKeyboardVisible(false);
         });
-
         return () => {
             showSubscription.remove();
             hideSubscription.remove();
@@ -193,9 +210,6 @@ export const AddTransactionScreen: React.FC = () => {
             previousVoiceState.current = voiceState;
         }
     }, [voiceState]);
-
-    const voicePlayer = useAudioPlayer(voiceUri ? { uri: voiceUri } : null);
-    const playerStatus = useAudioPlayerStatus(voicePlayer);
 
     useEffect(() => {
         if (voiceState === "recording" && recorderState.metering != null) {
@@ -243,60 +257,48 @@ export const AddTransactionScreen: React.FC = () => {
                 ) {
                     return current;
                 }
-
-                return {
-                    amount: val,
-                    displayAmount: dsp,
-                    previewAmount: prev,
-                };
+                return { amount: val, displayAmount: dsp, previewAmount: prev };
             });
         },
         [],
     );
 
     const pickFromCamera = async () => {
-        try {
-            const { status } =
-                await ImagePicker.requestCameraPermissionsAsync();
-            if (status !== "granted") {
-                Alert.alert(
-                    t("addCustomer.permissionRequired"),
-                    t("addCustomer.cameraPermission"),
-                );
-                return;
-            }
-            const result = await ImagePicker.launchCameraAsync({
-                allowsEditing: true,
-                aspect: [3, 4],
-                quality: 0.8,
-            });
-            if (!result.canceled && result.assets[0]) {
-                setImageUri(result.assets[0].uri);
-            }
-        } finally {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert(
+                t("addCustomer.permissionRequired"),
+                t("addCustomer.cameraPermission"),
+            );
+            return;
+        }
+        const result = await ImagePicker.launchCameraAsync({
+            allowsEditing: true,
+            aspect: [3, 4],
+            quality: 0.8,
+        });
+        if (!result.canceled && result.assets[0]) {
+            setImageUri(result.assets[0].uri);
         }
     };
 
     const pickFromGallery = async () => {
-        try {
-            const { status } =
-                await ImagePicker.requestMediaLibraryPermissionsAsync();
-            if (status !== "granted") {
-                Alert.alert(
-                    t("addCustomer.permissionRequired"),
-                    t("addCustomer.galleryPermission"),
-                );
-                return;
-            }
-            const result = await ImagePicker.launchImageLibraryAsync({
-                allowsEditing: true,
-                aspect: [3, 4],
-                quality: 0.8,
-            });
-            if (!result.canceled && result.assets[0]) {
-                setImageUri(result.assets[0].uri);
-            }
-        } finally {
+        const { status } =
+            await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== "granted") {
+            Alert.alert(
+                t("addCustomer.permissionRequired"),
+                t("addCustomer.galleryPermission"),
+            );
+            return;
+        }
+        const result = await ImagePicker.launchImageLibraryAsync({
+            allowsEditing: true,
+            aspect: [3, 4],
+            quality: 0.8,
+        });
+        if (!result.canceled && result.assets[0]) {
+            setImageUri(result.assets[0].uri);
         }
     };
 
@@ -305,14 +307,10 @@ export const AddTransactionScreen: React.FC = () => {
             t("addCustomer.selectPhoto"),
             t("addCustomer.selectPhotoMessage"),
             [
-                {
-                    text: t("addCustomer.cancel"),
-                    style: "cancel",
-                },
+                { text: t("addCustomer.cancel"), style: "cancel" },
                 { text: t("addCustomer.camera"), onPress: pickFromCamera },
                 { text: t("addCustomer.gallery"), onPress: pickFromGallery },
             ],
-            {},
         );
     };
 
@@ -326,13 +324,11 @@ export const AddTransactionScreen: React.FC = () => {
                 );
                 return;
             }
-
             await setAudioModeAsync({
                 allowsRecording: true,
                 playsInSilentMode: true,
             });
-
-            waveformHistory.current = new Array(30).fill(0);
+            waveformHistory.current = new Array(40).fill(0);
             await audioRecorder.prepareToRecordAsync();
             audioRecorder.record();
             setVoiceState("recording");
@@ -342,7 +338,6 @@ export const AddTransactionScreen: React.FC = () => {
                 setRecordingDuration((prev) => prev + 1);
             }, 1000);
         } catch (error) {
-            console.error("Could not start recording", error);
             Alert.alert(
                 t("addTransaction.error"),
                 t("addTransaction.startRecordError"),
@@ -367,7 +362,6 @@ export const AddTransactionScreen: React.FC = () => {
                 t("addTransaction.error"),
                 t("addTransaction.stopRecordError"),
             );
-        } finally {
         }
     };
 
@@ -382,16 +376,14 @@ export const AddTransactionScreen: React.FC = () => {
             } else {
                 voicePlayer.pause();
             }
-        } catch {
-            // ignore
-        }
+        } catch {}
         setVoiceUri(null);
         setVoiceState("idle");
         setIsPlaying(false);
         setPlaybackProgress(0);
         setPlaybackCurrentTime(0);
         setRecordingDuration(0);
-        waveformHistory.current = new Array(30).fill(0);
+        waveformHistory.current = new Array(40).fill(0);
     };
 
     const playVoice = () => {
@@ -404,18 +396,9 @@ export const AddTransactionScreen: React.FC = () => {
         }
     };
 
-    const stopPlayback = () => {
-        voicePlayer.pause();
-        voicePlayer.seekTo(0);
-        setIsPlaying(false);
-        setPlaybackProgress(0);
-        setPlaybackCurrentTime(0);
-    };
-
     const handleSave = useCallback(async () => {
         if (!customer?.accounts?.[0]?.id || amount <= 0 || saving) return;
         setSaving(true);
-
         const accountId = customer.accounts[0].id;
         const transactionType = isReceive
             ? TransactionType.CREDIT
@@ -460,7 +443,6 @@ export const AddTransactionScreen: React.FC = () => {
                         voice_uri: finalVoiceUri || "",
                     },
                 );
-
                 if (
                     originalImageUri.current &&
                     originalImageUri.current !== finalImageUri
@@ -483,7 +465,6 @@ export const AddTransactionScreen: React.FC = () => {
                     voice_uri: finalVoiceUri || undefined,
                 });
             }
-
             await fetchTransactionsByAccount(accountId);
             router.back();
         } catch {
@@ -541,7 +522,6 @@ export const AddTransactionScreen: React.FC = () => {
                     },
                 ]}
             >
-                {/* Header */}
                 <View
                     style={[
                         styles.header,
@@ -602,7 +582,6 @@ export const AddTransactionScreen: React.FC = () => {
                     contentContainerStyle={styles.topContent}
                     keyboardShouldPersistTaps="handled"
                 >
-                    {/* Amount Display — semantic card matching summary-card language */}
                     <View
                         style={[
                             styles.amountCard,
@@ -635,7 +614,6 @@ export const AddTransactionScreen: React.FC = () => {
                         )}
                     </View>
 
-                    {/* Description */}
                     <View style={styles.descriptionActionRow}>
                         <View
                             style={[
@@ -666,16 +644,13 @@ export const AddTransactionScreen: React.FC = () => {
                                 textAlignVertical="top"
                             />
                         </View>
-
                         <View style={styles.attachmentRow}>
                             <Pressable
-                                onPressIn={() => {
+                                onPress={() => {
+                                    Keyboard.dismiss();
                                     if (voiceState === "idle" && !voiceUri) {
                                         startRecording();
-                                    }
-                                }}
-                                onPressOut={() => {
-                                    if (voiceState === "recording") {
+                                    } else if (voiceState === "recording") {
                                         stopRecording();
                                     }
                                 }}
@@ -683,18 +658,17 @@ export const AddTransactionScreen: React.FC = () => {
                                     styles.attachmentButton,
                                     {
                                         backgroundColor:
-                                            voiceState === "recording" || pressed
+                                            voiceState === "recording" ||
+                                            pressed
                                                 ? `${colors.danger}15`
                                                 : colors.surface,
                                         borderColor:
-                                            voiceState === "recording" || pressed
+                                            voiceState === "recording" ||
+                                            pressed
                                                 ? `${colors.danger}35`
                                                 : colors.border,
                                     },
-                                    pressed && styles.attachmentButtonPressed,
                                 ]}
-                                accessibilityRole="button"
-                                accessibilityLabel={t("addTransaction.voice")}
                             >
                                 <Ionicons
                                     name={
@@ -712,21 +686,12 @@ export const AddTransactionScreen: React.FC = () => {
                                     }
                                 />
                             </Pressable>
-
                             <Pressable
                                 onPress={showImagePickerOptions}
-                                style={({ pressed }) => [
+                                style={[
                                     styles.attachmentButton,
-                                    {
-                                        backgroundColor: colors.surface,
-                                        borderColor: imageUri
-                                            ? `${colors.primary}40`
-                                            : colors.border,
-                                    },
-                                    pressed && styles.attachmentButtonPressed,
+                                    { borderColor: colors.border, backgroundColor: colors.surface }
                                 ]}
-                                accessibilityRole="button"
-                                accessibilityLabel={t("addTransaction.photo")}
                             >
                                 {imageUri ? (
                                     <>
@@ -740,7 +705,6 @@ export const AddTransactionScreen: React.FC = () => {
                                                 e.stopPropagation?.();
                                                 setImageUri(null);
                                             }}
-                                            hitSlop={8}
                                             style={[
                                                 styles.attachmentRemoveButton,
                                                 {
@@ -748,8 +712,6 @@ export const AddTransactionScreen: React.FC = () => {
                                                         colors.background,
                                                 },
                                             ]}
-                                            accessibilityRole="button"
-                                            accessibilityLabel="Remove photo"
                                         >
                                             <Ionicons
                                                 name="close-circle"
@@ -771,17 +733,13 @@ export const AddTransactionScreen: React.FC = () => {
                 </ScrollView>
 
                 <View
-                    style={[
-                        {
-                            borderTopColor: colors.border,
-                            paddingBottom: calculatorHidden
-                                ? Spacing.sm
-                                : Math.max(insets.bottom, Spacing.sm) +
-                                  Spacing.sm,
-                        },
-                    ]}
+                    style={{
+                        borderTopColor: colors.border,
+                        paddingBottom: calculatorHidden
+                            ? Spacing.sm
+                            : Math.max(insets.bottom, Spacing.sm) + Spacing.sm,
+                    }}
                 >
-                    {/* Voice Note bars */}
                     {voiceState === "recording" && (
                         <View
                             style={[
@@ -794,7 +752,6 @@ export const AddTransactionScreen: React.FC = () => {
                                 },
                             ]}
                         >
-                            {/* Discard */}
                             <Pressable onPress={discardRecording} hitSlop={10}>
                                 <Ionicons
                                     name="trash-outline"
@@ -802,8 +759,6 @@ export const AddTransactionScreen: React.FC = () => {
                                     color={colors.text.muted}
                                 />
                             </Pressable>
-
-                            {/* Pulsing red dot + timer */}
                             <View style={styles.voiceRecordingLeft}>
                                 <View
                                     style={[
@@ -813,16 +768,11 @@ export const AddTransactionScreen: React.FC = () => {
                                 />
                                 <Typography
                                     variant="small-small"
-                                    style={[
-                                        styles.voiceTimer,
-                                        { color: colors.danger },
-                                    ]}
+                                    style={{ color: colors.danger }}
                                 >
                                     {formatDuration(recordingDuration)}
                                 </Typography>
                             </View>
-
-                            {/* Live waveform */}
                             <View style={styles.voiceLiveWaveform}>
                                 {waveformHistory.current.map((lvl, i) => (
                                     <View
@@ -831,18 +781,15 @@ export const AddTransactionScreen: React.FC = () => {
                                             styles.voiceWaveBar,
                                             {
                                                 backgroundColor: colors.primary,
-                                                height: Math.max(3, lvl * 28),
-                                                opacity: 0.4 + lvl * 0.6,
+                                                height: Math.max(4, (lvl || 0) * 28),
+                                                opacity: 0.5 + (lvl || 0) * 0.5,
                                             },
                                         ]}
                                     />
                                 ))}
                             </View>
-
-                            {/* Stop → goes to playback */}
                             <Pressable
                                 onPress={stopRecording}
-                                hitSlop={10}
                                 style={[
                                     styles.voiceCircleBtn,
                                     { backgroundColor: colors.danger },
@@ -865,14 +812,12 @@ export const AddTransactionScreen: React.FC = () => {
                                 },
                             ]}
                         >
-                            {/* Play / Pause */}
                             <Pressable
                                 onPress={playVoice}
                                 style={[
                                     styles.voiceCircleBtn,
                                     { backgroundColor: colors.primary },
                                 ]}
-                                hitSlop={8}
                             >
                                 <Ionicons
                                     name={isPlaying ? "pause" : "play"}
@@ -880,8 +825,6 @@ export const AddTransactionScreen: React.FC = () => {
                                     color="#fff"
                                 />
                             </Pressable>
-
-                            {/* Scrubber waveform */}
                             <View style={styles.voiceScrubberTrack}>
                                 <View
                                     style={[
@@ -902,22 +845,14 @@ export const AddTransactionScreen: React.FC = () => {
                                     ]}
                                 />
                             </View>
-
-                            {/* Time */}
-                            <Typography
-                                variant="small-small"
-                                color="muted"
-                                style={styles.voiceTimer}
-                            >
+                            <Typography variant="small-small" color="muted">
                                 {isPlaying
                                     ? formatDuration(
                                           Math.floor(playbackCurrentTime),
                                       )
                                     : formatDuration(Math.round(voiceDuration))}
                             </Typography>
-
-                            {/* Discard */}
-                            <Pressable onPress={discardRecording} hitSlop={10}>
+                            <Pressable onPress={discardRecording}>
                                 <Ionicons
                                     name="close-circle-outline"
                                     size={20}
@@ -927,23 +862,14 @@ export const AddTransactionScreen: React.FC = () => {
                         </View>
                     )}
 
-                    {/* Save Button */}
                     <Pressable
-                        style={({ pressed }) => [
+                        style={[
                             styles.saveButton,
                             {
                                 marginHorizontal: Spacing.md,
                                 marginBottom: Spacing.md,
-                            },
-                            {
                                 backgroundColor: amountSemanticColor,
-                                shadowColor: amountSemanticColor,
-                                opacity:
-                                    amount <= 0 || saving
-                                        ? 0.5
-                                        : pressed
-                                          ? 0.9
-                                          : 1,
+                                opacity: amount <= 0 || saving ? 0.5 : 1,
                             },
                         ]}
                         onPress={handleSave}
@@ -951,11 +877,7 @@ export const AddTransactionScreen: React.FC = () => {
                     >
                         <Typography
                             variant="body-medium"
-                            color="primary"
-                            style={[
-                                styles.saveButtonText,
-                                { color: "#FFFFFF" },
-                            ]}
+                            style={{ color: "#FFFFFF", fontWeight: "600" }}
                         >
                             {saving
                                 ? isEditing
@@ -969,7 +891,6 @@ export const AddTransactionScreen: React.FC = () => {
                         </Typography>
                     </Pressable>
 
-                    {/* Calculator Keyboard */}
                     <CalculatorKeyboard
                         hidden={calculatorHidden}
                         onAmountChange={handleAmountChange}
@@ -1004,7 +925,6 @@ const styles = StyleSheet.create({
     },
     headerInfo: { flex: 1 },
     headerSpacer: { width: 44 },
-    // ── Amount card — semantic card matching CustomersScreen summary cards ──
     amountCard: {
         marginTop: Spacing.md,
         borderRadius: 10,
@@ -1016,16 +936,8 @@ const styles = StyleSheet.create({
         shadowRadius: 6,
         elevation: 2,
     },
-    amountCardValue: {
-        textAlign: "right",
-        fontSize: 36,
-        fontWeight: "700",
-    },
-    previewText: {
-        textAlign: "right",
-        marginTop: Spacing.xs,
-    },
-    // Description input
+    amountCardValue: { textAlign: "right", fontSize: 36, fontWeight: "700" },
+    previewText: { textAlign: "right", marginTop: Spacing.xs },
     descriptionActionRow: {
         flexDirection: "row",
         alignItems: "stretch",
@@ -1043,13 +955,7 @@ const styles = StyleSheet.create({
         gap: Spacing.sm,
         minHeight: 104,
     },
-    descInput: {
-        flex: 1,
-        fontSize: 15,
-        paddingTop: 4,
-        minHeight: 78,
-    },
-    // ── Voice bar (WhatsApp-style) ──
+    descInput: { flex: 1, fontSize: 15, paddingTop: 4, minHeight: 78 },
     voiceBar: {
         flexDirection: "row",
         alignItems: "center",
@@ -1072,33 +978,20 @@ const styles = StyleSheet.create({
         alignItems: "center",
         gap: Spacing.xs,
     },
-    recDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-    },
-    voiceTimer: {
-        minWidth: 36,
-        fontVariant: ["tabular-nums"],
-    },
+    recDot: { width: 8, height: 8, borderRadius: 4 },
     voiceLiveWaveform: {
         flex: 1,
         flexDirection: "row",
         alignItems: "center",
-        gap: 2,
+        gap: 0.5,
         height: 32,
         overflow: "hidden",
     },
-    voiceWaveBar: {
-        flex: 1,
-        borderRadius: 2,
-        minHeight: 3,
-    },
+    voiceWaveBar: { flex: 1, borderRadius: 1.5, minHeight: 2 },
     voiceScrubberTrack: {
         flex: 1,
         height: 4,
         borderRadius: 2,
-        backgroundColor: "transparent",
         overflow: "visible",
         position: "relative",
         justifyContent: "center",
@@ -1117,11 +1010,7 @@ const styles = StyleSheet.create({
         marginLeft: -6,
         top: -4,
     },
-    attachmentRow: {
-        flexDirection: "column",
-        gap: Spacing.xs,
-        flexShrink: 0,
-    },
+    attachmentRow: { flexDirection: "column", gap: Spacing.xs, flexShrink: 0 },
     attachmentButton: {
         width: 48,
         height: 48,
@@ -1129,17 +1018,8 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         alignItems: "center",
         justifyContent: "center",
-        overflow: "visible",
     },
-    attachmentButtonPressed: {
-        transform: [{ scale: 0.98 }],
-        opacity: 0.88,
-    },
-    attachmentThumb: {
-        width: 42,
-        height: 42,
-        borderRadius: 8,
-    },
+    attachmentThumb: { width: 42, height: 42, borderRadius: 8 },
     attachmentRemoveButton: {
         position: "absolute",
         top: -6,
@@ -1150,12 +1030,5 @@ const styles = StyleSheet.create({
         paddingVertical: Spacing.md,
         borderRadius: 12,
         alignItems: "center",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.25,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    saveButtonText: {
-        fontWeight: "600",
     },
 });

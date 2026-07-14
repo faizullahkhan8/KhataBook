@@ -26,6 +26,7 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
     });
 
     const fetchGen = useRef(0);
+    const isInitialFetchDone = useRef(false);
 
     const customerService = useMemo(
         () => (db ? new CustomerService(db) : null),
@@ -91,6 +92,7 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
             } finally {
                 if (gen === fetchGen.current) {
                     setLoading(false);
+                    isInitialFetchDone.current = true;
                 }
             }
         },
@@ -232,6 +234,7 @@ export const useCustomersWithAccounts = (db: SQLiteDatabase | null) => {
         pageSize,
         hasMore,
         nextPage,
+        isInitialFetchDone,
         createCustomer,
         deleteCustomer,
         bulkDeleteCustomers,

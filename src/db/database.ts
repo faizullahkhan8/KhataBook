@@ -184,6 +184,26 @@ export const initializeDatabase = async (
                 auto_lock_delay INTEGER NOT NULL DEFAULT 0,
                 require_delete_auth INTEGER NOT NULL DEFAULT 0
             );
+
+            CREATE TABLE IF NOT EXISTS reminders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                store_id INTEGER NOT NULL DEFAULT 1,
+                customer_id INTEGER,
+                transaction_id INTEGER,
+                title TEXT NOT NULL,
+                description TEXT,
+                due_date INTEGER NOT NULL,
+                status INTEGER NOT NULL DEFAULT 0, -- 0: PENDING, 1: COMPLETED, 2: CANCELLED
+                notification_id TEXT,
+                created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE CASCADE,
+                FOREIGN KEY (transaction_id) REFERENCES transactions(id) ON DELETE CASCADE
+            );
+            
+            CREATE INDEX IF NOT EXISTS idx_reminders_store ON reminders(store_id);
+            CREATE INDEX IF NOT EXISTS idx_reminders_customer ON reminders(customer_id);
+            CREATE INDEX IF NOT EXISTS idx_reminders_due_date ON reminders(due_date);
         `);
 
         const securitySettingsColumns = await db.getAllAsync<{ name: string }>(

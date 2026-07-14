@@ -10,7 +10,6 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
 import {
     DateFilter,
     DateRangePicker,
@@ -47,47 +46,55 @@ export const LedgerScreen: React.FC = () => {
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const { t } = useTranslation();
-
     const [selectedFilter, setSelectedFilter] = useState<DateFilterType>("all");
     const [customRange, setCustomRange] = useState<DateRange | undefined>(
         undefined,
     );
     const [showDatePicker, setShowDatePicker] = useState(false);
-
-    // --- NEW: Structural Loading State Management ---
     const initialLoadDone = useRef(false);
 
     const dateRange = useMemo<HookDateRange | null>(() => {
         const now = new Date();
-        const today = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate(),
+        const todayUTC = Date.UTC(
+            now.getUTCFullYear(),
+            now.getUTCMonth(),
+            now.getUTCDate(),
         );
+        const startOfToday = new Date(todayUTC);
 
         switch (selectedFilter) {
             case "today":
-                return { startDate: today, endDate: today };
+                return { startDate: startOfToday, endDate: startOfToday };
             case "yesterday": {
-                const yesterday = new Date(today);
-                yesterday.setDate(yesterday.getDate() - 1);
+                const yesterday = new Date(todayUTC);
+                yesterday.setUTCDate(yesterday.getUTCDate() - 1);
                 return { startDate: yesterday, endDate: yesterday };
             }
             case "last7Days": {
-                const last7Days = new Date(today);
-                last7Days.setDate(last7Days.getDate() - 6);
-                return { startDate: last7Days, endDate: today };
+                const last7 = new Date(todayUTC);
+                last7.setUTCDate(last7.getUTCDate() - 6);
+                return { startDate: last7, endDate: startOfToday };
             }
             case "lastMonth": {
-                const lastMonth = new Date(today);
-                lastMonth.setDate(lastMonth.getDate() - 29);
-                return { startDate: lastMonth, endDate: today };
+                const last30 = new Date(todayUTC);
+                last30.setUTCDate(last30.getUTCDate() - 29);
+                return { startDate: last30, endDate: startOfToday };
             }
             case "custom":
                 if (customRange?.startDate && customRange?.endDate) {
+                    const startCustom = Date.UTC(
+                        customRange.startDate.getFullYear(),
+                        customRange.startDate.getMonth(),
+                        customRange.startDate.getDate(),
+                    );
+                    const endCustom = Date.UTC(
+                        customRange.endDate.getFullYear(),
+                        customRange.endDate.getMonth(),
+                        customRange.endDate.getDate(),
+                    );
                     return {
-                        startDate: customRange.startDate,
-                        endDate: customRange.endDate,
+                        startDate: new Date(startCustom),
+                        endDate: new Date(endCustom),
                     };
                 }
                 return null;
@@ -209,21 +216,18 @@ export const LedgerScreen: React.FC = () => {
 
             const isCreditVariant =
                 isReceived || isSettled || isSettledAndAdded || isAddedBalance;
-
             const semanticColor: "success" | "danger" | "warning" =
                 isCreditVariant
                     ? "success"
                     : isMixedFunded
                       ? "warning"
                       : "danger";
-
             const colorValue =
                 semanticColor === "success"
                     ? colors.success
                     : semanticColor === "warning"
                       ? colors.warning
                       : colors.danger;
-
             const typeIcon = isCreditVariant
                 ? ("arrow-down-circle" as const)
                 : isMixedFunded
@@ -304,7 +308,6 @@ export const LedgerScreen: React.FC = () => {
         [colors, t],
     );
 
-    // --- NEW: Evaluate Initial Load Status ---
     if (!loadingEntries) {
         initialLoadDone.current = true;
     }
@@ -503,10 +506,9 @@ export const LedgerScreen: React.FC = () => {
     );
 };
 
-// ... Styles remain exactly the same as your previous version ...
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: Colors.background },
-    header: { paddingHorizontal: Spacing.lg, paddingVertical: 10 },
+    header: { paddingHorizontal: Spacing.md, paddingVertical: 10 },
     headerTopRow: {
         flexDirection: "row",
         alignItems: "center",
@@ -545,11 +547,10 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginLeft: Spacing.sm,
     },
-    searchContainer: { padding: Spacing.md },
     list: {
         flexGrow: 1,
-        paddingHorizontal: Spacing.sm,
-        paddingTop: Spacing.md,
+        paddingHorizontal: Spacing.md,
+        paddingTop: Spacing.sm,
     },
     emptyState: {
         flex: 1,
@@ -595,6 +596,5 @@ const styles = StyleSheet.create({
     },
     customerNameText: { flexShrink: 1, maxWidth: "50%" },
     rowRight: { alignItems: "flex-end", flexShrink: 0 },
-    center: { flex: 1, justifyContent: "center", alignItems: "center" },
     footer: { padding: Spacing.md, alignItems: "center" },
 });

@@ -1,7 +1,7 @@
-import { SQLiteDatabase } from "../db/types";
+import { SQLiteDatabase } from "expo-sqlite";
 import { CustomerId, StoreId, TransactionId } from "../models/types";
-import { logger } from "./LogService";
 import { deleteFromStorage } from "../utils/fileUtils";
+import { logger } from "./LogService";
 
 export interface TrashedCustomer {
     id: CustomerId;
@@ -35,24 +35,28 @@ export class TrashService {
         this.db = db;
     }
 
-    // ── Fetching ──────────────────────────────────────────────
-
     async getDeletedCustomers(storeId: StoreId): Promise<TrashedCustomer[]> {
         try {
             return await this.db.getAllAsync<TrashedCustomer>(
-                `SELECT id, name, phone, image_uri, deleted_at
-                 FROM customers
-                 WHERE is_deleted = 1 AND store_id = ?
+                `SELECT id, name, phone, image_uri, deleted_at 
+                 FROM customers 
+                 WHERE is_deleted = 1 AND store_id = ? 
                  ORDER BY deleted_at DESC`,
-                 [storeId]
+                [storeId],
             );
         } catch (error) {
-            void logger.error("trash", "Error fetching deleted customers", error);
+            void logger.error(
+                "trash",
+                "Error fetching deleted customers",
+                error,
+            );
             throw error;
         }
     }
 
-    async getDeletedTransactions(storeId: StoreId): Promise<TrashedTransaction[]> {
+    async getDeletedTransactions(
+        storeId: StoreId,
+    ): Promise<TrashedTransaction[]> {
         try {
             return await this.db.getAllAsync<TrashedTransaction>(
                 `SELECT t.id, t.account_id, t.type, t.amount, t.description,
@@ -64,10 +68,14 @@ export class TrashService {
                  JOIN customers c ON c.id = a.customer_id
                  WHERE t.is_deleted = 1 AND t.store_id = ?
                  ORDER BY t.deleted_at DESC`,
-                 [storeId]
+                [storeId],
             );
         } catch (error) {
-            void logger.error("trash", "Error fetching deleted transactions", error);
+            void logger.error(
+                "trash",
+                "Error fetching deleted transactions",
+                error,
+            );
             throw error;
         }
     }
@@ -76,11 +84,11 @@ export class TrashService {
         try {
             const cResult = await this.db.getFirstAsync<{ count: number }>(
                 "SELECT COUNT(*) as count FROM customers WHERE is_deleted = 1 AND store_id = ?",
-                [storeId]
+                [storeId],
             );
             const tResult = await this.db.getFirstAsync<{ count: number }>(
                 "SELECT COUNT(*) as count FROM transactions WHERE is_deleted = 1 AND store_id = ?",
-                [storeId]
+                [storeId],
             );
             return {
                 customers: cResult?.count ?? 0,
@@ -92,8 +100,6 @@ export class TrashService {
         }
     }
 
-    // ── Restore ───────────────────────────────────────────────
-
     async restoreCustomers(ids: CustomerId[]): Promise<void> {
         if (ids.length === 0) return;
         try {
@@ -102,7 +108,9 @@ export class TrashService {
                 `UPDATE customers SET is_deleted = 0, deleted_at = NULL WHERE id IN (${placeholders})`,
                 ids,
             );
-            void logger.info("trash", "Customers restored", { count: ids.length });
+            void logger.info("trash", "Customers restored", {
+                count: ids.length,
+            });
         } catch (error) {
             void logger.error("trash", "Error restoring customers", error);
             throw error;
@@ -113,58 +121,76 @@ export class TrashService {
         if (ids.length === 0) return;
         try {
             await this.db.withTransactionAsync(async () => {
-                for (const id of ids) {
-                    const tx = await this.db.getFirstAsync<{
-                        account_id: number;
-                        type: number;
-                        amount: number;
-                    }>(
-                        "SELECT account_id, type, amount FROM transactions WHERE id = ? AND is_deleted = 1",
-                        [id],
-                    );
-                    if (!tx) continue;
-                    // Re-apply the transaction effect: DEBIT (type=0) adds, CREDIT (type=1) subtracts
-                    const delta = tx.type === 0 ? tx.amount : -tx.amount;
-                    await this.db.runAsync(
-                        "UPDATE accounts SET current_balance = current_balance + ?, updated_at = strftime('%s', 'now') WHERE id = ?",
-                        [delta, tx.account_id],
-                    );
-                    await this.db.runAsync(
-                        "UPDATE transactions SET is_deleted = 0, deleted_at = NULL WHERE id = ?",
-                        [id],
-                    );
+                const selectStmt = await this.db.prepareAsync(
+                    "SELECT account_id, type, amount FROM transactions WHERE id = ? AND is_deleted = 1",
+                );
+                const updateAccountStmt = await this.db.prepareAsync(
+                    "UPDATE accounts SET current_balance = current_balance + ?, updated_at = strftime('%s', 'now') WHERE id = ?",
+                );
+                const updateTxStmt = await this.db.prepareAsync(
+                    "UPDATE transactions SET is_deleted = 0, deleted_at = NULL WHERE id = ?",
+                );
+
+                try {
+                    for (const id of ids) {
+                        const tx = await selectStmt.executeAsync<{
+                            account_id: number;
+                            type: number;
+                            amount: number;
+                        }>([id]);
+                        const row = await tx.getFirstAsync();
+                        if (!row) continue;
+
+                        const delta = row.type === 0 ? row.amount : -row.amount;
+                        await updateAccountStmt.executeAsync([
+                            delta,
+                            row.account_id,
+                        ]);
+                        await updateTxStmt.executeAsync([id]);
+                    }
+                } finally {
+                    await Promise.all([
+                        selectStmt.finalizeAsync(),
+                        updateAccountStmt.finalizeAsync(),
+                        updateTxStmt.finalizeAsync(),
+                    ]);
                 }
             });
-            void logger.info("trash", "Transactions restored", { count: ids.length });
+            void logger.info("trash", "Transactions restored", {
+                count: ids.length,
+            });
         } catch (error) {
             void logger.error("trash", "Error restoring transactions", error);
             throw error;
         }
     }
 
-    // ── Permanent Delete ──────────────────────────────────────
-
     async permanentDeleteCustomers(ids: CustomerId[]): Promise<void> {
         if (ids.length === 0) return;
         try {
             const placeholders = ids.map(() => "?").join(", ");
-            const rows = await this.db.getAllAsync<{ image_uri: string | null }>(
+            const rows = await this.db.getAllAsync<{
+                image_uri: string | null;
+            }>(
                 `SELECT image_uri FROM customers WHERE id IN (${placeholders}) AND is_deleted = 1`,
-                ids
+                ids,
             );
-
             await this.db.runAsync(
                 `DELETE FROM customers WHERE id IN (${placeholders}) AND is_deleted = 1`,
                 ids,
             );
-
             for (const row of rows) {
                 if (row.image_uri) await deleteFromStorage(row.image_uri);
             }
-
-            void logger.info("trash", "Customers permanently deleted", { count: ids.length });
+            void logger.info("trash", "Customers permanently deleted", {
+                count: ids.length,
+            });
         } catch (error) {
-            void logger.error("trash", "Error permanently deleting customers", error);
+            void logger.error(
+                "trash",
+                "Error permanently deleting customers",
+                error,
+            );
             throw error;
         }
     }
@@ -173,52 +199,59 @@ export class TrashService {
         if (ids.length === 0) return;
         try {
             const placeholders = ids.map(() => "?").join(", ");
-            const rows = await this.db.getAllAsync<{ image_uri: string | null; voice_uri: string | null }>(
+            const rows = await this.db.getAllAsync<{
+                image_uri: string | null;
+                voice_uri: string | null;
+            }>(
                 `SELECT image_uri, voice_uri FROM transactions WHERE id IN (${placeholders}) AND is_deleted = 1`,
-                ids
+                ids,
             );
-
-            // The trig_trans_delete_balance trigger won't fire because the balance was already
-            // reverted when the transaction was soft-deleted. Hard DELETE is safe here.
             await this.db.runAsync(
                 `DELETE FROM transactions WHERE id IN (${placeholders}) AND is_deleted = 1`,
                 ids,
             );
-
             for (const row of rows) {
                 if (row.image_uri) await deleteFromStorage(row.image_uri);
                 if (row.voice_uri) await deleteFromStorage(row.voice_uri);
             }
-
-            void logger.info("trash", "Transactions permanently deleted", { count: ids.length });
+            void logger.info("trash", "Transactions permanently deleted", {
+                count: ids.length,
+            });
         } catch (error) {
-            void logger.error("trash", "Error permanently deleting transactions", error);
+            void logger.error(
+                "trash",
+                "Error permanently deleting transactions",
+                error,
+            );
             throw error;
         }
     }
 
     async emptyTrash(storeId: StoreId): Promise<void> {
         try {
-            const cRows = await this.db.getAllAsync<{ image_uri: string | null }>(
+            const cRows = await this.db.getAllAsync<{
+                image_uri: string | null;
+            }>(
                 "SELECT image_uri FROM customers WHERE is_deleted = 1 AND store_id = ?",
-                [storeId]
+                [storeId],
             );
-            const tRows = await this.db.getAllAsync<{ image_uri: string | null; voice_uri: string | null }>(
+            const tRows = await this.db.getAllAsync<{
+                image_uri: string | null;
+                voice_uri: string | null;
+            }>(
                 "SELECT image_uri, voice_uri FROM transactions WHERE is_deleted = 1 AND store_id = ?",
-                [storeId]
+                [storeId],
             );
-
             await this.db.withTransactionAsync(async () => {
                 await this.db.runAsync(
                     "DELETE FROM customers WHERE is_deleted = 1 AND store_id = ?",
-                    [storeId]
+                    [storeId],
                 );
                 await this.db.runAsync(
                     "DELETE FROM transactions WHERE is_deleted = 1 AND store_id = ?",
-                    [storeId]
+                    [storeId],
                 );
             });
-
             for (const row of cRows) {
                 if (row.image_uri) await deleteFromStorage(row.image_uri);
             }
@@ -226,7 +259,6 @@ export class TrashService {
                 if (row.image_uri) await deleteFromStorage(row.image_uri);
                 if (row.voice_uri) await deleteFromStorage(row.voice_uri);
             }
-
             void logger.info("trash", "Trash emptied");
         } catch (error) {
             void logger.error("trash", "Error emptying trash", error);

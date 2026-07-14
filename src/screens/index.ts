@@ -15,3 +15,4 @@ export { SettingsScreen } from "./SettingsScreen";
 export { StoresScreen } from "./StoresScreen";
 export { TermsOfUseScreen } from "./TermsOfUseScreen";
 export { TrashScreen } from "./TrashScreen";
+export { default as RemindersScreen } from "./RemindersScreen";

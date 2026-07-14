@@ -1,5 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import Constants from "expo-constants";
+import * as FileSystem from "expo-file-system/legacy";
+import * as MailComposer from "expo-mail-composer";
 import { useRouter } from "expo-router";
 import * as SMS from "expo-sms";
 import React, { useCallback, useMemo, useState } from "react";
@@ -24,6 +26,7 @@ type FeedbackCategory = "feedback" | "suggestion" | "bug" | "error" | "other";
 
 const CONTACT_PHONE = "923317947676";
 const CONTACT_EMAIL = "faizullahofficial0@gmail.com";
+
 const CATEGORIES: FeedbackCategory[] = [
     "feedback",
     "suggestion",
@@ -38,6 +41,7 @@ export const FeedbackScreen: React.FC = () => {
     const { t } = useTranslation();
     const { colors } = useTheme();
     const { language } = useLanguage();
+
     const [category, setCategory] = useState<FeedbackCategory>();
     const [subject, setSubject] = useState("");
     const [details, setDetails] = useState("");
@@ -60,6 +64,7 @@ export const FeedbackScreen: React.FC = () => {
     const buildLogsSection = useCallback(async (compact = false) => {
         const entries = await logService.getLogs();
         if (entries.length === 0) return "";
+
         if (compact) {
             const counts: Record<string, number> = {};
             for (const entry of entries) {
@@ -72,6 +77,7 @@ export const FeedbackScreen: React.FC = () => {
                 .join(", ");
             return `\n\nLogs: ${entries.length} total (${summary})`;
         }
+
         const logText = entries.slice(0, 50).map(formatLogEntry).join("\n");
         return `\n\n---\nRecent logs (latest ${Math.min(50, entries.length)} of ${entries.length}):\n${logText}`;
     }, []);
@@ -84,14 +90,38 @@ export const FeedbackScreen: React.FC = () => {
         return hasCategory && hasDetails;
     };
 
+    const generateLogFile = async () => {
+        if (!includeLogs) return null;
+        const entries = await logService.getLogs();
+        if (entries.length === 0) return null;
+
+        const logText = entries.map(formatLogEntry).join("\n");
+        const directory = FileSystem.cacheDirectory;
+        if (!directory) return null;
+
+        const fileUri = directory + "app_logs.txt";
+        await FileSystem.writeAsStringAsync(fileUri, logText, {
+            encoding: FileSystem.EncodingType.UTF8,
+        });
+        return fileUri;
+    };
+
     const buildMessage = useCallback(
-        async (compactLogs = false) => {
+        async (compactLogs = false, forEmailAttachment = false) => {
             const selectedCategory = category
                 ? t(`feedback.categories.${category}`)
                 : "";
-            const logsSection = includeLogs
-                ? await buildLogsSection(compactLogs)
-                : "";
+
+            let logsSection = "";
+            if (includeLogs) {
+                if (forEmailAttachment) {
+                    logsSection =
+                        "\n\n[Diagnostic logs are attached to this email as a file]";
+                } else {
+                    logsSection = await buildLogsSection(compactLogs);
+                }
+            }
+
             return [
                 "KhataBook Feedback & Support",
                 "",
@@ -117,22 +147,24 @@ export const FeedbackScreen: React.FC = () => {
         ],
     );
 
-    const showUnavailable = () =>
+    const showUnavailable = (platform: string) =>
         Alert.alert(
-            t("feedback.unavailableTitle"),
-            t("feedback.unavailableMessage"),
+            t("feedback.unavailableTitle", `${platform} Unavailable`),
+            t(
+                "feedback.unavailableMessage",
+                `We could not open ${platform}. Please ensure the application is installed on your device.`,
+            ),
         );
 
     const openWhatsApp = async () => {
         if (!validate()) return;
         setIsOpening(true);
         try {
-            const message = await buildMessage(false);
-            await Linking.openURL(
-                `whatsapp://send?phone=${CONTACT_PHONE}&text=${encodeURIComponent(message)}`,
-            );
-        } catch {
-            showUnavailable();
+            const message = await buildMessage(true, false);
+            const url = `whatsapp://send?phone=${CONTACT_PHONE}&text=${encodeURIComponent(message)}`;
+            await Linking.openURL(url);
+        } catch (error) {
+            showUnavailable("WhatsApp");
         } finally {
             setIsOpening(false);
         }
@@ -142,22 +174,37 @@ export const FeedbackScreen: React.FC = () => {
         if (!validate()) return;
         setIsOpening(true);
         try {
-            const message = await buildMessage(false);
             const emailSubject =
                 subject.trim() ||
                 t("feedback.defaultEmailSubject", {
                     category: category
                         ? t(`feedback.categories.${category}`)
-                        : "",
+                        : "Feedback",
                 });
-            const url = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(message)}`;
-            if (!(await Linking.canOpenURL(url))) {
-                showUnavailable();
-                return;
-            }
-            await Linking.openURL(url);
-        } catch {
-            showUnavailable();
+
+            try {
+                const isAvailable = await MailComposer.isAvailableAsync();
+                if (isAvailable) {
+                    const logFileUri = await generateLogFile();
+                    const message = await buildMessage(false, !!logFileUri);
+
+                    await MailComposer.composeAsync({
+                        recipients: [CONTACT_EMAIL],
+                        subject: emailSubject,
+                        body: message,
+                        attachments: logFileUri ? [logFileUri] : undefined,
+                    });
+                    setIsOpening(false);
+                    return;
+                }
+            } catch (composerError) {}
+
+            const fallbackMessage = await buildMessage(true, false);
+            const fallbackUrl = `mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(fallbackMessage)}`;
+
+            await Linking.openURL(fallbackUrl);
+        } catch (error) {
+            showUnavailable("Email");
         } finally {
             setIsOpening(false);
         }
@@ -167,14 +214,21 @@ export const FeedbackScreen: React.FC = () => {
         if (!validate()) return;
         setIsOpening(true);
         try {
-            if (!(await SMS.isAvailableAsync())) {
-                showUnavailable();
-                return;
-            }
-            const message = await buildMessage(true);
-            await SMS.sendSMSAsync(`+${CONTACT_PHONE}`, message);
-        } catch {
-            showUnavailable();
+            const message = await buildMessage(true, false);
+
+            try {
+                const isAvailable = await SMS.isAvailableAsync();
+                if (isAvailable) {
+                    await SMS.sendSMSAsync([CONTACT_PHONE], message);
+                    setIsOpening(false);
+                    return;
+                }
+            } catch (smsError) {}
+
+            const fallbackUrl = `sms:${CONTACT_PHONE}?body=${encodeURIComponent(message)}`;
+            await Linking.openURL(fallbackUrl);
+        } catch (error) {
+            showUnavailable("SMS");
         } finally {
             setIsOpening(false);
         }
@@ -220,7 +274,9 @@ export const FeedbackScreen: React.FC = () => {
                 <Typography variant="heading-medium">
                     {t("feedback.title")}
                 </Typography>
+                <View style={{ width: 34 }} />
             </View>
+
             <KeyboardAvoidingView
                 style={styles.content}
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -236,7 +292,13 @@ export const FeedbackScreen: React.FC = () => {
                     <Typography color="muted">
                         {t("feedback.subtitle")}
                     </Typography>
-                    <Card style={styles.card}>
+
+                    <Card
+                        style={[
+                            styles.card,
+                            { backgroundColor: colors.surface },
+                        ]}
+                    >
                         <Typography variant="subheading-small">
                             {t("feedback.category")}
                         </Typography>
@@ -251,6 +313,7 @@ export const FeedbackScreen: React.FC = () => {
                                           : item === "suggestion"
                                             ? colors.success
                                             : colors.primary;
+
                                 return (
                                     <Pressable
                                         key={item}
@@ -307,6 +370,7 @@ export const FeedbackScreen: React.FC = () => {
                                 {t("feedback.categoryRequired")}
                             </Typography>
                         )}
+
                         <Typography variant="subheading-small">
                             {t("feedback.subject")}
                         </Typography>
@@ -315,6 +379,7 @@ export const FeedbackScreen: React.FC = () => {
                             onChangeText={setSubject}
                             placeholder={t("feedback.subjectPlaceholder")}
                         />
+
                         <Typography variant="subheading-small">
                             {t("feedback.details")}
                         </Typography>
@@ -335,6 +400,7 @@ export const FeedbackScreen: React.FC = () => {
                             </Typography>
                         )}
                     </Card>
+
                     <Pressable
                         onPress={() => setIncludeLogs((prev) => !prev)}
                         style={[
@@ -374,9 +440,11 @@ export const FeedbackScreen: React.FC = () => {
                             </Typography>
                         </View>
                     </Pressable>
+
                     <Typography color="muted" variant="small-small">
                         {t("feedback.privacyNote")}
                     </Typography>
+
                     <View style={styles.actions}>
                         <Pressable
                             onPress={() => {
@@ -440,7 +508,7 @@ export const FeedbackScreen: React.FC = () => {
                         } else {
                             void openSms();
                         }
-                    }, 250);
+                    }, 350);
                 }}
                 onClose={() => setShowSendModal(false)}
             />
@@ -453,6 +521,7 @@ const styles = StyleSheet.create({
     header: {
         flexDirection: "row",
         alignItems: "center",
+        justifyContent: "space-between",
         gap: Spacing.md,
         paddingHorizontal: Spacing.lg,
         paddingVertical: 10,
@@ -466,7 +535,13 @@ const styles = StyleSheet.create({
     },
     content: { flex: 1 },
     scrollContent: { padding: Spacing.lg, gap: Spacing.md },
-    card: { gap: Spacing.sm, padding: Spacing.lg },
+    card: {
+        gap: Spacing.sm,
+        padding: Spacing.lg,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: "transparent",
+    },
     categories: { flexDirection: "row", flexWrap: "wrap", gap: Spacing.sm },
     category: {
         flexDirection: "row",

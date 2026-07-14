@@ -1,75 +1,75 @@
 {
-    "expo": {
-        "name": "KhataBook",
-        "slug": "khatabook",
-        "version": "9.3.3",
-        "orientation": "portrait",
-        "icon": "./assets/images/app-logo-without-bg.png",
-        "scheme": "khatabook",
-        "userInterfaceStyle": "automatic",
-        "newArchEnabled": true,
-        "ios": {
-            "supportsTablet": true,
-            "bundleIdentifier": "com.faizullahkhan.khatabook"
-        },
-        "android": {
-            "allowBackup": false,
-            "adaptiveIcon": {
-                "backgroundColor": "#E6F4FE",
-                "foregroundImage": "./assets/images/app-logo-without-bg.png",
-                "monochromeImage": "./assets/images/app-logo-without-bg.png"
-            },
-            "edgeToEdgeEnabled": true,
-            "predictiveBackGestureEnabled": false,
-            "package": "com.faizullahkhan.khatabook"
-        },
-        "web": {
-            "output": "static",
-            "favicon": "./assets/images/app-logo.png"
-        },
-        "plugins": [
-            "expo-router",
-            [
-                "expo-splash-screen",
-                {
-                    "image": "./assets/images/app-logo.png",
-                    "imageWidth": 200,
-                    "resizeMode": "contain",
-                    "backgroundColor": "#ffffff",
-                    "dark": {
-                        "backgroundColor": "#000000"
-                    }
-                }
-            ],
-            "expo-secure-store",
-            [
-                "expo-audio",
-                {
-                    "microphonePermission": "Allow KhataBook to access your microphone for voice recordings."
-                }
-            ],
-            [
-                "expo-local-authentication",
-                {
-                    "faceIDPermission": "Allow KhataBook to use Face ID to unlock the app."
-                }
-            ],
-            [
-                "@react-native-google-signin/google-signin",
-                {
-                    "iosUrlScheme": "com.googleusercontent.apps.72923726304-d6uiitli0gf9no335r98dtpvtmic9tnd"
-                }
-            ]
-        ],
-        "experiments": {
-            "typedRoutes": true,
-            "reactCompiler": true
-        },
-        "extra": {
-            "router": {},
-            "eas": {
-                "projectId": "4567ad85-e91e-470d-8eff-cefcd84fbc93"
-            }
+  "expo": {
+    "name": "KhataBook",
+    "slug": "khatabook",
+    "version": "9.3.3",
+    "orientation": "portrait",
+    "icon": "./assets/images/app-logo-without-bg.png",
+    "scheme": "khatabook",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.faizullahkhan.khatabook"
+    },
+    "android": {
+      "allowBackup": false,
+      "adaptiveIcon": {
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/images/app-logo-without-bg.png"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.faizullahkhan.khatabook"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/app-logo.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/app-logo.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
         }
+      ],
+      "expo-secure-store",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow KhataBook to access your microphone for voice recordings."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow KhataBook to use Face ID to unlock the app."
+        }
+      ],
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.72923726304-d6uiitli0gf9no335r98dtpvtmic9tnd"
+        }
+      ],
+      "expo-mail-composer"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "4567ad85-e91e-470d-8eff-cefcd84fbc93"
+      }
     }
+  }
 }

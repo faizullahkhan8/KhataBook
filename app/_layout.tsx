@@ -8,8 +8,40 @@ import {
 } from "@/store";
 import { DatabaseSecurityGate, PasscodeGate } from "@/components";
 import { GoogleAuthProvider } from "../src/context/GoogleAuthContext";
+import * as Notifications from "expo-notifications";
+import { useEffect } from "react";
+import { Platform } from "react-native";
+
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+    }),
+});
 
 export default function RootLayout() {
+    useEffect(() => {
+        const setupNotifications = async () => {
+            if (Platform.OS === 'android') {
+                await Notifications.setNotificationChannelAsync('reminders-high', {
+                    name: 'Reminders',
+                    importance: 4, // AndroidImportance.HIGH
+                    vibrationPattern: [0, 250, 250, 250],
+                    lightColor: '#FF231F7C',
+                });
+            }
+            const { status: existingStatus } = await Notifications.getPermissionsAsync();
+            let finalStatus = existingStatus;
+            if (existingStatus !== 'granted') {
+                const { status } = await Notifications.requestPermissionsAsync();
+                finalStatus = status;
+            }
+        };
+        setupNotifications();
+    }, []);
+
     return (
         <GoogleAuthProvider>
             <LanguageProvider>
@@ -77,6 +109,14 @@ export default function RootLayout() {
                                     <Stack.Screen
                                         name="logs"
                                         options={{ headerShown: false }}
+                                    />
+                                    <Stack.Screen
+                                        name="reminders"
+                                        options={{ headerShown: false }}
+                                    />
+                                    <Stack.Screen
+                                        name="add-reminder"
+                                        options={{ headerShown: false, presentation: 'modal' }}
                                     />
                                     <Stack.Screen
                                         name="settings/trash"

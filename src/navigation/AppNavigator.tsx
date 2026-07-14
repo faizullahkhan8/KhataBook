@@ -1,5 +1,5 @@
 import { Spacing } from "@/constants";
-import { CustomersScreen, LedgerScreen, SettingsScreen } from "@/screens";
+import { CustomersScreen, LedgerScreen, SettingsScreen, RemindersScreen } from "@/screens";
 import { useTheme } from "@/store";
 import { Ionicons } from "@expo/vector-icons";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
@@ -67,6 +67,15 @@ export const AppNavigator = () => {
                 options={{
                     tabBarIcon: ({ color }) => (
                         <Ionicons name="book" size={22} color={color} />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="Reminders"
+                component={RemindersScreen}
+                options={{
+                    tabBarIcon: ({ color }) => (
+                        <Ionicons name="notifications" size={22} color={color} />
                     ),
                 }}
             />

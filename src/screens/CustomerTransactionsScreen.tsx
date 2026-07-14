@@ -42,7 +42,8 @@ type HeaderMenuOption =
     | "edit"
     | "delete"
     | "send-sms"
-    | "send-whatsapp";
+    | "send-whatsapp"
+    | "set-reminder";
 
 export const CustomerTransactionsScreen: React.FC = () => {
     const { customerId } = useLocalSearchParams<{ customerId: string }>();
@@ -187,6 +188,12 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 icon: "logo-whatsapp" as const,
                 disabled: !customer?.phone,
             },
+            {
+                value: "set-reminder" as const,
+                label: "Set Reminder",
+                icon: "alarm-outline" as const,
+                disabled: !customer?.id,
+            },
         ],
         [
             account?.id,
@@ -296,6 +303,10 @@ export const CustomerTransactionsScreen: React.FC = () => {
                 break;
             case "send-whatsapp":
                 void handleSendWhatsapp();
+                break;
+            case "set-reminder":
+                setIsMenuVisible(false);
+                router.push(`/add-reminder?customerId=${customer?.id}` as any);
                 break;
         }
     };

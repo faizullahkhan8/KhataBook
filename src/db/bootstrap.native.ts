@@ -21,6 +21,7 @@ const APP_TABLES = [
     "customer_order",
     "app_metadata",
     "message_templates",
+    "reminders",
 ];
 interface DatabaseSnapshot {
     counts: Record<string, number>;

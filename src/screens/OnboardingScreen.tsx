@@ -4,14 +4,14 @@ import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, ScrollView, StyleSheet, Switch, View } from "react-native";
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import appLogo from "../../assets/images/app-logo-without-bg.png";
 import { Button, Card, Typography } from "../components";
 import { STORAGE_KEYS, Spacing } from "../constants";
-import { ThemeMode, useLanguage, usePasscode, useTheme } from "../store";
+import { ThemeMode, useLanguage, usePasscode, useTheme, useStoreContext } from "../store";
 
-type OnboardingStep = "welcome" | "security" | "legal";
+type OnboardingStep = "welcome" | "storeSetup" | "security" | "legal";
 
 const THEME_OPTIONS: {
     mode: ThemeMode;
@@ -29,6 +29,7 @@ export const OnboardingScreen: React.FC = () => {
     const { t } = useTranslation();
     const { colors, mode, setMode } = useTheme();
     const { language, setLanguage } = useLanguage();
+    const { activeStoreId, updateStore } = useStoreContext();
     const {
         isEnabled: isPasscodeEnabled,
         biometricEnabled,
@@ -39,6 +40,7 @@ export const OnboardingScreen: React.FC = () => {
 
     const [step, setStep] = useState<OnboardingStep>("welcome");
     const [acceptedAgreement, setAcceptedAgreement] = useState(false);
+    const [storeName, setStoreName] = useState("");
 
     useEffect(() => {
         if (params.step === "security") {
@@ -52,6 +54,11 @@ export const OnboardingScreen: React.FC = () => {
 
     const completeOnboarding = async () => {
         if (!canStart) return;
+        
+        if (storeName.trim() && activeStoreId) {
+            await updateStore(activeStoreId, { name: storeName.trim() });
+        }
+
         await AsyncStorage.setItem(STORAGE_KEYS.onboardingCompleted, "true");
         router.replace("/" as any);
     };
@@ -183,7 +190,55 @@ export const OnboardingScreen: React.FC = () => {
 
             <Button
                 title={t("onboarding.getStarted")}
+                onPress={() => setStep("storeSetup")}
+            />
+        </View>
+    );
+
+    const renderStoreSetup = () => (
+        <View style={styles.screenContent}>
+            <View style={styles.hero}>
+                <View style={[styles.heroIconWrap, { backgroundColor: `${colors.primary}15` }]}>
+                    <Ionicons name="storefront" size={64} color={colors.primary} />
+                </View>
+                <Typography
+                    variant="heading-large"
+                    color="primary"
+                    style={styles.centerText}
+                >
+                    Business Name
+                </Typography>
+                <Typography
+                    variant="body-medium"
+                    color="muted"
+                    style={styles.centerText}
+                >
+                    What's the name of your store or business?
+                </Typography>
+            </View>
+
+            <View style={styles.storeInputContainer}>
+                <TextInput
+                    style={[
+                        styles.storeInput,
+                        {
+                            color: colors.text.primary,
+                            borderColor: storeName.trim().length >= 3 ? colors.primary : colors.border,
+                            backgroundColor: colors.surface,
+                        },
+                    ]}
+                    placeholder="e.g. KhataBook Super Mart"
+                    placeholderTextColor={colors.text.muted}
+                    value={storeName}
+                    onChangeText={setStoreName}
+                    autoFocus
+                />
+            </View>
+
+            <Button
+                title={t("common.next", "Next")}
                 onPress={() => setStep("security")}
+                disabled={storeName.trim().length < 3}
             />
         </View>
     );
@@ -335,7 +390,7 @@ export const OnboardingScreen: React.FC = () => {
                 <Button
                     title={t("passcode.back")}
                     variant="secondary"
-                    onPress={() => setStep("welcome")}
+                    onPress={() => setStep("storeSetup")}
                     style={styles.actionButton}
                 />
                 <Button
@@ -463,8 +518,9 @@ export const OnboardingScreen: React.FC = () => {
     );
 
     return (
-        <View
+        <KeyboardAvoidingView
             style={[styles.container, { backgroundColor: colors.background }]}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
             <ScrollView
                 contentContainerStyle={[
@@ -478,11 +534,13 @@ export const OnboardingScreen: React.FC = () => {
             >
                 {step === "welcome"
                     ? renderWelcome()
-                    : step === "security"
-                      ? renderSecurity()
-                      : renderLegal()}
+                    : step === "storeSetup"
+                      ? renderStoreSetup()
+                      : step === "security"
+                        ? renderSecurity()
+                        : renderLegal()}
             </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
     );
 };
 
@@ -512,6 +570,26 @@ const styles = StyleSheet.create({
     logo: {
         width: 132,
         height: 132,
+    },
+    heroIconWrap: {
+        width: 100,
+        height: 100,
+        borderRadius: 50,
+        alignItems: "center",
+        justifyContent: "center",
+        marginBottom: Spacing.sm,
+    },
+    storeInputContainer: {
+        width: "100%",
+    },
+    storeInput: {
+        height: 60,
+        borderWidth: 1.5,
+        borderRadius: 12,
+        paddingHorizontal: Spacing.lg,
+        fontSize: 18,
+        fontWeight: "600",
+        textAlign: "center",
     },
     centerText: {
         textAlign: "center",
